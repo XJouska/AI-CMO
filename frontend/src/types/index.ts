@@ -22,9 +22,12 @@ export interface ProductInfo {
   content: string;
   product_name: string;
   product_type: string;
+  description?: string;
+  target_audience?: string[];
 }
 
 export interface Recommendation {
+  id?: string;
   rank: number;
   platform: string;
   url: string;
@@ -49,6 +52,12 @@ export interface Recommendation {
 
 export interface OverallStrategy {
   priority_actions?: string[];
+  market_insights?: string;
+  content_angles?: string[];
+  hot_topics?: string[];
+  user_pain_points?: string[];
+  competitor_mentions?: string[];
+  platform_breakdown?: Record<string, string>;
   weekly_plan?: string;
   content_calendar?: string;
   kpi_targets?: string;

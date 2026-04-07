@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ExternalLink, Copy, Check, ThumbsUp, ThumbsDown, MessageCircle, Eye, Calendar, AlertTriangle, Shield, Lock, TrendingUp } from 'lucide-react';
+import { ExternalLink, Copy, Check, ThumbsUp, ThumbsDown, MessageCircle, Eye, Calendar, AlertTriangle, Shield, Lock, TrendingUp, Sparkles } from 'lucide-react';
 import api from '../api';
+import ContentWriter from './ContentWriter';
 import type { Recommendation } from '../types';
 
 interface RecommendCardProps {
@@ -9,17 +10,19 @@ interface RecommendCardProps {
   isPremium: boolean;
   index: number;
   onUpgradeClick?: () => void;
+  conversationId?: string;
 }
 
-export default function RecommendCard({ recommendation: rec, isPremium, index, onUpgradeClick }: RecommendCardProps) {
+export default function RecommendCard({ recommendation: rec, isPremium, index, onUpgradeClick, conversationId }: RecommendCardProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<boolean | null>(null);
+  const [showWriter, setShowWriter] = useState(false);
   const isLocked = rec.is_premium_only && !isPremium;
 
   const handleFeedback = async (isUseful: boolean) => {
     setFeedback(isUseful);
-    try { await api.post(`/api/v1/feedback/recommendations/${rec.url}`, { is_useful: isUseful }); } catch { /* ignore */ }
+    try { await api.post(`/api/v1/feedback/recommendations/${rec.id || rec.url}`, { is_useful: isUseful }); } catch { /* ignore */ }
   };
 
   const handleCopy = () => {
@@ -133,6 +136,11 @@ export default function RecommendCard({ recommendation: rec, isPremium, index, o
               {copied ? <><Check size={13} /> {t('common.copied')}</> : <><Copy size={13} /> {t('result.copyComment')}</>}
             </button>
           )}
+          {conversationId && (
+            <button className="btn" onClick={() => setShowWriter(true)} style={{ fontSize: '0.75rem' }}>
+              <Sparkles size={13} /> {t('content.generate')}
+            </button>
+          )}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.25rem' }}>
             <button className={`btn-icon ${feedback === true ? 'feedback-active' : ''}`}
               onClick={() => handleFeedback(true)} title={t('result.useful')}
@@ -147,6 +155,9 @@ export default function RecommendCard({ recommendation: rec, isPremium, index, o
           </div>
         </div>
       </div>
+      {showWriter && conversationId && (
+        <ContentWriter conversationId={conversationId} platform={rec.platform} onClose={() => setShowWriter(false)} />
+      )}
     </div>
   );
 }

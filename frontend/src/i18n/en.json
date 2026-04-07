@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "AI-CMO",
-    "tagline": "AI Marketing Command Center",
+    "tagline": "Your Best Marketing Assistant",
     "loading": "Loading...",
     "error": "An error occurred",
     "cancel": "Cancel",
@@ -18,7 +18,8 @@
     "analyze": "Analyze",
     "competitors": "Competitors",
     "geo": "GEO Tracking",
-    "settings": "Settings"
+    "settings": "Settings",
+    "seo": "SEO Health"
   },
   "auth": {
     "login": "Login",
@@ -114,7 +115,7 @@
     "recharge": "Recharge",
     "packages": "Credit Packages",
     "perAnalysis": "1 credit per analysis",
-    "upgrade": "Upgrade to Premium"
+    "upgrade": "Upgrade"
   },
   "competitors": {
     "add": "Add Competitor",
@@ -124,16 +125,36 @@
     "description": "Description",
     "descPlaceholder": "Brief description of the competitor...",
     "empty": "No competitors tracked",
-    "emptyDesc": "Add competitors to track and compare their marketing strategies."
+    "emptyDesc": "Add competitors to track and compare their marketing strategies.",
+    "discover": "Auto-Discover",
+    "discoverDesc": "Let AI find competitors based on your product",
+    "analyze": "Analyze",
+    "comparison": "Comparison Overview",
+    "addSuggested": "Add"
   },
   "geo": {
     "title": "GEO Visibility Tracking",
     "description": "Track how your brand appears across AI search engines and conversational AI platforms.",
-    "comingSoon": "Coming soon — this feature is under development."
+    "comingSoon": "Coming soon — this feature is under development.",
+    "brandName": "Brand Name",
+    "keywords": "Keywords",
+    "keywordsPlaceholder": "Enter keywords separated by commas...",
+    "startScan": "Scan Visibility",
+    "scanning": "Scanning...",
+    "overallScore": "Overall Visibility",
+    "platformStatus": "Platform Status",
+    "mentioned": "Mentioned",
+    "notFound": "Not Found",
+    "partial": "Partial",
+    "history": "Scan History",
+    "noScans": "No scans yet. Enter your brand name to check AI visibility.",
+    "websiteUrl": "Website URL",
+    "formHint": "Enter your brand name and website URL. We'll check if AI platforms (Perplexity, Google AI, Bing Copilot) mention your brand and link to your site.",
+    "linkCited": "Website link cited"
   },
   "settings": {
     "responseLanguage": "AI Response Language",
-    "responseLanguageDesc": "Choose the language for AI analysis results and recommendations. This is separate from the interface language.",
+    "responseLanguageDesc": "Choose the language for AI analysis results and recommendations.",
     "interfaceLanguage": "Interface Language",
     "interfaceLanguageDesc": "Choose the language for buttons, labels, and navigation.",
     "brandVoice": "Brand Voice",
@@ -145,6 +166,80 @@
     "createKey": "Create Key",
     "apiKeyWarning": "Save this key securely — it won't be shown again.",
     "revoked": "Revoked",
-    "saved": "Settings saved!"
+    "saved": "Settings saved!",
+    "primaryUrl": "Primary Product URL",
+    "primaryUrlDesc": "Set your main product URL for automatic daily SEO monitoring and GEO tracking.",
+    "primaryUrlPlaceholder": "https://yourproduct.com"
+  },
+  "seo": {
+    "title": "SEO Health Check",
+    "urlPlaceholder": "Enter website URL to check...",
+    "startCheck": "Check SEO",
+    "checking": "Checking...",
+    "performanceScore": "Performance",
+    "seoScore": "SEO Score",
+    "issues": "Issues Found",
+    "passed": "Passed Checks",
+    "history": "Check History"
+  },
+  "content": {
+    "generate": "Generate Content",
+    "generating": "Generating...",
+    "type": "Content Type",
+    "comment": "Comment/Reply",
+    "post": "Forum Post",
+    "blog": "Blog Article",
+    "tweet": "Tweet/Thread",
+    "copyContent": "Copy Content",
+    "regenerate": "Regenerate"
+  },
+  "terminal": {
+    "title": "AI CMO Terminal",
+    "running": "Running",
+    "noLogs": "No activity logs yet"
+  },
+  "loading": {
+    "step1": "Analyze",
+    "step2": "Strategy",
+    "step3": "Search",
+    "step4": "Evaluate",
+    "step5": "Recommend",
+    "step6": "Strategy",
+    "analyzing": "Analyzing...",
+    "productAnalyzing": "Analyzing product",
+    "productHint": "AI is identifying product type, target audience, and keywords...",
+    "strategyReady": "Search strategy ready",
+    "searching": "Searching {{count}} platforms",
+    "results": "results",
+    "items": "items",
+    "searchingDots": "Searching...",
+    "ranking": "Ranking {{count}} items by promotion value",
+    "rankingHint": "Dimensions: engagement · recency · relevance · potential · audience fit",
+    "deepAnalysis": "Deep analyzing top recommendations",
+    "deepHint": "Generating promotion rationale, optimal timing, and engagement copy...",
+    "genStrategy": "Generating strategy",
+    "strategyHint": "Generating weekly plan, KPI targets, and market insights..."
+  },
+  "strategy": {
+    "hotTopics": "Trending Topics",
+    "painPoints": "User Pain Points",
+    "competitors": "Competitors Mentioned",
+    "contentAngles": "Content Angles",
+    "platformInsights": "Platform Insights",
+    "collapse": "Collapse details",
+    "showMore": "Show weekly plan & KPI"
+  },
+  "actionList": {
+    "exposureTip": "Estimated additional exposure your comment could bring to your product, based on this post's engagement level",
+    "postStats": "Original Post Stats",
+    "views": "views",
+    "upvotes": "upvotes",
+    "comments": "comments"
+  },
+  "valueBanner": {
+    "label": "estimated exposure from your comments",
+    "spots": "spots",
+    "platforms": "platforms",
+    "avgScore": "avg"
   }
 }

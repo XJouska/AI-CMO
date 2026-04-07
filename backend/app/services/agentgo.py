@@ -49,15 +49,30 @@ class AgentGoService:
             await page.wait_for_timeout(2000)
 
             title = await page.title()
-            content = await page.evaluate("() => document.body.innerText")
+
+            # Safe innerText extraction — document.body can be null on some pages
+            content = await page.evaluate("""() => {
+                if (!document.body) return '';
+                return document.body.innerText || '';
+            }""")
 
             # If content too short, try waiting longer (SPA may still be rendering)
             if len(content.strip()) < 100:
                 logger.info(f"[AgentGo] Content too short ({len(content)} chars), waiting for SPA render...")
                 await page.wait_for_timeout(3000)
-                content = await page.evaluate("() => document.body.innerText")
+                content = await page.evaluate("""() => {
+                    if (!document.body) return '';
+                    return document.body.innerText || '';
+                }""")
 
-            # Also grab meta description as fallback context
+            # Second SPA retry with longer wait for stubborn SPAs
+            if len(content.strip()) < 100:
+                await page.wait_for_timeout(5000)
+                content = await page.evaluate("""() => {
+                    if (!document.body) return '';
+                    return document.body.innerText || '';
+                }""")
+
             meta_desc = await page.evaluate("""() => {
                 const m = document.querySelector('meta[name="description"]') || document.querySelector('meta[property="og:description"]');
                 return m ? m.getAttribute('content') : '';
@@ -68,10 +83,11 @@ class AgentGoService:
             }""")
 
             links = await page.evaluate("""() => {
+                if (!document.body) return [];
                 return Array.from(document.querySelectorAll('a[href]')).map(a => ({
                     href: a.href,
                     text: (a.textContent || '').trim().substring(0, 200)
-                })).filter(l => l.href.startsWith('http')).slice(0, 80)
+                })).filter(l => l.href.startsWith('http')).slice(0, 100)
             }""")
 
             full_content = content[:8000]
@@ -100,14 +116,16 @@ class AgentGoService:
             except: pass
 
     async def _httpx_fallback(self, url: str) -> dict:
-        """Simple HTTP fallback when Playwright/AgentGo fails. Parses HTML meta tags."""
+        """HTTP fallback when Playwright fails. Extracts text, meta tags AND links from HTML."""
         try:
             logger.info(f"[Fallback] HTTP fetch: {url[:60]}")
             async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
                 resp = await client.get(url, headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.5",
                 })
-                html = resp.text[:50000]
+                html = resp.text[:80000]
 
             def extract_meta(html: str, attr: str, value: str) -> str:
                 pattern = f'<meta[^>]*{attr}=["\']?{re.escape(value)}["\']?[^>]*content=["\']([^"\']+)["\']'
@@ -125,11 +143,22 @@ class AgentGoService:
             og_desc = extract_meta(html, "property", "og:description")
             keywords = extract_meta(html, "name", "keywords")
 
+            # Extract links from HTML — critical for parsers to work
+            links = []
+            link_pattern = re.compile(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.DOTALL | re.IGNORECASE)
+            for m in link_pattern.finditer(html):
+                href = m.group(1).strip()
+                link_text = re.sub(r'<[^>]+>', '', m.group(2)).strip()[:200]
+                if href.startswith('http') and link_text:
+                    links.append({"href": href, "text": link_text})
+                if len(links) >= 100:
+                    break
+
             # Strip HTML tags for a rough text extraction
             text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<[^>]+>', ' ', text)
-            text = re.sub(r'\s+', ' ', text).strip()[:3000]
+            text = re.sub(r'\s+', ' ', text).strip()[:5000]
 
             content_parts = []
             if og_title:
@@ -145,14 +174,14 @@ class AgentGoService:
             content_parts.append(f"\n{text}")
 
             full_content = "\n".join(content_parts)
-            logger.info(f"[Fallback] OK: {url[:60]} ({len(full_content)} chars)")
+            logger.info(f"[Fallback] OK: {url[:60]} ({len(full_content)} chars, {len(links)} links)")
 
             return {
                 "success": True,
                 "data": {
                     "markdown": full_content,
                     "title": title or og_title or "",
-                    "links": [],
+                    "links": links,
                     "url": url,
                 }
             }
@@ -162,6 +191,8 @@ class AgentGoService:
 
     async def scrape_url(self, url: str) -> dict:
         """Scrape a single URL with caching. AgentGo first, httpx fallback."""
+        if url and not url.startswith(("http://", "https://")):
+            url = f"https://{url}"
         cache_key = hashlib.md5(url.encode()).hexdigest()
         if cache_key in self._cache:
             logger.info(f"[AgentGo] Cache hit: {url[:60]}")
@@ -176,7 +207,20 @@ class AgentGoService:
 
             if md_len < 50:
                 logger.info(f"[AgentGo] Content too short, trying httpx fallback...")
-                result = await self._httpx_fallback(url)
+                fallback = await self._httpx_fallback(url)
+                if fallback.get("success"):
+                    result = fallback
+            elif link_count == 0 and md_len < 200:
+                # Playwright got minimal content with no links — supplement with httpx
+                logger.info(f"[AgentGo] Few links, supplementing with httpx fallback...")
+                fallback = await self._httpx_fallback(url)
+                if fallback.get("success"):
+                    fb_links = fallback.get("data", {}).get("links", [])
+                    fb_text = fallback.get("data", {}).get("markdown", "")
+                    if fb_links:
+                        result["data"]["links"] = fb_links
+                    if len(fb_text) > md_len:
+                        result["data"]["markdown"] = fb_text
 
             self._cache[cache_key] = result
             return result

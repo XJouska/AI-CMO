@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Globe } from 'lucide-react';
 
@@ -19,11 +19,26 @@ interface LoginModalProps {
   onClose: () => void;
   onLogin: (email: string, password: string) => Promise<void>;
   onRegister: (username: string, email: string, password: string, referralCode?: string, responseLang?: string) => Promise<void>;
+  onGoogleLogin?: (credential: string) => Promise<void>;
 }
 
-export default function LoginModal({ onClose, onLogin, onRegister }: LoginModalProps) {
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: Record<string, unknown>) => void;
+          renderButton: (el: HTMLElement, config: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
+
+export default function LoginModal({ onClose, onLogin, onRegister, onGoogleLogin }: LoginModalProps) {
   const { t } = useTranslation();
   const [isRegister, setIsRegister] = useState(false);
+  const googleBtnRef = React.useRef<HTMLDivElement>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -31,6 +46,37 @@ export default function LoginModal({ onClose, onLogin, onRegister }: LoginModalP
   const [responseLang, setResponseLang] = useState('en');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleGoogleCallback = useCallback(async (response: { credential: string }) => {
+    if (!onGoogleLogin) return;
+    setError('');
+    setLoading(true);
+    try {
+      await onGoogleLogin(response.credential);
+      onClose();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Google login failed';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [onGoogleLogin, onClose]);
+
+  useEffect(() => {
+    if (window.google && googleBtnRef.current && onGoogleLogin) {
+      window.google.accounts.id.initialize({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+        callback: handleGoogleCallback,
+      });
+      const btnWidth = googleBtnRef.current.offsetWidth || 380;
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: 'outline',
+        size: 'large',
+        width: btnWidth,
+        text: 'continue_with',
+      });
+    }
+  }, [handleGoogleCallback, onGoogleLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +105,17 @@ export default function LoginModal({ onClose, onLogin, onRegister }: LoginModalP
           <h2 style={{ margin: 0 }}>{isRegister ? t('auth.register') : t('auth.login')}</h2>
           <button className="btn-icon" onClick={onClose}><X size={20} /></button>
         </div>
+
+        {onGoogleLogin && (
+          <>
+            <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>or</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleSubmit}>
           {isRegister && (

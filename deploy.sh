@@ -43,6 +43,7 @@ if [ "$SKIP_FE" = false ]; then
     if [ "$FULL" = true ] || [ ! -d node_modules ]; then
       npm ci --prefer-offline 2>&1 | tail -1
     fi
+    export $(grep '^VITE_' ../.env 2>/dev/null | xargs)
     VITE_API_URL="" npm run build 2>&1 | grep -E '(built|error|✓)' || true
   )
   step "1b" "Restarting frontend container..."

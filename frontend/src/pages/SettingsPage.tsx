@@ -31,6 +31,7 @@ export default function SettingsPage() {
   const { user, updateSettings } = useAuthStore();
   const [responseLang, setResponseLang] = useState(user?.response_language || 'en');
   const [brandVoice, setBrandVoice] = useState(user?.brand_voice || '');
+  const [primaryUrl, setPrimaryUrl] = useState((user as any)?.primary_url || '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [apiKeys, setApiKeys] = useState<ApiKeyInfo[]>([]);
@@ -82,10 +83,26 @@ export default function SettingsPage() {
     } catch { /* ignore */ }
   };
 
+  const handleDeleteKey = async (id: number) => {
+    try {
+      await api.delete(`/api/v1/auth/api-keys/${id}/permanent`);
+      fetchApiKeys();
+    } catch { /* ignore */ }
+  };
+
   const handleCopyKey = () => {
     navigator.clipboard.writeText(newKey);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2000);
+  };
+
+  const handleSavePrimaryUrl = async () => {
+    setSaving(true);
+    try {
+      await updateSettings({ primary_url: primaryUrl } as any);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch { /* ignore */ } finally { setSaving(false); }
   };
 
   return (
@@ -135,6 +152,19 @@ export default function SettingsPage() {
       </div>
 
       <div className="dashboard-card settings-section">
+        <h3><Globe size={18} /> {t('settings.primaryUrl')}</h3>
+        <p className="settings-desc">{t('settings.primaryUrlDesc')}</p>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <input value={primaryUrl} onChange={e => setPrimaryUrl(e.target.value)}
+            placeholder={t('settings.primaryUrlPlaceholder')} style={{ flex: 1 }} />
+          <button className="btn btn-primary" onClick={handleSavePrimaryUrl} disabled={saving}>
+            {saving ? t('common.loading') : t('common.save')}
+          </button>
+        </div>
+        {saved && <div className="settings-saved">{t('settings.saved')}</div>}
+      </div>
+
+      <div className="dashboard-card settings-section">
         <h3><Key size={18} /> {t('settings.apiKeys')}</h3>
         <p className="settings-desc">{t('settings.apiKeysDesc')}</p>
 
@@ -167,11 +197,19 @@ export default function SettingsPage() {
                   <code className="api-key-prefix">{key.prefix}...</code>
                   {!key.is_active && <span className="api-key-revoked">{t('settings.revoked')}</span>}
                 </div>
-                {key.is_active && (
-                  <button className="btn-icon" onClick={() => handleRevokeKey(key.id)}>
-                    <Trash2 size={14} />
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  {key.is_active && (
+                    <button className="btn-icon" onClick={() => handleRevokeKey(key.id)} title="Revoke">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                  {!key.is_active && (
+                    <button className="btn-icon" onClick={() => handleDeleteKey(key.id)} title="Delete"
+                      style={{ color: 'var(--error)' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

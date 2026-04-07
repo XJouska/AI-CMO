@@ -27,3 +27,21 @@ async def get_optional_user(
         return None
     db = get_database()
     return db.verify_token(credentials.credentials)
+
+
+ADMIN_EMAIL = "lixin.time@gmail.com"
+
+
+async def require_admin(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> Dict[str, Any]:
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = credentials.credentials
+    db = get_database()
+    user = db.verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if not (user.get("is_admin") or user.get("email") == ADMIN_EMAIL):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user

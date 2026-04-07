@@ -14,15 +14,17 @@ export interface AnalysisState {
   productInfo: ProductInfo | null;
   error: string | null;
   done: boolean;
+  estimatedAdValue: number;
 }
 
 interface AnalysisActions {
   startAnalysis: (input: string) => Promise<void>;
   stopAnalysis: () => void;
   reset: () => void;
+  restoreFromCache: () => void;
 }
 
-const initialState: AnalysisState = {
+const defaultState: AnalysisState = {
   isAnalyzing: false,
   currentStep: 0,
   stepMessage: '',
@@ -34,9 +36,59 @@ const initialState: AnalysisState = {
   productInfo: null,
   error: null,
   done: false,
+  estimatedAdValue: 0,
 };
 
+function getInitialState(): AnalysisState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const cached = JSON.parse(raw);
+      if (cached.recommendations?.length > 0) {
+        return {
+          ...defaultState,
+          currentStep: cached.currentStep || 0,
+          stepMessage: cached.stepMessage || '',
+          platformResults: cached.platformResults || {},
+          recommendations: cached.recommendations || [],
+          strategy: cached.strategy || null,
+          productInfo: cached.productInfo || null,
+          done: true,
+          isAnalyzing: false,
+          estimatedAdValue: cached.estimatedAdValue || 0,
+        };
+      }
+    }
+  } catch { /* ignore */ }
+  return defaultState;
+}
+
+const initialState = getInitialState();
+
 let _abortController: AbortController | null = null;
+
+const STORAGE_KEY = 'aicmo_analysis_state';
+
+function saveToStorage(state: AnalysisState) {
+  try {
+    const toSave = {
+      currentStep: state.currentStep,
+      stepMessage: state.stepMessage,
+      platformResults: state.platformResults,
+      recommendations: state.recommendations,
+      strategy: state.strategy,
+      productInfo: state.productInfo,
+      done: state.done,
+      estimatedAdValue: state.estimatedAdValue,
+      isAnalyzing: state.isAnalyzing,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  } catch { /* ignore */ }
+}
+
+function clearStorage() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+}
 
 export const useAnalysisStore = create<AnalysisState & AnalysisActions>((set, get) => ({
   ...initialState,
@@ -45,9 +97,10 @@ export const useAnalysisStore = create<AnalysisState & AnalysisActions>((set, ge
     _abortController?.abort();
     _abortController = new AbortController();
     const signal = _abortController.signal;
+    clearStorage();
 
     set({
-      ...initialState,
+      ...defaultState,
       isAnalyzing: true,
       currentStep: 1,
       stepMessage: '🔍 正在分析您的产品...',
@@ -130,8 +183,11 @@ export const useAnalysisStore = create<AnalysisState & AnalysisActions>((set, ge
   reset: () => {
     _abortController?.abort();
     _abortController = null;
-    set(initialState);
+    clearStorage();
+    set(defaultState);
   },
+
+  restoreFromCache: () => {},
 }));
 
 function processSSEEvent(
@@ -141,46 +197,54 @@ function processSSEEvent(
   data: unknown
 ) {
   const state = get();
+  const _set = (partial: Partial<AnalysisState>) => {
+    set(partial);
+    saveToStorage({ ...get() });
+  };
+
   switch (type) {
     case 'status': {
       const d = data as StepStatus;
-      set({ currentStep: d.step, stepMessage: d.message });
+      _set({ currentStep: d.step, stepMessage: d.message });
       break;
     }
     case 'thinking': {
       const d = data as { content: string };
-      set({ thinkingMessages: [...state.thinkingMessages, d.content] });
+      _set({ thinkingMessages: [...state.thinkingMessages, d.content] });
       break;
     }
     case 'detail': {
       const d = data as { message: string };
-      set({ detailMessages: [...state.detailMessages, d.message] });
+      _set({ detailMessages: [...state.detailMessages, d.message] });
       break;
     }
     case 'product_info': {
-      set({ productInfo: data as ProductInfo });
+      _set({ productInfo: data as ProductInfo });
       break;
     }
     case 'platform_done': {
       const d = data as PlatformDone;
-      set({ platformResults: { ...state.platformResults, [d.platform]: d.count } });
+      _set({ platformResults: { ...state.platformResults, [d.platform]: d.count } });
       break;
     }
     case 'result': {
-      set({ recommendations: [...state.recommendations, data as Recommendation] });
+      _set({ recommendations: [...state.recommendations, data as Recommendation] });
       break;
     }
     case 'strategy': {
-      set({ strategy: data as OverallStrategy });
+      _set({ strategy: data as OverallStrategy });
       break;
     }
     case 'error': {
       const d = data as { message: string };
       set({ error: d.message });
+      clearStorage();
       break;
     }
     case 'done': {
-      set({ done: true, isAnalyzing: false });
+      const d = data as { estimated_ad_value?: number };
+      set({ done: true, isAnalyzing: false, estimatedAdValue: d.estimated_ad_value || 0 });
+      clearStorage();
       break;
     }
   }

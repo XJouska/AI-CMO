@@ -2,13 +2,41 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon-128.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <title>AI-CMO — Social Media Promotion Intelligence</title>
+    <meta name="google-site-verification" content="e2wI6xY63Dz32DM0yBlaAXAKn1H7PtmGDktCJ8yqnTk" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <title>AI-CMO — AI Social Media Marketing Assistant</title>
+    <meta name="description" content="AI-powered marketing tool that finds the best promotion spots across Reddit, YouTube, Twitter, Quora, Product Hunt and Hacker News. Get AI-generated engagement copy tailored to each platform." />
+    <meta property="og:title" content="AI-CMO — AI Social Media Marketing Assistant" />
+    <meta property="og:description" content="Find the best social media promotion opportunities for your product. AI-generated comments, strategies, and CSV export for automation." />
+    <meta property="og:url" content="https://www.aicmo.site" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://www.aicmo.site/logo.png" />
+    <style>
+      body { margin: 0; background: #f8f9fb; }
+      #app-loader {
+        position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+        background: #f8f9fb; z-index: 9999; transition: opacity 0.3s;
+      }
+      #app-loader .spinner {
+        width: 32px; height: 32px; border: 3px solid rgba(99,102,241,0.2);
+        border-top-color: #6366f1; border-radius: 50%;
+        animation: spin .6s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
+    <div id="app-loader"><div class="spinner"></div></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      window.addEventListener('load', function() {
+        var loader = document.getElementById('app-loader');
+        if (loader) { loader.style.opacity = '0'; setTimeout(function() { loader.remove(); }, 300); }
+      });
+    </script>
   </body>
 </html>

@@ -2,11 +2,14 @@
 Public API for external integrations (OpenClaw, etc.)
 Authentication via API key (x-api-key header)
 """
+import csv
+import io
 import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Header, Depends, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.database import get_database
@@ -35,7 +38,7 @@ async def verify_api_key(x_api_key: str = Header(..., description="Your API key"
 class AnalyzeRequest(BaseModel):
     product: str = Field(..., description="Product URL or name to analyze", min_length=1, max_length=500)
     language: str = Field("en", description="Response language: en/zh/ja/ko/es/fr/de/pt/ru/ar")
-    max_results: int = Field(10, ge=1, le=20, description="Max recommendations to return")
+    max_results: int = Field(10, ge=0, le=100, description="Max recommendations to return. 0 = return all.")
 
 
 class PromotionSpot(BaseModel):
@@ -187,8 +190,8 @@ async def analyze_product(request: AnalyzeRequest, user: dict = Depends(verify_a
         logger.exception(f"[OPEN-API] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Trim to max_results
-    promotions = promotions[:request.max_results]
+    if request.max_results > 0:
+        promotions = promotions[:request.max_results]
 
     return AnalyzeResponse(
         success=True,
@@ -218,3 +221,131 @@ async def get_history_detail(conversation_id: str, user: dict = Depends(verify_a
     if not detail:
         raise HTTPException(status_code=404, detail="Not found")
     return detail
+
+
+@router.get("/history/{conversation_id}/csv")
+async def export_csv(conversation_id: str, user: dict = Depends(verify_api_key)):
+    """
+    Export analysis results as a CSV file ready for OpenClaw automation.
+
+    Columns: rank, platform, url, title, suggested_comment, comment_strategy,
+    why_recommend, best_timing, risk_level, estimated_exposure, composite_score
+    """
+    db = get_database()
+    detail = db.get_conversation_detail(conversation_id, user["id"])
+    if not detail:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    recs = detail.get("recommendations", [])
+    if not recs:
+        raise HTTPException(status_code=404, detail="No recommendations found")
+
+    buf = io.StringIO()
+    buf.write("\ufeff")
+    writer = csv.writer(buf)
+    writer.writerow([
+        "Rank", "Platform", "URL", "Title",
+        "Suggested Comment", "Comment Strategy",
+        "Why Recommend", "Best Timing", "Risk Level",
+        "Estimated Exposure", "Score",
+    ])
+    for r in recs:
+        writer.writerow([
+            r.get("rank", ""),
+            r.get("platform", ""),
+            r.get("url", ""),
+            r.get("title", ""),
+            r.get("suggested_comment", ""),
+            r.get("comment_strategy", ""),
+            r.get("why_recommend", ""),
+            r.get("best_timing", ""),
+            r.get("risk_level", ""),
+            r.get("estimated_exposure", ""),
+            r.get("composite_score", ""),
+        ])
+
+    buf.seek(0)
+    product = detail.get("input_value", "export")[:30].replace(" ", "_")
+    filename = f"ai-cmo-{product}.csv"
+    return StreamingResponse(
+        buf,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/analyze/csv")
+async def analyze_and_export_csv(request: AnalyzeRequest, user: dict = Depends(verify_api_key)):
+    """
+    One-step analyze + CSV export: runs analysis and returns results directly as CSV.
+
+    This is the preferred endpoint for OpenClaw automation — call once, get a
+    ready-to-use CSV with all promotion spots, suggested comments, and strategies.
+
+    Consumes 1 credit.
+    """
+    db = get_database()
+    user_id = user["id"]
+    balance = db.get_credit_balance(user_id)
+    if balance <= 0:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    success, new_balance = db.deduct_credit(user_id, 1, f"API-CSV: {request.product[:50]}")
+    if not success:
+        raise HTTPException(status_code=402, detail="Failed to deduct credits")
+
+    logger.info(f"[OPEN-API-CSV] user={user['username']} product='{request.product[:60]}'")
+
+    valid_langs = {"en", "zh", "ja", "ko", "es", "fr", "de", "pt", "ru", "ar"}
+    lang = request.language if request.language in valid_langs else "en"
+
+    workflow = AnalysisWorkflow()
+    promotions = []
+
+    try:
+        async for event in workflow.run(request.product, user_id, lang):
+            if event.event == "result":
+                promotions.append(event.data)
+            elif event.event == "error":
+                db.refund_credit(user_id, 1, "API-CSV refund: analysis failed")
+                raise HTTPException(status_code=500, detail=event.data.get("message", "Analysis failed"))
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.refund_credit(user_id, 1, "API-CSV refund: error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if request.max_results > 0:
+        promotions = promotions[:request.max_results]
+
+    buf = io.StringIO()
+    buf.write("\ufeff")
+    writer = csv.writer(buf)
+    writer.writerow([
+        "Rank", "Platform", "URL", "Title",
+        "Suggested Comment", "Comment Strategy",
+        "Why Recommend", "Best Timing", "Risk Level",
+        "Estimated Exposure", "Score",
+    ])
+    for r in promotions:
+        writer.writerow([
+            r.get("rank", ""),
+            r.get("platform", ""),
+            r.get("url", ""),
+            r.get("title", ""),
+            r.get("suggested_comment", ""),
+            r.get("comment_strategy", ""),
+            r.get("why_recommend", ""),
+            r.get("best_timing", ""),
+            r.get("risk_level", ""),
+            r.get("estimated_exposure", ""),
+            r.get("composite_score", ""),
+        ])
+
+    buf.seek(0)
+    product_slug = request.product[:30].replace(" ", "_").replace("/", "_")
+    return StreamingResponse(
+        buf,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="ai-cmo-{product_slug}.csv"'},
+    )

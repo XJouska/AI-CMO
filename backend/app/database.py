@@ -37,6 +37,10 @@ class User(Base):
     brand_voice = Column(Text, nullable=True)
     primary_url = Column(Text, nullable=True)
     onboarding_completed = Column(Boolean, default=False)
+    register_ip = Column(String(50), nullable=True)
+    last_login_ip = Column(String(50), nullable=True)
+    country = Column(String(80), nullable=True)
+    last_login_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     sessions = relationship("Session", back_populates="user")
@@ -275,9 +279,9 @@ class DatabaseManager:
                 if referrer:
                     referrer_id = referrer.id
 
-            initial_credits = 3  # AI-CMO: 3 free analyses
+            initial_credits = 1
             if referrer_id:
-                initial_credits += 2
+                initial_credits += 1
 
             user = User(
                 username=username, email=email,
@@ -291,15 +295,15 @@ class DatabaseManager:
             session.flush()
 
             tx = CreditTransaction(
-                user_id=user.id, type="recharge", amount=3,
+                user_id=user.id, type="recharge", amount=1,
                 balance_after=initial_credits,
-                description="Registration bonus: 3 free analyses",
+                description="Registration bonus: 1 free analysis",
             )
             session.add(tx)
 
             if referrer_id:
                 tx_bonus = CreditTransaction(
-                    user_id=user.id, type="recharge", amount=2,
+                    user_id=user.id, type="recharge", amount=1,
                     balance_after=initial_credits,
                     description=f"Referral bonus (referrer ID: {referrer_id})",
                 )
@@ -307,9 +311,9 @@ class DatabaseManager:
 
                 referrer = session.query(User).filter(User.id == referrer_id).with_for_update().first()
                 if referrer:
-                    referrer.credit_balance += 2
+                    referrer.credit_balance += 1
                     tx_referrer = CreditTransaction(
-                        user_id=referrer_id, type="recharge", amount=2,
+                        user_id=referrer_id, type="recharge", amount=1,
                         balance_after=referrer.credit_balance,
                         description=f"Referral reward (invited: {username})",
                     )
@@ -319,6 +323,25 @@ class DatabaseManager:
             return user.id
         except Exception:
             session.rollback()
+            return None
+        finally:
+            session.close()
+
+    def authenticate_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """Find user by email only (for Google OAuth)."""
+        session = self.get_session()
+        try:
+            user = session.query(User).filter(User.email == email).first()
+            if user:
+                return {
+                    "id": user.id, "username": user.username, "email": user.email,
+                    "is_active": user.is_active, "is_premium": user.is_premium,
+                    "is_admin": user.is_admin, "credit_balance": user.credit_balance,
+                    "referral_code": user.referral_code or "",
+                    "response_language": user.response_language or "en",
+                    "brand_voice": user.brand_voice or "",
+                    "primary_url": user.primary_url or "",
+                }
             return None
         finally:
             session.close()
@@ -338,6 +361,7 @@ class DatabaseManager:
                     "referral_code": user.referral_code or "",
                     "response_language": user.response_language or "en",
                     "brand_voice": user.brand_voice or "",
+                    "primary_url": user.primary_url or "",
                 }
             return None
         finally:
@@ -355,6 +379,7 @@ class DatabaseManager:
                     "referral_code": user.referral_code or "",
                     "response_language": user.response_language or "en",
                     "brand_voice": user.brand_voice or "",
+                    "primary_url": user.primary_url or "",
                 }
             return None
         finally:
@@ -391,6 +416,7 @@ class DatabaseManager:
                     "referral_code": user.referral_code or "",
                     "response_language": user.response_language or "en",
                     "brand_voice": user.brand_voice or "",
+                    "primary_url": user.primary_url or "",
                 }
             return None
         finally:
@@ -501,6 +527,7 @@ class DatabaseManager:
                 "referral_code": user.referral_code or "",
                 "response_language": user.response_language or "en",
                 "brand_voice": user.brand_voice or "",
+                "primary_url": user.primary_url or "",
             }
         except Exception:
             session.rollback()
@@ -531,6 +558,20 @@ class DatabaseManager:
             ).first()
             if key:
                 key.is_active = False
+                session.commit()
+                return True
+            return False
+        finally:
+            session.close()
+
+    def delete_api_key(self, key_id: int, user_id: int) -> bool:
+        session = self.get_session()
+        try:
+            key = session.query(UserApiKey).filter(
+                UserApiKey.id == key_id, UserApiKey.user_id == user_id
+            ).first()
+            if key:
+                session.delete(key)
                 session.commit()
                 return True
             return False
@@ -722,7 +763,7 @@ class DatabaseManager:
                 "product_profile": conv.product_profile, "status": conv.status,
                 "created_at": conv.created_at.isoformat() if conv.created_at else None,
                 "recommendations": [{
-                    "rank": r.rank, "platform": r.platform, "url": r.url,
+                    "id": str(r.id), "rank": r.rank, "platform": r.platform, "url": r.url,
                     "title": r.title, "engagement_stats": r.engagement_stats,
                     "composite_score": r.composite_score, "scoring_detail": r.scoring_detail,
                     "why_recommend": r.why_recommend, "estimated_exposure": r.estimated_exposure,
@@ -931,6 +972,156 @@ class DatabaseManager:
                 session.commit()
                 return True
             return False
+        finally:
+            session.close()
+
+    # ---- Product Profiles ----
+
+    def save_product_profile(self, user_id: int, name: str, url: str = None,
+                             description: str = None, target_audience: str = None) -> str:
+        session = self.get_session()
+        try:
+            existing = session.query(ProductProfile).filter(
+                ProductProfile.user_id == user_id, ProductProfile.url == url
+            ).first() if url else None
+            if existing:
+                existing.name = name
+                if description:
+                    existing.description = description
+                if target_audience:
+                    existing.target_audience = target_audience
+                session.commit()
+                return str(existing.id)
+            profile = ProductProfile(
+                user_id=user_id, name=name, url=url,
+                description=description, target_audience=target_audience,
+            )
+            session.add(profile)
+            session.commit()
+            return str(profile.id)
+        finally:
+            session.close()
+
+    def get_product_profiles(self, user_id: int) -> List[Dict]:
+        session = self.get_session()
+        try:
+            profiles = session.query(ProductProfile).filter(
+                ProductProfile.user_id == user_id
+            ).order_by(ProductProfile.created_at.desc()).all()
+            return [{
+                "id": str(p.id), "name": p.name, "url": p.url,
+                "description": p.description, "target_audience": p.target_audience,
+                "is_primary": p.is_primary,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            } for p in profiles]
+        finally:
+            session.close()
+
+    # ---- SEO Health ----
+
+    def save_seo_snapshot(self, user_id: int, url: str, page_speed_score: float = None,
+                          seo_score: float = None, core_web_vitals: dict = None,
+                          issues: list = None, passed_checks: list = None) -> str:
+        session = self.get_session()
+        try:
+            snapshot = SEOHealthSnapshot(
+                user_id=user_id, url=url,
+                page_speed_score=page_speed_score, seo_score=seo_score,
+                core_web_vitals=core_web_vitals,
+                issues=issues, passed_checks=passed_checks,
+            )
+            session.add(snapshot)
+            session.commit()
+            return str(snapshot.id)
+        finally:
+            session.close()
+
+    def get_latest_seo(self, user_id: int) -> Optional[Dict]:
+        session = self.get_session()
+        try:
+            snap = session.query(SEOHealthSnapshot).filter(
+                SEOHealthSnapshot.user_id == user_id
+            ).order_by(SEOHealthSnapshot.created_at.desc()).first()
+            if not snap:
+                return None
+            return {
+                "id": str(snap.id), "url": snap.url,
+                "page_speed_score": snap.page_speed_score,
+                "seo_score": snap.seo_score,
+                "core_web_vitals": snap.core_web_vitals,
+                "issues": snap.issues, "passed_checks": snap.passed_checks,
+                "created_at": snap.created_at.isoformat() if snap.created_at else None,
+            }
+        finally:
+            session.close()
+
+    def get_seo_history(self, user_id: int, limit: int = 20) -> List[Dict]:
+        session = self.get_session()
+        try:
+            snaps = session.query(SEOHealthSnapshot).filter(
+                SEOHealthSnapshot.user_id == user_id
+            ).order_by(SEOHealthSnapshot.created_at.desc()).limit(limit).all()
+            return [{
+                "id": str(s.id), "url": s.url,
+                "page_speed_score": s.page_speed_score,
+                "seo_score": s.seo_score,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            } for s in snaps]
+        finally:
+            session.close()
+
+    # ---- GEO Visibility ----
+
+    def save_geo_visibility(self, user_id: int, brand_name: str, platform: str,
+                            visibility_score: float = 0, mentions: list = None) -> str:
+        session = self.get_session()
+        try:
+            record = GEOVisibility(
+                user_id=user_id, brand_name=brand_name, platform=platform,
+                visibility_score=visibility_score, mentions=mentions,
+            )
+            session.add(record)
+            session.commit()
+            return str(record.id)
+        finally:
+            session.close()
+
+    def get_latest_geo(self, user_id: int) -> List[Dict]:
+        session = self.get_session()
+        try:
+            from sqlalchemy import func
+            subq = session.query(
+                GEOVisibility.platform,
+                func.max(GEOVisibility.checked_at).label("latest")
+            ).filter(
+                GEOVisibility.user_id == user_id
+            ).group_by(GEOVisibility.platform).subquery()
+
+            records = session.query(GEOVisibility).join(
+                subq, (GEOVisibility.platform == subq.c.platform) &
+                       (GEOVisibility.checked_at == subq.c.latest)
+            ).filter(GEOVisibility.user_id == user_id).all()
+            return [{
+                "id": str(r.id), "brand_name": r.brand_name,
+                "platform": r.platform, "visibility_score": r.visibility_score,
+                "mentions": r.mentions,
+                "checked_at": r.checked_at.isoformat() if r.checked_at else None,
+            } for r in records]
+        finally:
+            session.close()
+
+    def get_geo_history(self, user_id: int, limit: int = 50) -> List[Dict]:
+        session = self.get_session()
+        try:
+            records = session.query(GEOVisibility).filter(
+                GEOVisibility.user_id == user_id
+            ).order_by(GEOVisibility.checked_at.desc()).limit(limit).all()
+            return [{
+                "id": str(r.id), "brand_name": r.brand_name,
+                "platform": r.platform, "visibility_score": r.visibility_score,
+                "mentions": r.mentions,
+                "checked_at": r.checked_at.isoformat() if r.checked_at else None,
+            } for r in records]
         finally:
             session.close()
 

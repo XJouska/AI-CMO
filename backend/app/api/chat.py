@@ -57,13 +57,14 @@ async def analyze(request: AnalyzeRequest, current_user=Depends(get_current_user
 
     # Run workflow and stream results
     response_language = current_user.get("response_language", "en")
+    brand_voice = current_user.get("brand_voice", "")
     async def event_generator():
         workflow = AnalysisWorkflow()
         all_recommendations = []
         strategy_data = None
 
         try:
-            async for event in workflow.run(request.input, user_id, response_language):
+            async for event in workflow.run(request.input, user_id, response_language, brand_voice, conv_id=conv_id):
                 yield {
                     "event": event.event,
                     "data": json.dumps(event.data, ensure_ascii=False),
@@ -84,8 +85,21 @@ async def analyze(request: AnalyzeRequest, current_user=Depends(get_current_user
                     db.save_recommendations(conv_id, all_recommendations)
                     if strategy_data:
                         db.save_strategy(conv_id, strategy_data)
+                    profile_data = all_recommendations[0].get("profile") if all_recommendations else None
                     db.update_conversation(conv_id, status="completed",
-                                           product_profile=all_recommendations[0].get("profile") if all_recommendations else None)
+                                           product_profile=profile_data)
+                    # Save to ProductProfile table for reuse
+                    if profile_data and isinstance(profile_data, dict):
+                        try:
+                            db.save_product_profile(
+                                user_id=user_id,
+                                name=profile_data.get("product_name", request.input[:80]),
+                                url=request.input if input_type == "url" else None,
+                                description=profile_data.get("core_value_proposition", ""),
+                                target_audience=", ".join(profile_data.get("target_audience", [])) if isinstance(profile_data.get("target_audience"), list) else str(profile_data.get("target_audience", "")),
+                            )
+                        except Exception as pe:
+                            logger.warning(f"Failed to save product profile: {pe}")
                     db.add_activity(
                         user_id, "analysis_completed", f"Analysis completed: {title}",
                         {"conversation_id": conv_id, "recommendation_count": len(all_recommendations)},
@@ -103,6 +117,30 @@ async def analyze(request: AnalyzeRequest, current_user=Depends(get_current_user
             }
 
     return EventSourceResponse(event_generator())
+
+
+@router.post("/cancel/{conv_id}")
+async def cancel_analysis(conv_id: str, current_user=Depends(get_current_user)):
+    """Cancel a running analysis and refund the credit."""
+    db = get_database()
+    from app.database import Conversation
+    s = db.get_session()
+    try:
+        conv = s.query(Conversation).filter(
+            Conversation.id == conv_id,
+            Conversation.user_id == current_user["id"],
+        ).first()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Not found")
+        if conv.status != "analyzing":
+            return {"success": True, "message": "Already finished"}
+        conv.status = "cancelled"
+        s.commit()
+        db.refund_credit(current_user["id"], 1, "Refund: analysis cancelled by user")
+        logger.info(f"[ANALYZE] user={current_user['username']} cancelled {conv_id}, credit refunded")
+        return {"success": True, "message": "Analysis cancelled, credit refunded"}
+    finally:
+        s.close()
 
 
 @router.get("/history")

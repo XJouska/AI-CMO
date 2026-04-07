@@ -5,6 +5,7 @@ import type { UserInfo } from '../types';
 interface AuthState {
   user: UserInfo | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   register: (username: string, email: string, password: string, referralCode?: string, responseLang?: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -19,6 +20,13 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: async (email, password) => {
     const { data } = await api.post('/api/v1/auth/login', { email, password });
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    set({ user: data.user });
+  },
+
+  loginWithGoogle: async (credential) => {
+    const { data } = await api.post('/api/v1/auth/google', { credential });
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
     set({ user: data.user });

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     qwen_api_base: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     qwen_model: str = "qwen-max-latest"
 
+    # Google OAuth
+    google_client_id: str = ""
+
     # AgentGo
     agentgo_api_key: str = ""
     agentgo_api_url: str = "https://app.agentgo.live"
@@ -43,7 +46,7 @@ class Settings(BaseSettings):
     # App
     cors_origins: str = "http://localhost:5173,http://localhost:9000"
     log_level: str = "INFO"
-    free_analysis_limit: int = 3
+    free_analysis_limit: int = 1
     premium_top_n: int = 10
     free_top_n: int = 3
 

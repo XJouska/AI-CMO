@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.api import auth, chat, credits, open_api, dashboard, ai_chat, feedback, competitors, geo, seo
+from app.api import auth, chat, credits, open_api, dashboard, ai_chat, feedback, competitors, geo, seo, terminal, content, admin
 
 
 def setup_logging():
@@ -77,6 +77,12 @@ async def lifespan(app: FastAPI):
     logger.info(f"   Log level: {settings.log_level}")
     init_db()
     logger.info("✅ Database initialized")
+    try:
+        from app.services.scheduler import setup_scheduler
+        setup_scheduler().start()
+        logger.info("✅ Scheduler started")
+    except Exception as e:
+        logger.warning(f"Scheduler not started: {e}")
     yield
     logger.info("👋 AI-CMO Backend shutting down...")
 
@@ -86,6 +92,7 @@ app = FastAPI(
     description="Social Media Promotion Intelligence Platform",
     version="1.0.0",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 # CORS
@@ -109,6 +116,9 @@ app.include_router(feedback.router)
 app.include_router(competitors.router)
 app.include_router(geo.router)
 app.include_router(seo.router)
+app.include_router(terminal.router)
+app.include_router(content.router)
+app.include_router(admin.router)
 
 
 @app.get("/")

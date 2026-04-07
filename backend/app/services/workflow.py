@@ -10,7 +10,7 @@ from typing import AsyncGenerator, Callable, Optional, List, Dict
 from app.services.llm import LLMService, get_llm_service
 from app.services.agentgo import AgentGoService, get_agentgo_service
 from app.utils.sse import SSEEvent
-from app.utils.parsers import parse_platform
+from app.utils.parsers import parse_platform, parse_google_site_results as _parse_google_site_results
 from app.prompts.node1_product_analysis import (
     build_product_and_search_prompt,
     build_url_pre_analysis_prompt,
@@ -30,7 +30,24 @@ class AnalysisWorkflow:
         self.llm: LLMService = get_llm_service()
         self.agentgo: AgentGoService = get_agentgo_service()
 
-    async def run(self, user_input: str, user_id: int, response_language: str = "en") -> AsyncGenerator[SSEEvent, None]:
+    def _is_cancelled(self) -> bool:
+        if not self._conv_id:
+            return False
+        try:
+            from app.database import get_database, Conversation
+            db = get_database()
+            s = db.get_session()
+            try:
+                conv = s.query(Conversation).filter(Conversation.id == self._conv_id).first()
+                return conv and conv.status == "cancelled"
+            finally:
+                s.close()
+        except Exception:
+            return False
+
+    async def run(self, user_input: str, user_id: int, response_language: str = "en", brand_voice: str = "", conv_id: str = "") -> AsyncGenerator[SSEEvent, None]:
+        self._conv_id = conv_id
+        self._google_fallback_used: set = set()
         self._lang = response_language
         lang_names = {
             "en": "English", "zh": "Chinese (Simplified)", "ja": "Japanese",
@@ -39,6 +56,7 @@ class AnalysisWorkflow:
         }
         self._lang_name = lang_names.get(response_language, "English")
         self._lang_instruction = f"\n\nIMPORTANT: You MUST write all analysis text, recommendations, reasons, comments, and strategies in {self._lang_name}. However, search URLs and search keywords inside URLs must ALWAYS remain in English."
+        self._brand_voice = brand_voice.strip() if brand_voice else ""
         try:
             # ====== Node 1+2: Product Analysis + Search Strategy ======
             yield SSEEvent("status", {"step": 1, "message": "🔍 正在分析您的产品..."})
@@ -71,6 +89,8 @@ class AnalysisWorkflow:
                     "content": scraped_content[:500],
                     "product_name": product_name,
                     "product_type": product_type,
+                    "description": profile.get("core_value_proposition", ""),
+                    "target_audience": profile.get("target_audience", []),
                 })
 
             yield SSEEvent("thinking", {
@@ -82,6 +102,10 @@ class AnalysisWorkflow:
             competitors = profile.get('competitor_hints', [])
             if competitors:
                 yield SSEEvent("detail", {"message": f"🏷️ 相关竞品: {', '.join(competitors[:3])}"})
+
+            if self._is_cancelled():
+                logger.info(f"[Workflow] Cancelled before scraping")
+                return
 
             # ====== Node 2 output ======
             yield SSEEvent("status", {"step": 2, "message": f"📡 已生成搜索策略，将搜索 {len(search_tasks)} 个平台"})
@@ -126,6 +150,10 @@ class AnalysisWorkflow:
                 yield SSEEvent("done", {"total_found": 0})
                 return
 
+            if self._is_cancelled():
+                logger.info(f"[Workflow] Cancelled before scoring")
+                return
+
             # ====== Node 4+5+6: Scoring + Deep Analysis + Strategy ======
             yield SSEEvent("status", {"step": 4, "message": f"🧮 正在评估 {total_found} 条内容的推广价值..."})
             yield SSEEvent("detail", {"message": "📊 正在进行多维度评分: 互动量 · 时效性 · 相关性 · 推广潜力 · 受众匹配"})
@@ -133,13 +161,11 @@ class AnalysisWorkflow:
             batch_count = max(1, (total_found + 14) // 15)
             yield SSEEvent("detail", {"message": f"⚡ 分 {batch_count} 批并行评分中..."})
 
-            recommendations, strategy = await self._optimized_node4_5_6(
+            recommendations, strategy, extra_recs = await self._optimized_node4_5_6(
                 all_results, profile,
-                # Callback to emit progress
-                progress_callback=lambda msg: None  # Can't yield from callback, handled below
+                progress_callback=lambda msg: None
             )
 
-            # Yield recommendations one by one
             yield SSEEvent("status", {"step": 5, "message": "💎 推荐结果已生成"})
             yield SSEEvent("detail", {"message": f"🏆 从 {total_found} 条内容中筛选出 Top {len(recommendations)} 推荐"})
             yield SSEEvent("detail", {"message": "📝 正在为每条推荐生成个性化话术..."})
@@ -149,15 +175,34 @@ class AnalysisWorkflow:
                 rec["is_premium_only"] = i >= 3
                 yield SSEEvent("result", rec)
 
+            for i, rec in enumerate(extra_recs[:20]):
+                rec["rank"] = len(recommendations) + i + 1
+                rec["is_premium_only"] = True
+                rec["is_extra"] = True
+                yield SSEEvent("result", rec)
+
             # Yield strategy
             yield SSEEvent("status", {"step": 6, "message": "📋 运营策略已生成"})
             yield SSEEvent("detail", {"message": "📅 正在生成每周推广节奏和 KPI 目标..."})
             yield SSEEvent("strategy", strategy)
 
+            platform_cpc = {
+                "reddit": 0.05, "youtube": 0.02, "twitter": 0.03,
+                "quora": 0.04, "producthunt": 0.06, "hackernews": 0.05,
+            }
+            ad_value = 0.0
+            for rec in recommendations:
+                stats = rec.get("engagement_stats") or {}
+                views = stats.get("views") or (stats.get("upvotes", 0) or 0) * 15
+                cpc = platform_cpc.get(rec.get("platform", "").lower(), 0.03)
+                ad_value += views * cpc
+            ad_value = round(ad_value, 2)
+
             yield SSEEvent("done", {
                 "total_found": total_found,
                 "platforms_searched": len(platform_counts),
                 "recommendations_count": len(recommendations),
+                "estimated_ad_value": ad_value,
             })
 
         except Exception as e:
@@ -219,16 +264,70 @@ class AnalysisWorkflow:
         if not search_tasks:
             search_tasks = self._fallback_search_tasks(inp, profile)
 
+        search_tasks = self._ensure_time_filters(search_tasks)
+
         return profile, search_tasks, scraped_title, scraped_content
+
+    @staticmethod
+    def _ensure_time_filters(tasks: list) -> list:
+        """Ensure all search URLs have time/recency filters. LLM sometimes forgets."""
+        time_params = {
+            "reddit": ("&t=", "&t=year"),
+            "youtube": ("sp=", "&sp=EgIIBQ%3D%3D"),
+            "hackernews": ("dateRange=", "&dateRange=pastYear"),
+        }
+        for task in tasks:
+            platform = task.get("platform", "")
+            if platform not in time_params:
+                continue
+            check, append = time_params[platform]
+            urls = task.get("search_urls", [])
+            task["search_urls"] = [
+                url if check in url else url + append
+                for url in urls
+            ]
+        return tasks
 
     def _fallback_search_tasks(self, user_input: str, profile: dict) -> list:
         keywords = profile.get("keywords", [user_input])
         query = "+".join(keywords[:3])
         return [
-            {"platform": "reddit", "search_urls": [f"https://www.reddit.com/search/?q={query}&sort=hot"], "priority": "high"},
-            {"platform": "youtube", "search_urls": [f"https://www.youtube.com/results?search_query={query}"], "priority": "high"},
-            {"platform": "hackernews", "search_urls": [f"https://hn.algolia.com/?q={query}"], "priority": "medium"},
+            {"platform": "reddit", "search_urls": [f"https://www.reddit.com/search/?q={query}&sort=relevance&t=year"], "priority": "high"},
+            {"platform": "youtube", "search_urls": [f"https://www.youtube.com/results?search_query={query}&sp=EgIIBQ%3D%3D"], "priority": "high"},
+            {"platform": "hackernews", "search_urls": [f"https://hn.algolia.com/?q={query}&dateRange=pastYear"], "priority": "medium"},
         ]
+
+    # Platforms that are blocked by Cloudflare or require JS auth
+    _BLOCKED_PLATFORMS = {"twitter", "quora", "producthunt"}
+
+    @staticmethod
+    def _is_blocked_response(text: str) -> bool:
+        """Detect Cloudflare challenge pages or JS-required pages"""
+        markers = [
+            "Performing security verification",
+            "JavaScript is not available",
+            "Enable JavaScript",
+            "Cloudflare Ray ID",
+            "challenge-platform",
+        ]
+        return any(m.lower() in text.lower() for m in markers)
+
+    @staticmethod
+    def _build_google_site_url(platform: str, original_url: str) -> str:
+        """Build a Google site: search URL as fallback for blocked platforms"""
+        from urllib.parse import urlparse, parse_qs, quote_plus
+        parsed = urlparse(original_url)
+        q = parse_qs(parsed.query).get("q", [""])[0]
+        if not q:
+            path_parts = parsed.path.strip("/").split("/")
+            q = " ".join(path_parts[-2:]) if len(path_parts) >= 2 else parsed.path
+        site_map = {
+            "twitter": "site:x.com OR site:twitter.com",
+            "quora": "site:quora.com",
+            "producthunt": "site:producthunt.com",
+        }
+        site = site_map.get(platform, f"site:{parsed.netloc}")
+        return f"https://www.google.com/search?q={quote_plus(q + ' ' + site)}&num=20&tbs=qdr:y"
 
     # ======================== Node 3: Distributed Scraping ========================
 
@@ -244,17 +343,51 @@ class AnalysisWorkflow:
             platform = task["platform"]
             urls = task.get("search_urls", [])
             platform_results = []
+            tried_google = False
 
             for url in urls:
                 async with sem:
                     try:
                         result = await asyncio.wait_for(
-                            self.agentgo.scrape_url(url), timeout=20
+                            self.agentgo.scrape_url(url), timeout=25
                         )
+                        text = result.get("data", {}).get("markdown", "")
+
+                        if self._is_blocked_response(text) and not tried_google:
+                            tried_google = True
+                            if platform not in self._google_fallback_used:
+                                self._google_fallback_used.add(platform)
+                                google_url = self._build_google_site_url(platform, url)
+                                logger.info(f"[Workflow] {platform} blocked, trying Google: {google_url[:80]}")
+                                result = await asyncio.wait_for(
+                                    self.agentgo.scrape_url(google_url), timeout=25
+                                )
+                                parsed = _parse_google_site_results(platform, result)
+                                platform_results.extend(parsed)
+                            else:
+                                logger.info(f"[Workflow] {platform} blocked, Google fallback already used for this platform — skipping")
+                            continue
+
                         parsed = parse_platform(platform, result)
                         platform_results.extend(parsed)
                     except (asyncio.TimeoutError, Exception) as e:
                         logger.warning(f"Scrape failed: {platform} {url[:50]} - {e}")
+
+            # Last-resort Google fallback for platforms with 0 results
+            if not platform_results and not tried_google and platform in self._BLOCKED_PLATFORMS and urls:
+                if platform not in self._google_fallback_used:
+                    self._google_fallback_used.add(platform)
+                    try:
+                        async with sem:
+                            google_url = self._build_google_site_url(platform, urls[0])
+                            logger.info(f"[Workflow] {platform} empty, trying Google: {google_url[:80]}")
+                            result = await asyncio.wait_for(
+                                self.agentgo.scrape_url(google_url), timeout=25
+                            )
+                            parsed = _parse_google_site_results(platform, result)
+                            platform_results.extend(parsed)
+                    except (asyncio.TimeoutError, Exception) as e:
+                        logger.warning(f"Google fallback failed for {platform}: {e}")
 
             return platform, platform_results
 
@@ -407,7 +540,7 @@ class AnalysisWorkflow:
         recs_batch1 = deep_result1.get("recommendations", batch1)
 
         strategy_task = asyncio.create_task(
-            self.llm.chat_json(self._inject_lang(build_strategy_prompt(recs_batch1, profile)))
+            self.llm.chat_json(self._inject_lang(build_strategy_prompt(recs_batch1, profile, self._brand_voice)))
         )
 
         recs_batch2 = []
@@ -457,4 +590,7 @@ class AnalysisWorkflow:
         else:
             overall_strategy = {}
 
-        return all_recs, overall_strategy
+        top_urls = {r.get("url") for r in top_10}
+        extra_recs = [r for r in deduped if r.get("url") not in top_urls]
+
+        return all_recs, overall_strategy, extra_recs

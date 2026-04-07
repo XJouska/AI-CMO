@@ -1,185 +1,174 @@
-# AI-CMO Skill — Social Media Promotion Intelligence
+# AI-CMO × OpenClaw 自动化推流 Skill
 
-> Find the best places to promote any product across social media, with AI-generated engagement strategies and ready-to-use comment scripts.
+## 概述
 
----
+AI-CMO 是一个 AI 驱动的社媒营销分析平台。它能自动分析你的产品，在 Reddit、YouTube、Twitter、Quora、Product Hunt、Hacker News 等平台上找到最适合推广的帖子，并为每个帖子生成定制化的评论话术。
 
-## What This Skill Does
+结合 **OpenClaw**（本地浏览器自动化工具），你可以实现**全自动定时推流**：AI-CMO 负责"找到哪里推、推什么内容"，OpenClaw 负责"用你的账号自动去发"。
 
-AI-CMO analyzes a product (URL or name) and automatically:
-1. **Identifies** the product type, target audience, and keywords
-2. **Searches** Reddit, YouTube, Twitter, Quora, ProductHunt, HackerNews for relevant discussions
-3. **Ranks** content by promotion potential (engagement, relevance, audience match)
-4. **Generates** specific comment scripts tailored to each platform's culture
-5. **Creates** an overall promotion strategy with weekly plans and KPIs
-
-## When to Use
-
-- User wants to promote a product/website on social media
-- User asks "where should I promote X?"
-- User wants to find relevant discussions about their product category
-- User needs comment/reply scripts for social media engagement
-- User wants a social media promotion strategy
-
-## API Endpoints
-
-**Base URL**: `https://your-domain.com` (or `http://localhost:9001` for local)
-
-**Authentication**: All endpoints require `x-api-key` header.
-
----
-
-### 1. Check Quota
+## 工作原理
 
 ```
-GET /api/v1/open/quota
+AI-CMO API                          OpenClaw (本地)
+┌─────────────┐                    ┌─────────────────────┐
+│ 1. 分析产品   │ ── CSV 数据 ──→   │ 3. 逐行读取 CSV      │
+│ 2. 找推广帖子  │                   │ 4. 打开帖子 URL       │
+│    生成话术   │                    │ 5. 自动发评论/回复     │
+└─────────────┘                    └─────────────────────┘
+     云端 AI 分析                        本地浏览器操作
+   (用你的 API Key)                   (用你登录的账号)
 ```
 
-**Response:**
-```json
-{
-  "credits_remaining": 47,
-  "username": "user",
-  "is_premium": true
-}
+## 前置条件
+
+1. **AI-CMO 账号**：注册 [aicmo.site](https://aicmo.site) 并充值积分
+2. **API Key**：在 AI-CMO「设置 → API 密钥」中创建
+3. **OpenClaw**：本地安装并运行
+4. **社媒账号**：在本地浏览器中登录 Reddit、Twitter 等你要推流的平台
+
+## 核心 API
+
+### 一步式分析 + CSV 导出（推荐）
+
+```bash
+curl -X POST "https://aicmo.site/api/v1/open/analyze/csv" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"product": "https://your-product.com", "language": "en", "max_results": 10}' \
+  -o promotions.csv
 ```
 
----
+**消耗 1 积分**，返回 CSV 文件，包含：
 
-### 2. Analyze Product (Core Endpoint)
+| 列名 | 用途 |
+|------|------|
+| URL | OpenClaw 要访问的帖子链接 |
+| Suggested Comment | OpenClaw 要发送的评论内容 |
+| Platform | 平台名（reddit/youtube/twitter 等） |
+| Best Timing | 建议发布时间 |
+| Risk Level | 风险等级（low/medium/high） |
+| Score | AI 综合评分（越高越值得推） |
 
-```
-POST /api/v1/open/analyze
-```
+### 查询剩余积分
 
-**Request Body:**
-```json
-{
-  "product": "u2foru.site",
-  "language": "en",
-  "max_results": 10
-}
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `product` | string | Yes | Product URL (e.g., `u2foru.site`) or name (e.g., `Notion`) |
-| `language` | string | No | Response language: `en`, `zh`, `ja`, `ko`, `es`, `fr`, `de`, `pt`, `ru`, `ar`. Default: `en` |
-| `max_results` | int | No | 1-20, default 10 |
-
-**Response:**
-```json
-{
-  "success": true,
-  "product_name": "YouTube Downloader by U2forU",
-  "product_type": "SaaS tool",
-  "total_found": 40,
-  "platforms_searched": 6,
-  "promotions": [
-    {
-      "rank": 1,
-      "platform": "youtube",
-      "url": "https://www.youtube.com/watch?v=...",
-      "title": "How To Download YouTube Videos",
-      "why_recommend": "High engagement video with 8.9M views...",
-      "suggested_comment": "Downloading videos can be tricky, but tools offering pay-as-you-go pricing...",
-      "comment_strategy": "Provide value first by addressing the video's topic, then naturally mention the tool",
-      "estimated_exposure": "10k-50k views",
-      "best_timing": "Within 24 hours while discussion is active",
-      "risk_level": "low",
-      "risk_note": "YouTube comments are moderated, avoid direct links",
-      "composite_score": 92.5,
-      "engagement_stats": { "views": 8900000 }
-    }
-  ],
-  "strategy": {
-    "priority_actions": [
-      "Engage on high-traffic YouTube videos about downloading",
-      "Participate in Reddit threads about YouTube tools",
-      "Monitor HackerNews for relevant discussions"
-    ],
-    "weekly_plan": "Post 2-3 value-adding comments per platform per week...",
-    "content_calendar": "Monday: Reddit engagement, Wednesday: YouTube comments...",
-    "kpi_targets": "Target 50 engaged comments in month 1...",
-    "budget_suggestion": "No paid budget needed for organic engagement..."
-  },
-  "credits_remaining": 46
-}
+```bash
+curl -H "x-api-key: YOUR_API_KEY" "https://aicmo.site/api/v1/open/quota"
 ```
 
-**Cost**: 1 credit per call. Refunded on failure.
+### JSON 格式分析（如需更多字段）
 
----
-
-### 3. Get History
-
-```
-GET /api/v1/open/history?limit=20
-```
-
-Returns recent analysis history (titles and status).
-
----
-
-### 4. Get History Detail
-
-```
-GET /api/v1/open/history/{conversation_id}
+```bash
+curl -X POST "https://aicmo.site/api/v1/open/analyze" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"product": "your-product.com", "language": "zh"}'
 ```
 
-Returns full results of a past analysis including all recommendations and strategy.
+## OpenClaw 自动化流程
 
----
+### 推荐设置
 
-## Typical Workflow for OpenClaw
+| 参数 | 保守策略 | 稳健策略 | 激进策略 |
+|------|---------|---------|---------|
+| 执行频率 | 每 2 天一次 | 每天 1 次 | 每天 1-2 次 |
+| 每次帖数 | 3-5 条 | 5-8 条 | 8-10 条 |
+| 适用场景 | 新账号、初次使用 | 日常运营 | 老号、多账号轮换 |
+| 月积分消耗 | ~15 积分 | ~30 积分 | ~45-60 积分 |
 
-### Step 1: Analyze the product
+### OpenClaw 执行步骤
+
+OpenClaw 拿到 CSV 后，应按以下流程执行：
+
+1. **读取 CSV** — 解析每一行的 URL 和 Suggested Comment
+2. **按 Risk Level 排序** — 优先处理 `low` 风险的帖子
+3. **逐个打开 URL** — 用本地浏览器访问帖子页面
+4. **找到评论框** — 定位页面的回复/评论输入区域
+5. **填入评论内容** — 粘贴 `Suggested Comment` 列的内容
+6. **提交评论** — 点击发送按钮
+7. **等待间隔** — 每条评论之间随机等待 30-120 秒，模拟真人行为
+8. **记录结果** — 标记成功/失败，下次跳过已完成的
+
+### 重要安全建议
+
+- **随机间隔**：每条帖子之间等待 30-120 秒（随机），避免被检测为机器人
+- **分散时间**：不要集中在一个时间段操作，模拟真人浏览行为
+- **先看后评**：打开页面后先等 5-10 秒"阅读"，再发评论
+- **内容微调**：建议对 Suggested Comment 做轻微改写（替换同义词），避免千篇一律
+- **账号轮换**：如有多个账号，轮换使用，分散风险
+- **遵守规则**：关注各平台的 rate limit 和社区规范
+
+## 完整自动化脚本示例
+
+以下是 OpenClaw 可参考的伪代码逻辑：
+
+```python
+# 1. 调用 AI-CMO 获取推广数据
+import subprocess
+subprocess.run([
+    "curl", "-X", "POST", "https://aicmo.site/api/v1/open/analyze/csv",
+    "-H", "x-api-key: YOUR_API_KEY",
+    "-H", "Content-Type: application/json",
+    "-d", '{"product": "https://your-product.com", "language": "en", "max_results": 8}',
+    "-o", "promotions.csv"
+])
+
+# 2. 读取 CSV
+import csv
+with open("promotions.csv", "r", encoding="utf-8-sig") as f:
+    reader = csv.DictReader(f)
+    tasks = [row for row in reader if row["Risk Level"] in ("low", "medium")]
+
+# 3. 按评分排序，取前 5 条
+tasks.sort(key=lambda x: float(x.get("Score") or 0), reverse=True)
+tasks = tasks[:5]
+
+# 4. 逐条执行（OpenClaw 浏览器操作）
+import time, random
+for task in tasks:
+    url = task["URL"]
+    comment = task["Suggested Comment"]
+    platform = task["Platform"]
+    
+    # OpenClaw: 打开页面
+    openclaw.navigate(url)
+    time.sleep(random.uniform(5, 15))  # 模拟阅读
+    
+    # OpenClaw: 找到评论框并填写
+    openclaw.find_comment_box(platform)
+    openclaw.type_text(comment)
+    openclaw.submit()
+    
+    # 随机等待 30-120 秒
+    time.sleep(random.uniform(30, 120))
+
+print(f"Done! Posted {len(tasks)} comments.")
 ```
-POST /api/v1/open/analyze
-Body: { "product": "user's product URL or name", "language": "en" }
-```
 
-### Step 2: Present results to user
-Show the user the ranked promotion spots with:
-- Platform + URL (clickable)
-- Why it's recommended
-- Suggested comment ready to copy
-- Risk level
+## 定时任务设置
 
-### Step 3: User picks which spots to engage with
-The user selects specific promotion spots. Each spot has a `url` and `suggested_comment`.
+建议将上述流程设置为定时任务：
 
-### Step 4: OpenClaw navigates to URLs and posts comments
-Using the browser automation capability:
-1. Open each `url`
-2. Find the comment/reply box
-3. Post the `suggested_comment` (or user-modified version)
-4. Wait for confirmation
+- **macOS/Linux**: 使用 `cron` — `0 10 * * * /path/to/run_promotion.sh`（每天上午 10 点）
+- **Windows**: 使用任务计划程序
+- **或直接在 OpenClaw 中配置定时执行**
 
----
+推荐执行时间：目标用户所在时区的 **上午 9-11 点** 或 **晚上 7-9 点**（高活跃时段）。
 
-## Error Codes
+## API 完整文档
 
-| HTTP Code | Meaning |
-|-----------|---------|
-| 401 | Invalid API key |
-| 402 | Insufficient credits |
-| 403 | Account disabled |
-| 500 | Analysis failed (credit refunded) |
+访问 AI-CMO 平台的「API Docs」页面查看所有可用接口的详细说明：
+[https://aicmo.site/api-docs](https://aicmo.site/api-docs)
 
----
+## 常见问题
 
-## Rate Limits
+**Q: 每次分析消耗多少积分？**
+A: 每次调用 `/analyze` 或 `/analyze/csv` 消耗 1 积分。导出历史 CSV 不消耗积分。
 
-- Each analysis takes 30-90 seconds (real-time web scraping + AI analysis)
-- Max 10 concurrent analyses per API key
-- Credits are consumed per analysis, not per request
+**Q: 分析失败会退积分吗？**
+A: 会。如果分析过程出错，积分会自动退回。
 
----
+**Q: CSV 里的帖子都适合评论吗？**
+A: AI 已经筛选了最合适的帖子，但建议优先处理 Score 高、Risk Level 为 low 的。
 
-## Notes
-
-- API keys never expire but can be revoked
-- The `suggested_comment` is platform-aware (casual for Reddit, professional for HN, etc.)
-- Results are cached for 1 hour — same product re-analysis within 1h may be faster
-- The `language` parameter only affects AI-generated text (recommendations, comments, strategy), not the scraped content titles
+**Q: 多久分析一次比较好？**
+A: 建议每 1-2 天分析一次，因为社媒内容更新很快，热帖的时效性有限。

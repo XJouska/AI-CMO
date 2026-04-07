@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle, Loader, Globe, Search, Zap, BarChart3, Star, FileText } from 'lucide-react';
 
 interface LoadingStepsProps {
@@ -9,9 +10,19 @@ interface LoadingStepsProps {
   thinkingMessages: string[];
 }
 
-const PLATFORM_ICONS: Record<string, string> = {
-  reddit: '🟠', youtube: '🔴', twitter: '🐦', quora: '🔵',
-  producthunt: '🟧', hackernews: '🟡', v2ex: '💚', zhihu: '🔷',
+const PLATFORM_LOGOS: Record<string, string> = {
+  reddit: 'https://cdn.simpleicons.org/reddit/FF4500',
+  youtube: 'https://cdn.simpleicons.org/youtube/FF0000',
+  twitter: 'https://cdn.simpleicons.org/x/000000',
+  quora: 'https://cdn.simpleicons.org/quora/B92B27',
+  producthunt: 'https://cdn.simpleicons.org/producthunt/DA552F',
+  hackernews: 'https://cdn.simpleicons.org/ycombinator/FF6600',
+  v2ex: 'https://cdn.simpleicons.org/v/4CCF95',
+  zhihu: 'https://cdn.simpleicons.org/zhihu/0084FF',
+  linkedin: 'https://cdn.simpleicons.org/linkedin/0A66C2',
+  tiktok: 'https://cdn.simpleicons.org/tiktok/000000',
+  instagram: 'https://cdn.simpleicons.org/instagram/E4405F',
+  facebook: 'https://cdn.simpleicons.org/facebook/0866FF',
 };
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -19,20 +30,20 @@ const PLATFORM_COLORS: Record<string, string> = {
   producthunt: '#DA552F', hackernews: '#FF6600', v2ex: '#333', zhihu: '#0084FF',
 };
 
-const STEP_CONFIG = [
-  { num: 1, key: 'step1', icon: Search, color: '#ff3b3b', desc: '分析产品' },
-  { num: 2, key: 'step2', icon: Zap, color: '#ff9500', desc: '搜索策略' },
-  { num: 3, key: 'step3', icon: Globe, color: '#00d26a', desc: '全网搜索' },
-  { num: 4, key: 'step4', icon: BarChart3, color: '#1DA1F2', desc: '评估价值' },
-  { num: 5, key: 'step5', icon: Star, color: '#ff3b3b', desc: '推荐分析' },
-  { num: 6, key: 'step6', icon: FileText, color: '#ff9500', desc: '运营策略' },
-];
-
 export default function LoadingSteps({ currentStep, stepMessage, platformResults, detailMessages, thinkingMessages }: LoadingStepsProps) {
+  const { t } = useTranslation();
   const logEndRef = useRef<HTMLDivElement>(null);
   const [elapsed, setElapsed] = useState(0);
 
-  // Timer
+  const STEP_CONFIG = [
+    { num: 1, key: 'step1', icon: Search, color: '#ff3b3b', desc: t('loading.step1') },
+    { num: 2, key: 'step2', icon: Zap, color: '#ff9500', desc: t('loading.step2') },
+    { num: 3, key: 'step3', icon: Globe, color: '#00d26a', desc: t('loading.step3') },
+    { num: 4, key: 'step4', icon: BarChart3, color: '#1DA1F2', desc: t('loading.step4') },
+    { num: 5, key: 'step5', icon: Star, color: '#ff3b3b', desc: t('loading.step5') },
+    { num: 6, key: 'step6', icon: FileText, color: '#ff9500', desc: t('loading.step6') },
+  ];
+
   useEffect(() => {
     const timer = setInterval(() => setElapsed(e => e + 1), 1000);
     return () => clearInterval(timer);
@@ -42,21 +53,18 @@ export default function LoadingSteps({ currentStep, stepMessage, platformResults
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [detailMessages.length, thinkingMessages.length]);
 
-  const totalPlatforms = Object.keys(platformResults).length;
   const totalResults = Object.values(platformResults).reduce((a, b) => a + b, 0);
 
-  // Extract planned platform count from step 2 status message
-  const plannedPlatformMatch = stepMessage.match(/搜索\s*(\d+)\s*个/);
+  const plannedPlatformMatch = stepMessage.match(/(\d+)\s*(个|platform)/);
   const plannedPlatformCount = plannedPlatformMatch ? parseInt(plannedPlatformMatch[1]) : 6;
-  const displayPlatformCount = totalPlatforms || plannedPlatformCount;
+  const displayPlatformCount = plannedPlatformCount;
 
   return (
     <div className="analysis-panel">
-      {/* Progress bar */}
       <div className="progress-header">
         <div className="progress-title">
           <Loader size={14} className="spin" style={{ color: 'var(--primary)' }} />
-          <span>{stepMessage || '分析中...'}</span>
+          <span>{stepMessage || t('loading.analyzing')}</span>
         </div>
         <span className="progress-timer">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>
       </div>
@@ -64,7 +72,6 @@ export default function LoadingSteps({ currentStep, stepMessage, platformResults
         <div className="progress-bar-fill" style={{ width: `${Math.min((currentStep / 6) * 100, 100)}%` }} />
       </div>
 
-      {/* Step pills */}
       <div className="step-pills">
         {STEP_CONFIG.map(({ num, icon: Icon, color, desc }) => {
           const isDone = currentStep > num;
@@ -80,74 +87,71 @@ export default function LoadingSteps({ currentStep, stepMessage, platformResults
         })}
       </div>
 
-      {/* Active step detail area */}
       <div className="step-detail-area">
-        {/* Product Analysis (Step 1) */}
         {currentStep === 1 && (
           <div className="detail-card fadein">
             <div className="detail-card-header">
               <Search size={16} style={{ color: '#ff3b3b' }} />
-              <span>产品分析中</span>
+              <span>{t('loading.productAnalyzing')}</span>
             </div>
             <div className="detail-card-body">
-              <div className="typing-indicator">
-                <span></span><span></span><span></span>
-              </div>
-              <p className="detail-hint">AI 正在识别产品类型、目标用户和核心关键词...</p>
+              <div className="typing-indicator"><span></span><span></span><span></span></div>
+              <p className="detail-hint">{t('loading.productHint')}</p>
             </div>
           </div>
         )}
 
-        {/* Search Strategy (Step 2) */}
         {currentStep === 2 && (
           <div className="detail-card fadein">
             <div className="detail-card-header">
               <Zap size={16} style={{ color: '#ff9500' }} />
-              <span>搜索策略已生成</span>
+              <span>{t('loading.strategyReady')}</span>
             </div>
             <div className="detail-card-body">
               {thinkingMessages.map((msg, i) => (
                 <div key={i} className="info-chip fadein" style={{ animationDelay: `${i * 0.15}s` }}>{msg}</div>
               ))}
-              {detailMessages.filter(m => m.includes('关键词') || m.includes('竞品') || m.includes('搜索计划')).map((msg, i) => (
-                <div key={`d${i}`} className="info-chip fadein" style={{ animationDelay: `${(i + thinkingMessages.length) * 0.15}s` }}>{msg}</div>
-              ))}
             </div>
           </div>
         )}
 
-        {/* Platform Scraping (Step 3) — 2-column grid */}
         {currentStep >= 3 && currentStep <= 3 && (
           <div className="detail-card fadein">
             <div className="detail-card-header">
               <Globe size={16} style={{ color: '#00d26a' }} />
-              <span>正在搜索 {displayPlatformCount} 个平台</span>
-              {totalResults > 0 && <span className="result-badge">{totalResults} 条结果</span>}
+              <span>{t('loading.searching', { count: displayPlatformCount })}</span>
+              {totalResults > 0 && <span className="result-badge">{totalResults} {t('loading.results')}</span>}
             </div>
             <div className="platform-grid">
               {detailMessages
                 .filter(m => m.startsWith('🔍') || m.startsWith('✅') || m.startsWith('⚠️'))
-                .filter(m => m.includes('正在搜索') || m.includes('找到'))
+                .filter(m => {
+                  const hasSearch = m.includes('正在搜索') || m.includes('Searching') || m.includes('搜索');
+                  const hasFound = m.includes('找到') || m.includes('found') || m.includes('Found');
+                  return hasSearch || hasFound;
+                })
                 .map((msg, i) => {
                   const platMatch = msg.match(/(reddit|youtube|twitter|quora|producthunt|hackernews|v2ex|zhihu)/i);
                   const platform = platMatch ? platMatch[1].toLowerCase() : '';
-                  const isDone = msg.includes('找到');
+                  const isDone = msg.includes('找到') || msg.includes('found');
                   const count = platformResults[platform] || 0;
                   const color = PLATFORM_COLORS[platform] || '#666';
 
                   return (
                     <div key={i} className={`platform-card fadein ${isDone ? 'done' : 'searching'}`}
                          style={{ animationDelay: `${i * 0.08}s` }}>
-                      <div className="platform-card-icon" style={{ background: `${color}15`, color }}>
-                        {PLATFORM_ICONS[platform] || '🌐'}
+                      <div className="platform-card-icon" style={{ background: `${color}15` }}>
+                        {PLATFORM_LOGOS[platform]
+                          ? <img src={PLATFORM_LOGOS[platform]} alt={platform} width={18} height={18} />
+                          : <Globe size={18} style={{ color }} />}
                       </div>
                       <div className="platform-card-info">
                         <div className="platform-card-name">{platform || 'unknown'}</div>
                         <div className="platform-card-status">
                           {isDone ? (
-                            <><CheckCircle size={11} style={{ color: '#00d26a' }} /> {count} 条</>
+                            <><CheckCircle size={11} style={{ color: '#00d26a' }} /> {count} {t('loading.items')}</>
                           ) : (
-                            <><Loader size={11} className="spin" /> 搜索中...</>
+                            <><Loader size={11} className="spin" /> {t('loading.searchingDots')}</>
                           )}
                         </div>
                       </div>
@@ -159,76 +163,50 @@ export default function LoadingSteps({ currentStep, stepMessage, platformResults
                     </div>
                   );
                 })}
-              {/* Scrape URLs */}
-              {detailMessages.filter(m => m.startsWith('🔗')).length > 0 && (
-                <div className="scrape-urls">
-                  {detailMessages.filter(m => m.startsWith('🔗')).slice(-4).map((msg, i) => (
-                    <div key={i} className="scrape-url-line fadein" style={{ animationDelay: `${i * 0.06}s` }}>
-                      {msg}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         )}
 
-        {/* Scoring (Step 4) */}
         {currentStep === 4 && (
           <div className="detail-card fadein">
             <div className="detail-card-header">
               <BarChart3 size={16} style={{ color: '#1DA1F2' }} />
-              <span>AI 正在多维度评分</span>
+              <span>{t('loading.ranking', { count: totalResults })}</span>
             </div>
             <div className="detail-card-body">
-              <div className="scoring-dims">
-                {['互动量', '时效性', '相关性', '推广潜力', '受众匹配'].map((dim, i) => (
-                  <div key={dim} className="scoring-dim fadein" style={{ animationDelay: `${i * 0.15}s` }}>
-                    <span className="scoring-dim-label">{dim}</span>
-                    <div className="scoring-dim-bar">
-                      <div className="scoring-dim-fill" style={{
-                        animationDelay: `${i * 0.15 + 0.3}s`,
-                        background: `hsl(${i * 50}, 60%, 50%)`,
-                      }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="detail-hint">正在从 {totalResults} 条内容中筛选 Top 10...</p>
+              <div className="typing-indicator"><span></span><span></span><span></span></div>
+              <p className="detail-hint">{t('loading.rankingHint')}</p>
             </div>
           </div>
         )}
 
-        {/* Deep Analysis (Step 5) */}
         {currentStep === 5 && (
           <div className="detail-card fadein">
             <div className="detail-card-header">
               <Star size={16} style={{ color: '#ff3b3b' }} />
-              <span>深度分析 Top 推荐</span>
+              <span>{t('loading.deepAnalysis')}</span>
             </div>
             <div className="detail-card-body">
               <div className="typing-indicator"><span></span><span></span><span></span></div>
-              <p className="detail-hint">正在为每条推荐生成推广理由、最佳时机和话术...</p>
+              <p className="detail-hint">{t('loading.deepHint')}</p>
             </div>
           </div>
         )}
 
-        {/* Strategy (Step 6) */}
         {currentStep === 6 && (
           <div className="detail-card fadein">
             <div className="detail-card-header">
               <FileText size={16} style={{ color: '#ff9500' }} />
-              <span>生成运营策略</span>
+              <span>{t('loading.genStrategy')}</span>
             </div>
             <div className="detail-card-body">
               <div className="typing-indicator"><span></span><span></span><span></span></div>
-              <p className="detail-hint">正在生成每周推广节奏、KPI 目标和预算建议...</p>
+              <p className="detail-hint">{t('loading.strategyHint')}</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Live log */}
       {detailMessages.length > 0 && (
         <div className="live-log">
           <div className="live-log-header">

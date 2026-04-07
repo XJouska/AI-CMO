@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Sparkles, Search, Globe, RefreshCw, Square } from 'lucide-react';
+import { Send, Search, Globe, RefreshCw, Square, X } from 'lucide-react';
 import LoadingSteps from './LoadingSteps';
-import RecommendCard from './RecommendCard';
+import ValueBanner from './ValueBanner';
+import ActionList from './ActionList';
 import StrategyPanel from './StrategyPanel';
-import TerminalLog from './TerminalLog';
-import AnalysisSummaryCard from './analysis/AnalysisSummaryCard';
-import PlatformBreakdown from './analysis/PlatformBreakdown';
 import AIChatPanel from './AIChatPanel';
 import type { AnalysisState } from '../stores/analysisStore';
 import type { Recommendation, OverallStrategy } from '../types';
@@ -25,6 +23,7 @@ interface ChatInterfaceProps {
   conversationId?: string;
   initialInput?: string;
   pendingAnalysis?: { input_value: string } | null;
+  onDismissPending?: () => void;
 }
 
 const EXAMPLE_PROMPTS = [
@@ -34,19 +33,15 @@ const EXAMPLE_PROMPTS = [
 ];
 
 export default function ChatInterface({
-  analysisState, onAnalyze, onStop, isPremium, creditBalance, viewingHistory, conversationId, initialInput, pendingAnalysis
+  analysisState, onAnalyze, onStop, isPremium, creditBalance, viewingHistory, conversationId, initialInput, pendingAnalysis, onDismissPending
 }: ChatInterfaceProps) {
   const { t } = useTranslation();
   const [input, setInput] = useState(initialInput || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [userMessage, setUserMessage] = useState('');
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [analysisState.recommendations.length, analysisState.currentStep, analysisState.strategy, analysisState.detailMessages.length]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -68,50 +63,7 @@ export default function ChatInterface({
   const showStrategy = viewingHistory ? viewingHistory.strategy : analysisState.strategy;
   const showInput = viewingHistory ? viewingHistory.input_value : pendingAnalysis ? pendingAnalysis.input_value : userMessage;
 
-  const totalResults = showRecs.length;
-  const platformsSearched = Object.keys(analysisState.platformResults).length;
-
-  const handleExportCSV = () => {
-    if (!isPremium) return;
-    const headers = ['Rank', 'Platform', 'Title', 'URL', 'Score', 'Upvotes', 'Comments', 'Views', 'Exposure', 'Best Timing', 'Risk', 'Why Recommend', 'Suggested Comment'];
-    const escape = (s: string) => `"${(s || '').replace(/"/g, '""')}"`;
-    const rows = showRecs.map(r => [
-      r.rank,
-      r.platform,
-      escape(r.title),
-      r.url,
-      r.composite_score ?? '',
-      r.engagement_stats?.upvotes ?? '',
-      r.engagement_stats?.comments ?? '',
-      r.engagement_stats?.views ?? '',
-      escape(r.estimated_exposure || ''),
-      escape(r.best_timing || ''),
-      r.risk_level || '',
-      escape(r.why_recommend || ''),
-      escape(r.suggested_comment || ''),
-    ].join(','));
-
-    if (showStrategy) {
-      rows.push('');
-      rows.push('--- Strategy ---');
-      if (showStrategy.priority_actions?.length) {
-        rows.push(`Priority Actions,${escape(showStrategy.priority_actions.join('; '))}`);
-      }
-      if (showStrategy.weekly_plan) rows.push(`Weekly Plan,${escape(showStrategy.weekly_plan)}`);
-      if (showStrategy.kpi_targets) rows.push(`KPI Targets,${escape(showStrategy.kpi_targets)}`);
-      if (showStrategy.budget_suggestion) rows.push(`Budget,${escape(showStrategy.budget_suggestion)}`);
-    }
-
-    const bom = '\uFEFF';
-    const csv = bom + headers.join(',') + '\n' + rows.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ai-cmo-analysis-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const platformCount = new Set(showRecs.map(r => r.platform)).size;
 
   return (
     <div className="chat-area">
@@ -119,7 +71,7 @@ export default function ChatInterface({
         {!isActive ? (
           <div className="welcome">
             <div className="welcome-icon">
-              <Sparkles size={30} color="var(--primary)" />
+              <img src="/logo.png?v=2" alt="AI-CMO" style={{ width: 48, height: 48, borderRadius: 10, background: 'transparent' }} />
             </div>
             <h1>AI-CMO</h1>
             <p>{t('chat.welcomeDesc')}</p>
@@ -134,14 +86,12 @@ export default function ChatInterface({
           </div>
         ) : (
           <>
-            {/* User message */}
             {showInput && (
               <div className="message message-user">
                 <div className="message-content">{showInput}</div>
               </div>
             )}
 
-            {/* Product info card */}
             {analysisState.productInfo && (
               <div className="product-info-card fadein">
                 <div className="product-info-card-header">
@@ -150,37 +100,39 @@ export default function ChatInterface({
                 </div>
                 <div className="product-info-card-title">{analysisState.productInfo.title}</div>
                 <div className="product-info-card-meta">
-                  {analysisState.productInfo.product_name && (
-                    <span>{analysisState.productInfo.product_name}</span>
-                  )}
-                  {analysisState.productInfo.product_type && (
-                    <span>{analysisState.productInfo.product_type}</span>
-                  )}
+                  {analysisState.productInfo.product_name && <span>{analysisState.productInfo.product_name}</span>}
+                  {analysisState.productInfo.product_type && <span>{analysisState.productInfo.product_type}</span>}
                 </div>
-                {analysisState.productInfo.content && (
-                  <div className="product-info-card-content">
-                    {analysisState.productInfo.content}
+                {analysisState.productInfo.description && (
+                  <div className="product-info-card-desc">{analysisState.productInfo.description}</div>
+                )}
+                {analysisState.productInfo.target_audience && analysisState.productInfo.target_audience.length > 0 && (
+                  <div className="product-info-card-audience">
+                    {analysisState.productInfo.target_audience.map((a, i) => (
+                      <span key={i} className="audience-tag">{a}</span>
+                    ))}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Pending analysis (page refreshed during analysis) */}
             {pendingAnalysis && !analysisState.isAnalyzing && (
               <div className="pending-analysis fadein">
-                <div className="pending-analysis-icon">
-                  <RefreshCw size={24} className="spin" />
-                </div>
                 <div className="pending-analysis-body">
-                  <div className="pending-analysis-title">{t('chat.analyzing')}</div>
-                  <div className="pending-analysis-desc">
-                    {t('chat.pendingDesc') || 'Analysis is running on the server. Results will appear automatically when ready...'}
+                  <RefreshCw size={18} className="spin" style={{ color: 'var(--primary)' }} />
+                  <div style={{ flex: 1 }}>
+                    <div className="pending-analysis-title">{t('chat.analyzing')}</div>
+                    <div className="pending-analysis-desc">{t('chat.pendingDesc')}</div>
                   </div>
+                  {onDismissPending && (
+                    <button className="btn btn-stop" onClick={onDismissPending} style={{ flexShrink: 0 }}>
+                      <X size={14} /> {t('chat.stop')}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Loading Steps (only during active SSE analysis) */}
             {analysisState.isAnalyzing && (
               <div className="message message-assistant">
                 <LoadingSteps
@@ -193,57 +145,22 @@ export default function ChatInterface({
               </div>
             )}
 
-            {/* Completed summary card */}
-            {analysisState.done && !viewingHistory && totalResults > 0 && (
-              <AnalysisSummaryCard
-                recommendations={showRecs}
-                platformResults={analysisState.platformResults}
-                isPremium={isPremium}
-                onExportCSV={handleExportCSV}
-              />
+            {/* Value Banner + Action List + Strategy — the new compact results */}
+            {showRecs.length > 0 && (
+              <div className="results-container fadein">
+                <ValueBanner
+                  recommendations={showRecs}
+                  platformCount={platformCount}
+                />
+                <ActionList
+                  recommendations={showRecs}
+                  isPremium={isPremium}
+                  conversationId={conversationId}
+                />
+                {showStrategy && <StrategyPanel strategy={showStrategy} />}
+              </div>
             )}
 
-            {/* Summary card for history viewing */}
-            {viewingHistory && showRecs.length > 0 && (
-              <AnalysisSummaryCard
-                recommendations={showRecs}
-                platformResults={{}}
-                isPremium={isPremium}
-                onExportCSV={handleExportCSV}
-              />
-            )}
-
-            {/* Platform breakdown chart */}
-            {analysisState.done && !viewingHistory && platformsSearched > 0 && (
-              <PlatformBreakdown platformResults={analysisState.platformResults} />
-            )}
-
-            {/* Terminal log during analysis */}
-            {analysisState.isAnalyzing && (
-              <TerminalLog
-                messages={analysisState.detailMessages}
-                thinkingMessages={analysisState.thinkingMessages}
-              />
-            )}
-
-            {/* Skeleton cards while loading */}
-            {analysisState.isAnalyzing && analysisState.currentStep >= 4 && showRecs.length === 0 && (
-              <>
-                <div className="skeleton skeleton-card" />
-                <div className="skeleton skeleton-card" />
-                <div className="skeleton skeleton-card" />
-              </>
-            )}
-
-            {/* Recommendation cards */}
-            {showRecs.map((rec, i) => (
-              <RecommendCard key={i} recommendation={rec} isPremium={isPremium} index={i} />
-            ))}
-
-            {/* Strategy panel */}
-            {showStrategy && <StrategyPanel strategy={showStrategy} />}
-
-            {/* Error */}
             {analysisState.error && (
               <div style={{
                 padding: '1rem 1.25rem', background: 'rgba(255, 71, 87, 0.06)',
@@ -259,7 +176,6 @@ export default function ChatInterface({
         )}
       </div>
 
-      {/* Input area */}
       {!viewingHistory && (
         <div className="chat-input-area">
           <form className="chat-input-wrapper" onSubmit={handleSubmit}>
@@ -287,7 +203,6 @@ export default function ChatInterface({
         </div>
       )}
 
-      {/* AI Chat Panel (visible after analysis or when viewing history) */}
       {(analysisState.done || viewingHistory) && (
         <AIChatPanel conversationId={conversationId} />
       )}

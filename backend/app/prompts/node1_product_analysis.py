@@ -46,15 +46,16 @@ You MUST respond in valid JSON format with exactly this structure:
     {
       "platform": "reddit",
       "search_urls": [
-        "https://www.reddit.com/search/?q=english+keyword1+keyword2&sort=hot",
-        "https://www.reddit.com/search/?q=best+alternative+to+competitor&sort=new"
+        "https://www.reddit.com/search/?q=english+keyword1+keyword2&sort=relevance&t=year",
+        "https://www.reddit.com/search/?q=best+alternative+to+competitor&sort=new&t=year"
       ],
       "priority": "high"
     },
     {
       "platform": "youtube",
       "search_urls": [
-        "https://www.youtube.com/results?search_query=best+product_type+tools+2026&sp=CAI"
+        "https://www.youtube.com/results?search_query=best+product_type+tools+2026&sp=EgIIBQ%3D%3D",
+        "https://www.youtube.com/results?search_query=how+to+use+keyword+tutorial&sp=EgIIBQ%3D%3D"
       ],
       "priority": "high"
     },
@@ -82,7 +83,7 @@ You MUST respond in valid JSON format with exactly this structure:
     {
       "platform": "hackernews",
       "search_urls": [
-        "https://hn.algolia.com/?q=english+keyword"
+        "https://hn.algolia.com/?q=english+keyword&dateRange=pastYear"
       ],
       "priority": "low"
     }
@@ -91,13 +92,19 @@ You MUST respond in valid JSON format with exactly this structure:
 
 Rules for search strategy:
 - ALWAYS use English keywords in search URLs (this is non-negotiable)
+- ALWAYS include time filters in search URLs to get RECENT content:
+  * Reddit: append "&t=year" (past year) to all URLs
+  * YouTube: append "&sp=EgIIBQ%3D%3D" (past month) for trending, or "&sp=CAISBAgEEAE%3D" (past year sorted by date)
+  * HackerNews: append "&dateRange=pastYear"
+  * Twitter/X: always use "&f=live" (already shows latest)
 - For SaaS/Dev tools: prioritize Reddit, HackerNews, ProductHunt
 - For consumer products: prioritize YouTube, Twitter, Reddit
 - For content/media: prioritize YouTube, Twitter, Quora
 - Generate 2-3 search URLs per platform with relevant English keywords
 - Use actual working search URL patterns for each platform
 - Sort keywords by relevance, max 5 keywords
-- Always include at least Reddit and YouTube as high priority"""
+- Always include at least Reddit and YouTube as high priority
+- Include the CURRENT YEAR (2026) in YouTube search queries when searching for "best tools" or "top alternatives" to find recent content"""
         },
         {
             "role": "user",

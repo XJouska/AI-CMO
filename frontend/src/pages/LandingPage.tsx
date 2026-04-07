@@ -8,10 +8,10 @@ import { useAuthStore } from '../stores/authStore';
 export default function LandingPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { user, login, register } = useAuthStore();
+  const { user, login, register, loginWithGoogle } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
   const [url, setUrl] = useState('');
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   const handleStart = () => {
     if (user) {
@@ -41,7 +41,10 @@ export default function LandingPage() {
     <div className="app">
       <header className="header">
         <div className="header-left">
-          <span className="header-logo">🚀 AI-CMO</span>
+          <span className="header-logo">
+            <img src="/logo.png?v=2" alt="AI-CMO" style={{ width: 24, height: 24, borderRadius: 4, verticalAlign: 'middle', marginRight: 6, background: 'transparent' }} />
+            AI-CMO
+          </span>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('common.tagline')}</span>
         </div>
         <div className="header-right">
@@ -50,7 +53,7 @@ export default function LandingPage() {
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           {user ? (
-            <button className="btn btn-primary" onClick={() => navigate('/dashboard')}>
+            <button className="btn btn-primary" onClick={() => navigate('/analyze')}>
               {t('nav.dashboard')} <ArrowRight size={14} />
             </button>
           ) : (
@@ -94,8 +97,9 @@ export default function LandingPage() {
 
       {showLogin && (
         <LoginModal onClose={() => setShowLogin(false)}
-          onLogin={async (email, pwd) => { await login(email, pwd); navigate('/dashboard'); }}
-          onRegister={async (u, e, p, r, l) => { await register(u, e, p, r, l); navigate('/dashboard'); }} />
+          onLogin={async (email, pwd) => { await login(email, pwd); navigate('/analyze'); }}
+          onRegister={async (u, e, p, r, l) => { await register(u, e, p, r, l); navigate('/analyze'); }}
+          onGoogleLogin={async (cred) => { await loginWithGoogle(cred); navigate('/analyze'); }} />
       )}
     </div>
   );

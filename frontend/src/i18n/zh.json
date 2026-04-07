@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "AI-CMO",
-    "tagline": "AI 营销指挥中心",
+    "tagline": "你最好的营销助手",
     "loading": "加载中...",
     "error": "发生错误",
     "cancel": "取消",
@@ -18,7 +18,8 @@
     "analyze": "分析",
     "competitors": "竞品分析",
     "geo": "GEO 追踪",
-    "settings": "设置"
+    "settings": "设置",
+    "seo": "SEO 健康"
   },
   "auth": {
     "login": "登录",
@@ -114,7 +115,7 @@
     "recharge": "充值",
     "packages": "积分套餐",
     "perAnalysis": "每次分析消耗 1 积分",
-    "upgrade": "升级为会员"
+    "upgrade": "升级"
   },
   "competitors": {
     "add": "添加竞品",
@@ -124,16 +125,36 @@
     "description": "描述",
     "descPlaceholder": "简要描述竞品...",
     "empty": "暂未追踪竞品",
-    "emptyDesc": "添加竞品以追踪和对比其营销策略。"
+    "emptyDesc": "添加竞品以追踪和对比其营销策略。",
+    "discover": "自动发现",
+    "discoverDesc": "让 AI 根据你的产品自动发现竞品",
+    "analyze": "分析",
+    "comparison": "对比概览",
+    "addSuggested": "添加"
   },
   "geo": {
     "title": "GEO 可见度追踪",
     "description": "追踪你的品牌在 AI 搜索引擎和对话 AI 平台中的曝光度。",
-    "comingSoon": "即将推出——该功能正在开发中。"
+    "comingSoon": "即将推出——该功能正在开发中。",
+    "brandName": "品牌名称",
+    "keywords": "关键词",
+    "keywordsPlaceholder": "输入关键词，用逗号分隔...",
+    "startScan": "扫描可见度",
+    "scanning": "扫描中...",
+    "overallScore": "综合可见度",
+    "platformStatus": "平台状态",
+    "mentioned": "已提及",
+    "notFound": "未发现",
+    "partial": "部分提及",
+    "history": "扫描历史",
+    "noScans": "暂无扫描记录。输入品牌名称以检查 AI 可见度。",
+    "websiteUrl": "网站 URL",
+    "formHint": "输入品牌名称和网站地址，系统会检测 AI 平台（Perplexity、Google AI、Bing Copilot）是否提及你的品牌并引用你的网站链接。",
+    "linkCited": "网站链接被引用"
   },
   "settings": {
     "responseLanguage": "AI 回复语言",
-    "responseLanguageDesc": "选择 AI 分析结果和推荐的输出语言。这与界面语言是独立的设置。",
+    "responseLanguageDesc": "选择 AI 分析结果和推荐的输出语言。",
     "interfaceLanguage": "界面语言",
     "interfaceLanguageDesc": "选择按钮、标签和导航的显示语言。",
     "brandVoice": "品牌调性",
@@ -145,6 +166,80 @@
     "createKey": "创建密钥",
     "apiKeyWarning": "请妥善保存此密钥——它不会再次显示。",
     "revoked": "已撤销",
-    "saved": "设置已保存！"
+    "saved": "设置已保存！",
+    "primaryUrl": "主要产品 URL",
+    "primaryUrlDesc": "设置你的主要产品 URL，用于自动每日 SEO 监控和 GEO 追踪。",
+    "primaryUrlPlaceholder": "https://yourproduct.com"
+  },
+  "seo": {
+    "title": "SEO 健康检查",
+    "urlPlaceholder": "输入网站 URL 进行检查...",
+    "startCheck": "检查 SEO",
+    "checking": "检查中...",
+    "performanceScore": "性能评分",
+    "seoScore": "SEO 评分",
+    "issues": "发现问题",
+    "passed": "通过检查",
+    "history": "检查历史"
+  },
+  "content": {
+    "generate": "生成内容",
+    "generating": "生成中...",
+    "type": "内容类型",
+    "comment": "评论/回复",
+    "post": "论坛帖子",
+    "blog": "博客文章",
+    "tweet": "推文/Thread",
+    "copyContent": "复制内容",
+    "regenerate": "重新生成"
+  },
+  "terminal": {
+    "title": "AI CMO 终端",
+    "running": "运行中",
+    "noLogs": "暂无活动日志"
+  },
+  "loading": {
+    "step1": "分析产品",
+    "step2": "搜索策略",
+    "step3": "全网搜索",
+    "step4": "评估价值",
+    "step5": "推荐分析",
+    "step6": "运营策略",
+    "analyzing": "分析中...",
+    "productAnalyzing": "产品分析中",
+    "productHint": "AI 正在识别产品类型、目标用户和核心关键词...",
+    "strategyReady": "搜索策略已生成",
+    "searching": "正在搜索 {{count}} 个平台",
+    "results": "条结果",
+    "items": "条",
+    "searchingDots": "搜索中...",
+    "ranking": "正在为 {{count}} 条内容按推广价值进行排序",
+    "rankingHint": "评估维度：互动量 · 时效性 · 相关性 · 推广潜力 · 受众匹配",
+    "deepAnalysis": "深度分析 Top 推荐",
+    "deepHint": "正在为每条推荐生成推广理由、最佳时机和话术...",
+    "genStrategy": "生成运营策略",
+    "strategyHint": "正在生成每周推广节奏、KPI 目标和市场洞察..."
+  },
+  "strategy": {
+    "hotTopics": "热门话题",
+    "painPoints": "用户痛点",
+    "competitors": "被提及的竞品",
+    "contentAngles": "内容切入角度",
+    "platformInsights": "各平台洞察",
+    "collapse": "收起详情",
+    "showMore": "查看周计划与 KPI"
+  },
+  "actionList": {
+    "exposureTip": "预计你的评论可为产品带来的额外曝光量（基于该帖子的互动水平估算）",
+    "postStats": "帖子原始数据",
+    "views": "浏览",
+    "upvotes": "点赞",
+    "comments": "评论"
+  },
+  "valueBanner": {
+    "label": "预估你的评论可获得的曝光量",
+    "spots": "个推荐",
+    "platforms": "个平台",
+    "avgScore": "均分"
   }
 }
