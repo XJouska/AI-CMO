@@ -8,7 +8,7 @@ import json
 from typing import AsyncGenerator, Callable, Optional, List, Dict
 
 from app.services.llm import LLMService, get_llm_service
-from app.services.agentgo import AgentGoService, get_agentgo_service
+from app.services.browser_service import BrowserService, get_browser_service
 from app.utils.sse import SSEEvent
 from app.utils.parsers import parse_platform, parse_google_site_results as _parse_google_site_results
 from app.prompts.node1_product_analysis import (
@@ -28,7 +28,7 @@ class AnalysisWorkflow:
 
     def __init__(self):
         self.llm: LLMService = get_llm_service()
-        self.agentgo: AgentGoService = get_agentgo_service()
+        self.browser: BrowserService = get_browser_service()
 
     def _is_cancelled(self) -> bool:
         if not self._conv_id:
@@ -237,7 +237,7 @@ class AnalysisWorkflow:
         scraped_title = ""
 
         if is_url:
-            scrape_task = asyncio.create_task(self.agentgo.scrape_url(inp))
+            scrape_task = asyncio.create_task(self.browser.scrape_url(inp))
             pre_task = asyncio.create_task(
                 self.llm.chat_json(build_url_pre_analysis_prompt(inp))
             )
@@ -336,7 +336,7 @@ class AnalysisWorkflow:
         medium_tasks = [t for t in search_tasks if t.get("priority") == "medium"]
         low_tasks = [t for t in search_tasks if t.get("priority") == "low"]
 
-        sem = asyncio.Semaphore(2)  # AgentGo: 2 concurrent connections max
+        sem = asyncio.Semaphore(5)
         all_results = []
 
         async def scrape_platform_urls(task: dict):
@@ -349,7 +349,7 @@ class AnalysisWorkflow:
                 async with sem:
                     try:
                         result = await asyncio.wait_for(
-                            self.agentgo.scrape_url(url), timeout=25
+                            self.browser.scrape_url(url), timeout=25
                         )
                         text = result.get("data", {}).get("markdown", "")
 
@@ -360,7 +360,7 @@ class AnalysisWorkflow:
                                 google_url = self._build_google_site_url(platform, url)
                                 logger.info(f"[Workflow] {platform} blocked, trying Google: {google_url[:80]}")
                                 result = await asyncio.wait_for(
-                                    self.agentgo.scrape_url(google_url), timeout=25
+                                    self.browser.scrape_url(google_url), timeout=25
                                 )
                                 parsed = _parse_google_site_results(platform, result)
                                 platform_results.extend(parsed)
@@ -382,7 +382,7 @@ class AnalysisWorkflow:
                             google_url = self._build_google_site_url(platform, urls[0])
                             logger.info(f"[Workflow] {platform} empty, trying Google: {google_url[:80]}")
                             result = await asyncio.wait_for(
-                                self.agentgo.scrape_url(google_url), timeout=25
+                                self.browser.scrape_url(google_url), timeout=25
                             )
                             parsed = _parse_google_site_results(platform, result)
                             platform_results.extend(parsed)

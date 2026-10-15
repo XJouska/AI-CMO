@@ -10,9 +10,9 @@ interface PricingModalProps {
 }
 
 const PACKAGES = [
-  { name: 'Starter', priceSgd: 5, priceCny: 25, credits: 25, popular: false },
-  { name: 'Standard', priceSgd: 15, priceCny: 68, credits: 80, popular: true },
-  { name: 'Pro', priceSgd: 30, priceCny: 128, credits: 180, popular: false },
+  { name: 'Starter', priceSgd: 4.99, priceCny: 25, credits: 25, popular: false },
+  { name: 'Standard', priceSgd: 8.99, priceCny: 45, credits: 50, popular: true },
+  { name: 'Pro', priceSgd: 16.99, priceCny: 85, credits: 100, popular: false },
 ];
 
 export default function PricingModal({ onClose, balance, onBalanceUpdate }: PricingModalProps) {
@@ -20,26 +20,22 @@ export default function PricingModal({ onClose, balance, onBalanceUpdate }: Pric
   const isCN = i18n.language.startsWith('zh');
   const [loading, setLoading] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: boolean; message: string; url?: string } | null>(null);
+  const [paygoAmount, setPaygoAmount] = useState(5);
 
-  const handlePurchase = async (pkg: typeof PACKAGES[0]) => {
-    setLoading(pkg.name);
+  const handleCheckout = async (packageName: string, amount?: number) => {
+    setLoading(packageName);
     setResult(null);
     try {
-      const currency = isCN ? 'CNY' : 'SGD';
-      const amount = isCN ? pkg.priceCny : pkg.priceSgd;
-      const { data } = await api.post('/api/v1/credits/checkout', { amount, currency });
+      const body: Record<string, unknown> = { package_name: packageName };
+      if (amount) body.amount = amount;
+      const { data } = await api.post('/api/v1/credits/checkout', body);
 
       if (data.checkout_url) {
         window.open(data.checkout_url, '_blank');
         setResult({
           success: true,
-          message: `${isCN ? '请在新窗口完成支付' : 'Please complete payment in the new window'}`,
+          message: t('pricing.paymentRedirect'),
           url: data.checkout_url,
-        });
-      } else {
-        setResult({
-          success: true,
-          message: `${isCN ? '订单已创建' : 'Order created'}: ${data.order_number}\n${data.message}\n\n${isCN ? '支付功能即将上线，敬请期待！' : 'Payment integration coming soon!'}`,
         });
       }
       if (onBalanceUpdate) onBalanceUpdate();
@@ -75,11 +71,42 @@ export default function PricingModal({ onClose, balance, onBalanceUpdate }: Pric
           {t('pricing.perAnalysis')}
         </div>
 
+        {/* Pay As You Go */}
+        <div style={{
+          padding: '0.875rem 1.25rem', marginBottom: '0.75rem',
+          background: 'var(--bg-elevated)', border: '2px solid var(--accent)',
+          borderRadius: 'var(--radius-md)',
+        }}>
+          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: '0.5rem' }}>
+            {t('pricing.paygo')} — S$1 = 5 {t('pricing.credits')}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontWeight: 600 }}>S$</span>
+            <input type="number" min={1} max={200} step={1} value={paygoAmount}
+              onChange={e => setPaygoAmount(Math.max(1, Math.min(200, Number(e.target.value))))}
+              style={{ width: 60, padding: '0.4rem', fontSize: '1rem', fontWeight: 700, textAlign: 'center', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)' }} />
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>=</span>
+            <span style={{ fontWeight: 800, color: 'var(--accent)' }}>{paygoAmount * 5}</span>
+            <Coins size={14} style={{ color: 'var(--accent)' }} />
+            <div style={{ flex: 1 }} />
+            <button className="btn btn-primary"
+              disabled={!!loading || paygoAmount < 1}
+              onClick={() => handleCheckout('PayAsYouGo', paygoAmount)}
+              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+              {loading === 'PayAsYouGo' ? <Loader size={14} className="spin" /> : t('pricing.buy')}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0 0.5rem' }}>
+          — {t('pricing.orBundle')} —
+        </div>
+
         {/* Package cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {PACKAGES.map((pkg) => (
             <div key={pkg.name}
-              onClick={() => !loading && handlePurchase(pkg)}
+              onClick={() => !loading && handleCheckout(pkg.name)}
               style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '1rem 1.25rem', background: 'var(--bg-card)',
@@ -97,7 +124,7 @@ export default function PricingModal({ onClose, balance, onBalanceUpdate }: Pric
                   color: '#fff', fontSize: '0.6rem', fontWeight: 700,
                   padding: '0.15rem 0.6rem', borderRadius: '0 0 0 8px',
                 }}>
-                  {isCN ? '推荐' : 'POPULAR'}
+                  {t('pricing.popular')}
                 </div>
               )}
               <div>
@@ -113,7 +140,7 @@ export default function PricingModal({ onClose, balance, onBalanceUpdate }: Pric
                 <button className="btn btn-primary"
                   disabled={!!loading}
                   style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>
-                  {loading === pkg.name ? <Loader size={14} className="spin" /> : (isCN ? '购买' : 'Buy')}
+                  {loading === pkg.name ? <Loader size={14} className="spin" /> : t('pricing.buy')}
                 </button>
               </div>
             </div>
@@ -130,12 +157,12 @@ export default function PricingModal({ onClose, balance, onBalanceUpdate }: Pric
             color: result.success ? 'var(--success)' : 'var(--error)',
             whiteSpace: 'pre-line',
           }}>
-            {result.success ? <Check size={14} style={{ marginRight: 4 }} /> : '⚠️ '}
+            {result.success ? <Check size={14} style={{ marginRight: 4 }} /> : null}
             {result.message}
             {result.url && (
               <a href={result.url} target="_blank" rel="noopener noreferrer"
                 style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.5rem', color: 'var(--primary)' }}>
-                <ExternalLink size={12} /> {isCN ? '打开支付页面' : 'Open payment page'}
+                <ExternalLink size={12} /> {t('pricing.openPayment')}
               </a>
             )}
           </div>
@@ -143,7 +170,7 @@ export default function PricingModal({ onClose, balance, onBalanceUpdate }: Pric
 
         {/* Footer hint */}
         <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          {isCN ? '支持支付宝 (CNY) 和 Visa/PayPal (SGD)' : 'Supports Alipay (CNY) and Visa/PayPal (SGD)'}
+          {t('pricing.paymentFooter')}
         </div>
       </div>
     </div>

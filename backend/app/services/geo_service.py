@@ -1,6 +1,6 @@
 """
 GEO (Generative Engine Optimization) Visibility Service
-Uses AgentGo to check brand mentions across AI search platforms
+Uses local browser to check brand mentions across AI search platforms
 and LLM to analyze mention quality.
 """
 import asyncio
@@ -8,7 +8,7 @@ import logging
 from typing import Dict, List, Optional
 from urllib.parse import quote_plus, urlparse
 
-from app.services.agentgo import AgentGoService, get_agentgo_service
+from app.services.browser_service import BrowserService, get_browser_service
 from app.services.llm import LLMService, get_llm_service
 from app.database import get_database
 
@@ -40,7 +40,7 @@ def _extract_domain(url: str) -> str:
 
 class GEOService:
     def __init__(self):
-        self.agentgo: AgentGoService = get_agentgo_service()
+        self.browser: BrowserService = get_browser_service()
         self.llm: LLMService = get_llm_service()
 
     async def scan(self, brand_name: str, keywords: List[str], user_id: int, url: Optional[str] = None) -> dict:
@@ -91,7 +91,7 @@ class GEOService:
         for query in queries[:2]:
             search_url = platform["url_template"].format(query=quote_plus(query))
             try:
-                result = await self.agentgo.scrape_url(search_url)
+                result = await self.browser.scrape_url(search_url)
                 if not result.get("success"):
                     continue
                 page_data = result.get("data", {})

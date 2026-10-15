@@ -1,6 +1,6 @@
 """
 Platform-specific parsers for extracting structured data from scraped content.
-Designed to work with Playwright innerText + links array from AgentGo,
+Designed to work with Playwright innerText + links array from local browser,
 AND with httpx fallback HTML (text + extracted links).
 """
 import re

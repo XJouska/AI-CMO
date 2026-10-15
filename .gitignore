@@ -30,6 +30,9 @@ logs/
 *.log
 *.log.*
 
+# Local project setup skills (not pushed)
+project-setup-skills/
+
 # IDE & Editor
 .cursor/
 .vscode/
@@ -48,3 +51,24 @@ Thumbs.db
 # Database
 *.db
 *.sqlite3
+project-setup-skills/
+
+# Browser profiles (persistent Playwright data)
+browser-profiles/
+
+# Internal docs (not for repo)
+COMPETITOR-ANALYSIS.md
+IMPLEMENTATION-PLAN.md
+OPENCLAW-INTEGRATION.md
+TEST-PLAN.md
+project-setup-skills/
+
+# Local files
+*.png
+!frontend/public/*.png
+aicmo.py
+keep_alive.py
+skill.zip
+
+# Design system package (vendored separately, not committed)
+yb-mobile-design-GO.zip

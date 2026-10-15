@@ -6,7 +6,7 @@ from typing import Optional
 from app.database import get_database
 from app.middleware.auth_middleware import get_current_user
 from app.services.llm import get_llm_service
-from app.services.agentgo import get_agentgo_service
+from app.services.browser_service import get_browser_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/competitors", tags=["competitors"])
@@ -50,11 +50,11 @@ async def delete_competitor(comp_id: str, current_user=Depends(get_current_user)
 async def discover_competitors(request: DiscoverRequest, current_user=Depends(get_current_user)):
     """Use LLM to auto-discover competitors based on product URL or name."""
     llm = get_llm_service()
-    agentgo = get_agentgo_service()
+    browser = get_browser_service()
     context = ""
     if request.product_url:
         try:
-            result = await agentgo.scrape_url(request.product_url)
+            result = await browser.scrape_url(request.product_url)
             if result.get("success"):
                 context = result.get("data", {}).get("markdown", "")[:3000]
         except Exception as e:
@@ -83,10 +83,10 @@ async def analyze_competitor(comp_id: str, current_user=Depends(get_current_user
     if not comp:
         raise HTTPException(status_code=404, detail="Competitor not found")
     llm = get_llm_service()
-    agentgo = get_agentgo_service()
+    browser = get_browser_service()
     comp_content = ""
     try:
-        result = await agentgo.scrape_url(comp["url"])
+        result = await browser.scrape_url(comp["url"])
         if result.get("success"):
             comp_content = result.get("data", {}).get("markdown", "")[:4000]
     except Exception:
@@ -95,7 +95,7 @@ async def analyze_competitor(comp_id: str, current_user=Depends(get_current_user
     user_content = ""
     if user_url:
         try:
-            result = await agentgo.scrape_url(user_url)
+            result = await browser.scrape_url(user_url)
             if result.get("success"):
                 user_content = result.get("data", {}).get("markdown", "")[:3000]
         except Exception:

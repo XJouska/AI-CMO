@@ -24,9 +24,10 @@ class Settings(BaseSettings):
     # Google OAuth
     google_client_id: str = ""
 
-    # AgentGo
-    agentgo_api_key: str = ""
-    agentgo_api_url: str = "https://app.agentgo.live"
+    # Local Browser (Playwright persistent profile)
+    browser_profile_dir: str = "/app/browser-profiles/default"
+    browser_headless: bool = True
+    browser_proxy: str = ""
 
     # Payment - LemonSqueezy
     lemonsqueezy_api_key: str = ""

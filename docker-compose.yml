@@ -27,6 +27,7 @@ services:
       DATABASE_URL: postgresql://ai_cmo:ai_cmo_pass@db:5432/ai_cmo
     volumes:
       - ./logs:/app/logs
+      - browser_profiles:/app/browser-profiles
     restart: unless-stopped
 
   frontend:
@@ -42,3 +43,4 @@ services:
 
 volumes:
   ai_cmo_pgdata:
+  browser_profiles:

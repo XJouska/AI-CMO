@@ -1,6 +1,6 @@
 """
 SEO Health Check Service
-Uses Google PageSpeed Insights API (free) + HTML meta tag analysis via AgentGo
+Uses Google PageSpeed Insights API (free) + HTML meta tag analysis via local browser
 """
 import asyncio
 import logging
@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from app.services.agentgo import AgentGoService, get_agentgo_service
+from app.services.browser_service import BrowserService, get_browser_service
 from app.database import get_database
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ PAGESPEED_API = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 
 class SEOService:
     def __init__(self):
-        self.agentgo: AgentGoService = get_agentgo_service()
+        self.browser: BrowserService = get_browser_service()
 
     async def check(self, url: str, user_id: int) -> dict:
         if not url.startswith("http"):
@@ -239,7 +239,7 @@ class SEOService:
 
     async def _analyze_html(self, url: str) -> dict:
         try:
-            result = await self.agentgo.scrape_url(url)
+            result = await self.browser.scrape_url(url)
             if not result.get("success"):
                 return {"meta": {}}
 
