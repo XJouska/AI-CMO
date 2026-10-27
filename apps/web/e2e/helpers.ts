@@ -97,3 +97,26 @@ export async function completeProfile(request: APIRequestContext, token: string,
   })
   return headers
 }
+
+/** 预置运营账号（backend/scripts/e2e_seed.py）的认证头。 */
+export async function staffHeaders(request: APIRequestContext) {
+  const res = await request.post('/api/v1/auth/login', { data: { email: 'ops-e2e@example.com', password: 'Operator123' } })
+  expect(res.ok()).toBeTruthy()
+  return { Authorization: `Bearer ${(await res.json()).token}` }
+}
+
+/** 等待指定企业的复核队列出现待复核商机。 */
+export async function waitForPendingLeads(request: APIRequestContext, headers: Record<string, string>, companyId: string) {
+  let items: { lead: { id: string; type: string } }[] = []
+  await expect
+    .poll(
+      async () => {
+        const res = await request.get(`/api/v1/ops/review-queue?company_id=${companyId}`, { headers })
+        items = await res.json()
+        return items.length
+      },
+      { timeout: 20_000 },
+    )
+    .toBeGreaterThan(0)
+  return items
+}

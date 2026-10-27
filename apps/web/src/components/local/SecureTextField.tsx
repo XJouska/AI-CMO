@@ -9,7 +9,7 @@ interface SecureTextFieldProps {
   label: string
   value: string
   placeholder: string
-  autoComplete: 'current-password' | 'new-password'
+  autoComplete: 'current-password' | 'new-password' | 'off'
   maxLength?: number
   onChange: (value: string) => void
   onSubmit?: () => void

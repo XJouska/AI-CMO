@@ -19,6 +19,16 @@ describe('安全 Markdown', () => {
     })
   })
 
+  it('解析表格（周报）：单元格只保留纯文本', () => {
+    const blocks = parseMarkdown('### 周报\n\n| 指标 | 本周 |\n| --- | --- |\n| 新增商机 | **3** |\n| 官网 | [链接](https://a.example) |\n\n1. 建议')
+    assert.deepEqual(blocks.map((b) => b.type), ['heading', 'table', 'ol'])
+    assert.deepEqual(blocks[1], { type: 'table', header: ['指标', '本周'], rows: [['新增商机', '3'], ['官网', '链接（a.example）']] })
+  })
+
+  it('没有分隔行的 | 文本按段落处理', () => {
+    assert.deepEqual(parseMarkdown('| a | b |').map((b) => b.type), ['paragraph'])
+  })
+
   it('HTML 标签按纯文本保留，不会被解析', () => {
     const blocks = parseMarkdown('<script>alert(1)</script><img src=x onerror=alert(1)>')
     assert.deepEqual(blocks, [{ type: 'paragraph', inline: [{ type: 'text', text: '<script>alert(1)</script><img src=x onerror=alert(1)>' }] }])

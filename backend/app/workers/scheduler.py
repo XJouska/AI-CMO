@@ -4,6 +4,8 @@
 同时运行调度器也不会重复执行同一件事：
 - 每分钟：为到期的商机监控计划创建运行任务（leads.schedule_due，行级锁 SKIP LOCKED）
 - 每小时：为超过 7 天未检查的已发布官网安排健康检查
+- 每 5 分钟：跟进提醒与招标截止提醒（同一事件只提醒一次，行级锁 SKIP LOCKED）
+- 每小时：为上一周生成周报并推送到助手（唯一约束防重复；worker 停机后会补发）
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_sessionmaker, utcnow
 from app.core.jobs import enqueue, job_handler
 from app.modules.leads.pipeline import schedule_due
+from app.modules.outreach.service import run_reminders, schedule_weekly_reports
 from app.modules.sites.health import run_health_check
 from app.modules.sites.models import Site, SiteHealthReport, SiteVersion
 
@@ -74,4 +77,8 @@ def build_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="UTC", job_defaults={"coalesce": True, "max_instances": 1})
     scheduler.add_job(_with_session(schedule_due, "watch runs"), "interval", minutes=1, id="watch_runs")
     scheduler.add_job(_with_session(schedule_site_health, "site health"), "interval", hours=1, id="site_health")
+    scheduler.add_job(_with_session(run_reminders, "reminders"), "interval", minutes=5, id="reminders")
+    scheduler.add_job(
+        _with_session(schedule_weekly_reports, "weekly reports"), "interval", hours=1, id="weekly_reports"
+    )
     return scheduler

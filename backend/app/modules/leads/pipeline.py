@@ -228,6 +228,21 @@ _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _PHONE = re.compile(r"\+?\d[\d\s().-]{7,18}\d")
 
 
+def _contacts_from_signal(buyer: Buyer, text: str) -> None:
+    """公告正文中公开的采购联系邮箱（域名须与买家一致）记为买家公开联系方式。"""
+    if not buyer.domain:
+        return
+    found = [
+        e for e in dict.fromkeys(_EMAIL.findall(text)) if scoring.registrable_domain(e.split("@")[1]) == buyer.domain
+    ]
+    if not found:
+        return
+    contacts = dict(buyer.public_contacts)
+    contacts["emails"] = list(dict.fromkeys([*contacts.get("emails", []), *found]))[:3]
+    contacts.setdefault("source", "signal")
+    buyer.public_contacts = contacts
+
+
 async def enrich_buyer(buyer: Buyer, budget: RunBudget) -> None:
     """访问买家官网首页（safe_fetch + robots.txt），只抽取公开的企业联系方式。"""
     if not buyer.domain or buyer.enriched_at is not None:
@@ -252,7 +267,7 @@ async def enrich_buyer(buyer: Buyer, budget: RunBudget) -> None:
     ]
     contacts = dict(buyer.public_contacts)
     if emails:
-        contacts["emails"] = emails[:3]
+        contacts["emails"] = list(dict.fromkeys([*contacts.get("emails", []), *emails]))[:3]
     phones = list(dict.fromkeys(p.strip() for p in _PHONE.findall(text)))[:2]
     if phones:
         contacts["phones"] = phones
@@ -426,6 +441,7 @@ async def _analyze_signal(
 
     buyer = find_or_create_buyer(db, company.id, analysis.buyer_name, analysis.buyer_domain, analysis.country, item.url)
     if buyer is not None:
+        _contacts_from_signal(buyer, f"{item.title} {item.snippet}")
         await enrich_buyer(buyer, budget)
     deadline = _deadline(analysis.deadline)
     total, detail = scoring.score(

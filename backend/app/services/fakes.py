@@ -76,10 +76,25 @@ def fake_assistant_chat(messages: list[Message]) -> LLMResult:
             return LLMResult(content="我已经开始整理，完成后请在上方卡片中确认要采纳的内容。")
         if '"waiting_for_user_confirmation"' in content:
             return LLMResult(content="")
+        if '"markdown"' in content and "效果周报" in content:
+            return LLMResult(content=json.loads(content).get("untrusted_data", {}).get("markdown", ""))
+        if '"items"' in content and '"next_action"' in content:
+            data = json.loads(content).get("untrusted_data", {})
+            lines = "\n".join(
+                f"{i}. {item['title']}（{item['next_action'] or item['stage']}）"
+                for i, item in enumerate(data.get("items", []), 1)
+            )
+            return LLMResult(content=f"今天有 {data.get('count', 0)} 条商机需要跟进：\n{lines}")
+        if '"count": 0' in content and '"items"' in content:
+            return LLMResult(content="目前没有到期需要跟进的商机。")
         return LLMResult(content="好的，已经处理完成。")
     text = _last_user_text(messages)
     if m := _URL_RE.search(text):
         return _tool_call("profile_extract_from_url", {"url": m.group(0)})
+    if re.search(r"周报", text):
+        return _tool_call("report_weekly", {"week": "this" if "本周" in text else "last"})
+    if re.search(r"跟进哪些|待跟进|该跟进", text):
+        return _tool_call("pipeline_list_due", {})
     if re.search(r"发布官网|上线官网", text):
         return _tool_call("site_publish", {})
     if re.search(r"生成.*官网|官网.*生成", text):
@@ -194,7 +209,72 @@ def fake_leads_analyze(messages: list[Message]) -> dict[str, Any]:
     }
 
 
+def fake_outreach_draft(messages: list[Message]) -> dict[str, Any]:
+    """TEST_MODE：只用输入中的事实拼出开发信；支持「再短一点」「强调 XX 认证」类修改。"""
+    text = _last_user_text(messages)
+    system = str(messages[0].get("content", "")) if messages else ""
+
+    def tag(name: str) -> dict[str, Any]:
+        m = re.search(rf"<{name}>(.*?)</{name}>", text, re.S)
+        try:
+            return json.loads(m.group(1)) if m else {}
+        except ValueError:
+            return {}
+
+    facts, lead = tag("facts"), tag("lead")
+    request = m.group(1) if (m := re.search(r"<revision_request>(.*?)</revision_request>", text, re.S)) else ""
+    company = facts.get("company", {})
+    product = (facts.get("products") or [{}])[0].get("name_en") or "industrial products"
+    certs = company.get("certifications") or []
+    if want := re.search(r"(ISO\s?\d{4,5}|CE|FDA|RoHS|UL)", request):
+        certs = [c for c in certs if c.replace(" ", "") == want.group(1).replace(" ", "")] + [
+            c for c in certs if c.replace(" ", "") != want.group(1).replace(" ", "")
+        ]
+    concise = "Tone: Short" in system or re.search(r"短|short", request, re.I)
+    need = lead.get("title", "your requirement")
+    sentences = [
+        "Dear Purchasing Team,",
+        f"I noticed your recent request: {need}. We are {company.get('name', 'a manufacturer')}, "
+        f"a factory specialising in {product}, and I believe we can support this project directly.",
+    ]
+    if certs:
+        sentences.append(
+            f"Our products are certified to {', '.join(certs)}, which helps simplify your approval process."
+        )
+    if company.get("export_markets"):
+        sentences.append(f"We already supply customers in {', '.join(company['export_markets'][:3])}.")
+    if company.get("usp"):
+        sentences.append(f"What sets us apart: {company['usp']}.")
+    sentences.append(
+        "Because we manufacture in-house, we can offer stable quality, clear documentation and flexible production "
+        "planning for both trial orders and long-term supply."
+    )
+    if not concise:
+        sentences.append(
+            "We would be glad to review your technical specifications, confirm materials and testing requirements, "
+            "and propose a delivery schedule that fits your timeline. Our engineering team can also suggest "
+            "alternatives if any specification is difficult to source."
+        )
+    if facts.get("website"):
+        sentences.append(f"You can find our product range at {facts['website']}.")
+    sentences.append(
+        "Could you share the detailed specifications and expected quantities? I will send a quotation and our "
+        "catalogue within one working day."
+    )
+    sentences.append(f"Best regards,\n{facts.get('signature', '')}")
+    body = "\n\n".join(sentences)
+    filler = (
+        "We understand that choosing a new supplier takes time, so we are happy to start with samples "
+        "and share inspection reports for your review before any commitment."
+    )
+    while len(re.findall(r"[A-Za-z0-9'-]+", body)) < (120 if concise else 150):
+        body = body.replace("Best regards,", f"{filler}\n\nBest regards,", 1)
+        filler = "Thank you for considering us as a partner for this project."
+    return {"subject": f"Re: {need}"[:120], "body": body}
+
+
 DEFAULT_RESPONDERS: dict[str, Responder] = {
+    "outreach.draft": fake_outreach_draft,
     "leads.analyze": fake_leads_analyze,
     "profile.extract": fake_profile_extract,
     "assistant.chat": fake_assistant_chat,

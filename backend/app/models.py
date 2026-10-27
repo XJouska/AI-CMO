@@ -23,6 +23,14 @@ from app.modules.leads.models import (
     Watch,
     WatchRun,
 )
+from app.modules.outreach.models import (
+    EmailSuppression,
+    LeadActivity,
+    LeadPipeline,
+    MailAccount,
+    OutreachDraft,
+    WeeklyReport,
+)
 from app.modules.sites.models import Notification, Site, SiteHealthReport, SiteInquiry, SiteVersion
 
 __all__ = [
@@ -32,14 +40,19 @@ __all__ = [
     "CompanyMember",
     "CompanyProfile",
     "Conversation",
+    "EmailSuppression",
     "Invite",
     "Job",
     "Lead",
+    "LeadActivity",
     "LeadFeedback",
+    "LeadPipeline",
     "LeadSignal",
     "LoginAttempt",
+    "MailAccount",
     "Message",
     "Notification",
+    "OutreachDraft",
     "Product",
     "ProfileExtraction",
     "Session",
@@ -54,4 +67,5 @@ __all__ = [
     "User",
     "Watch",
     "WatchRun",
+    "WeeklyReport",
 ]

@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, FormDoubleLine, ListSectionTitle, Markdown, SettingsFullWidthItem, Tag } from '@yb/generated/components'
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { QueryView } from '@/components/local/QueryView'
 import { StackPage } from '@/components/local/StackPage'
 import { ChoiceSheet, ConfirmDialog } from '@/feedback/overlays'
@@ -10,6 +10,7 @@ import { useToast } from '@/feedback/toast'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
 import { leadsApi, type LeadOut, type WatchOut } from '@/leads/api'
+import { FollowUpSection } from '@/outreach/FollowUpSection'
 import { joinList, splitList } from '@/lib/validation'
 import { useSession } from '@/session/session'
 
@@ -39,6 +40,7 @@ function LeadDetail({ lead }: { lead: LeadOut }) {
   const toast = useToast()
   const showError = useErrorToast()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [external, setExternal] = useState<string | null>(null)
   const feedback = useMutation({
@@ -117,8 +119,10 @@ function LeadDetail({ lead }: { lead: LeadOut }) {
         </>
       ) : null}
 
+      <FollowUpSection leadId={lead.id} />
+
       <div className="form-actions content-inset">
-        <Button onAction={(a) => a === 'press' && toast.show(t.common.comingSoon)} size="L" type="Primary">
+        <Button onAction={(a) => a === 'press' && navigate(`/leads/${lead.id}/draft`)} size="L" type="Primary">
           {t.leads.writeEmail}
         </Button>
         <Button onAction={(a) => a === 'press' && setFeedbackOpen(true)} size="M" type="Text">

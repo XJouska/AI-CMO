@@ -147,9 +147,12 @@ def test_settings_normalize_database_url(monkeypatch: pytest.MonkeyPatch, raw: s
 
 
 def test_settings_llm_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    from cryptography.fernet import Fernet
+
     monkeypatch.setenv("LLM_API_KEY", "sk-test")
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("TEST_MODE", "0")
+    monkeypatch.setenv("MAIL_ENCRYPTION_KEY", Fernet.generate_key().decode())
     settings = Settings()  # type: ignore[call-arg]
     assert settings.llm_enabled is True
     assert settings.is_production is True
@@ -157,6 +160,7 @@ def test_settings_llm_flag(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_production_hides_docs(monkeypatch: pytest.MonkeyPatch) -> None:
+    from cryptography.fernet import Fernet
     from fastapi.testclient import TestClient
 
     from app.core import config
@@ -164,6 +168,7 @@ def test_production_hides_docs(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("TEST_MODE", "0")
+    monkeypatch.setenv("MAIL_ENCRYPTION_KEY", Fernet.generate_key().decode())
     config.get_settings.cache_clear()
     try:
         with TestClient(create_app()) as prod_client:
@@ -290,3 +295,14 @@ def test_env_example_values_are_loadable(monkeypatch: pytest.MonkeyPatch) -> Non
     assert settings.search_api_key is None
     assert settings.leads_auto_approve_score is None
     assert settings.rss_sources == []
+
+
+def test_mail_encryption_key_required_in_production_and_validated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("TEST_MODE", "0")
+    monkeypatch.delenv("MAIL_ENCRYPTION_KEY", raising=False)
+    with pytest.raises(ValidationError, match="MAIL_ENCRYPTION_KEY"):
+        Settings()  # type: ignore[call-arg]
+    monkeypatch.setenv("MAIL_ENCRYPTION_KEY", "not-a-fernet-key")
+    with pytest.raises(ValidationError, match="格式不正确"):
+        Settings()  # type: ignore[call-arg]

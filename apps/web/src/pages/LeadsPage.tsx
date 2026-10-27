@@ -11,9 +11,12 @@ import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
 import { leadsApi, type LeadFilters, type LeadType } from '@/leads/api'
 import { LeadCard } from '@/leads/LeadCard'
+import { DueList } from '@/outreach/DueList'
 import { useSession } from '@/session/session'
 
-const TAB_TYPES: (LeadType | undefined)[] = [undefined, 'tender', 'rfq', 'prospect', 'site_inquiry']
+// 第 2 个 Tab「待跟进」不是商机类型，单独渲染待跟进列表
+const DUE_TAB = 1
+const TAB_TYPES: (LeadType | undefined)[] = [undefined, undefined, 'tender', 'rfq', 'site_inquiry']
 
 export function useLeadCount() {
   const session = useSession()
@@ -73,7 +76,9 @@ export function LeadsPage() {
   const filtered = Boolean(filters.market || filters.min_score || tab)
 
   let body
-  if (leads.isPending || watches.isPending) {
+  if (tab === DUE_TAB) {
+    body = <DueList />
+  } else if (leads.isPending || watches.isPending) {
     body = (
       <PageCenter>
         <Loading>{t.common.loading}</Loading>

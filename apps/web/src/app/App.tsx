@@ -6,6 +6,8 @@ import { ApiError } from '@/api/client'
 import { AssistantPage } from '@/pages/AssistantPage'
 import { LeadsPage } from '@/pages/LeadsPage'
 import { LeadDetailPage, WatchSettingsPage } from '@/pages/leads/LeadPages'
+import { DraftPage } from '@/pages/outreach/DraftPage'
+import { MailAccountNewPage, MailAccountsPage, ReportDetailPage, ReportsPage } from '@/pages/outreach/OutreachPages'
 import { LoginPage, RegisterPage } from '@/pages/LoginPage'
 import { MePage } from '@/pages/MePage'
 import { AssetsPage, InviteAcceptPage, MembersPage } from '@/pages/me/AccountPages'
@@ -64,7 +66,12 @@ export const routes: RouteObject[] = [
   { path: '/assistant', element: authed(<AssistantPage />) },
   { path: '/leads', element: authed(<LeadsPage />) },
   { path: '/leads/:id', element: authed(<LeadDetailPage />) },
+  { path: '/leads/:id/draft', element: authed(<DraftPage />) },
   { path: '/me/watches', element: authed(<WatchSettingsPage />) },
+  { path: '/me/mail-accounts', element: authed(<MailAccountsPage />) },
+  { path: '/me/mail-accounts/new', element: authed(<MailAccountNewPage />) },
+  { path: '/me/reports', element: authed(<ReportsPage />) },
+  { path: '/me/reports/:id', element: authed(<ReportDetailPage />) },
   { path: '/site', element: authed(<SitePage />) },
   { path: '/site/sections/:section', element: authed(<SiteSectionPage />) },
   { path: '/site/preview', element: authed(<SitePreviewPage />) },

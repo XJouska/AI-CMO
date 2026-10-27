@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/endpoints'
 import { leadsApi } from '@/leads/api'
+import { outreachApi } from '@/outreach/api'
 import { TabPage } from '@/components/local/TabPage'
 import { BRAND } from '@/brand'
 import { ChoiceSheet, ConfirmDialog } from '@/feedback/overlays'
@@ -26,6 +27,7 @@ export function MePage() {
   const [loggingOut, setLoggingOut] = useState(false)
   const profile = useQuery({ queryKey: ['profile', session.company?.id], queryFn: api.profile })
   const watches = useQuery({ queryKey: ['watches', session.company?.id], queryFn: leadsApi.watches })
+  const mailAccounts = useQuery({ queryKey: ['mail-accounts'], queryFn: outreachApi.mailAccounts })
 
   const soon = () => toast.show(t.common.comingSoon)
   const companies = session.user?.companies ?? []
@@ -58,7 +60,13 @@ export function MePage() {
           value: watches.data?.some((w) => w.is_active) ? t.leads.watchDaily : t.me.monitoringValue,
           onOpen: () => navigate('/me/watches'),
         },
-        { id: 'signature', label: t.me.signature, value: t.me.notSet, onOpen: soon },
+        {
+          id: 'mail',
+          label: t.me.mailAccounts,
+          value: mailAccounts.data ? t.me.mailAccountsValue(mailAccounts.data.length) : t.common.loading,
+          onOpen: () => navigate('/me/mail-accounts'),
+        },
+        { id: 'reports', label: t.me.reports, value: t.me.manage, onOpen: () => navigate('/me/reports') },
       ],
     },
     {

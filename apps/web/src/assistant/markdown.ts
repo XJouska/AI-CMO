@@ -10,6 +10,7 @@ export type MdBlock =
   | { type: 'ol'; items: string[] }
   | { type: 'quote'; inline: InlineNode[] }
   | { type: 'divider' }
+  | { type: 'table'; header: string[]; rows: string[][] }
 
 const LINK_RE = /\[([^\]\n]{1,200})\]\(([^)\s]{1,2048})\)/g
 const STRONG_RE = /\*\*([^*\n]{1,500})\*\*/g
@@ -68,12 +69,19 @@ export function inlineToPlain(nodes: InlineNode[]): string {
 }
 
 const UL_RE = /^\s*[-*•]\s+(.*)$/
+const TABLE_ROW_RE = /^\s*\|(.+)\|\s*$/
+const TABLE_SEP_RE = /^\s*\|(\s*:?-{3,}:?\s*\|)+\s*$/
+
+function tableCells(line: string): string[] {
+  return TABLE_ROW_RE.exec(line)![1].split('|').map((cell) => inlineToPlain(parseInline(cell.trim())))
+}
 const OL_RE = /^\s*\d{1,3}[.)、]\s+(.*)$/
 
 export function parseMarkdown(source: string): MdBlock[] {
   const blocks: MdBlock[] = []
   let paragraph: string[] = []
   let list: { type: 'ul' | 'ol'; items: string[] } | null = null
+  let table: { type: 'table'; header: string[]; rows: string[][] } | null = null
 
   const flushParagraph = () => {
     if (paragraph.length) blocks.push({ type: 'paragraph', inline: parseInline(paragraph.join('\n')) })
@@ -83,9 +91,27 @@ export function parseMarkdown(source: string): MdBlock[] {
     if (list) blocks.push({ type: list.type, items: list.items })
     list = null
   }
+  const flushTable = () => {
+    if (table) blocks.push(table)
+    table = null
+  }
 
-  for (const raw of source.replace(/\r\n?/g, '\n').split('\n')) {
-    const line = raw.trimEnd()
+  const lines = source.replace(/\r\n?/g, '\n').split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trimEnd()
+    // 表格：表头行 + 分隔行（| --- |）开始，后续 | 行为数据行。单元格只保留纯文本。
+    if (table && TABLE_ROW_RE.test(line)) {
+      table.rows.push(tableCells(line).slice(0, table.header.length))
+      continue
+    }
+    flushTable()
+    if (TABLE_ROW_RE.test(line) && TABLE_SEP_RE.test(lines[i + 1] ?? '')) {
+      flushParagraph()
+      flushList()
+      table = { type: 'table', header: tableCells(line), rows: [] }
+      i++
+      continue
+    }
     if (!line.trim()) {
       flushParagraph()
       flushList()
@@ -120,5 +146,6 @@ export function parseMarkdown(source: string): MdBlock[] {
   }
   flushParagraph()
   flushList()
+  flushTable()
   return blocks
 }

@@ -39,6 +39,16 @@ class _Providers:
     def fetcher(self) -> Fetcher:
         return self._get("fetcher", SafeFetcher, FakeFetcher)
 
+    def mailer(self) -> Any:
+        from app.services.mailer import FakeMailer, SmtpMailer
+
+        return self._get("mailer", SmtpMailer, FakeMailer)
+
+    def mail_dns(self) -> Any:
+        from app.modules.outreach.dns_check import FakeMailDns, SystemMailDns
+
+        return self._get("mail_dns", SystemMailDns, FakeMailDns)
+
     def lead_sources(self) -> dict[str, Any]:
         from app.modules.sources.connectors import build_connectors, build_fake_connectors
 

@@ -75,7 +75,16 @@ def db(engine: Engine) -> Iterator[Session]:
 
 @pytest.fixture(autouse=True)
 def fake_providers() -> Iterator[dict[str, object]]:
-    fakes: dict[str, object] = {"llm": FakeLLM(), "fetcher": FakeFetcher(), "storage": MemoryStorage()}
+    from app.modules.outreach.dns_check import FakeMailDns
+    from app.services.mailer import FakeMailer
+
+    fakes: dict[str, object] = {
+        "llm": FakeLLM(),
+        "fetcher": FakeFetcher(),
+        "storage": MemoryStorage(),
+        "mailer": FakeMailer(),
+        "mail_dns": FakeMailDns(),
+    }
     providers.reset()
     providers.set(**fakes)
     yield fakes
@@ -90,6 +99,11 @@ def llm(fake_providers: dict[str, object]) -> FakeLLM:
 @pytest.fixture
 def fetcher(fake_providers: dict[str, object]) -> FakeFetcher:
     return fake_providers["fetcher"]  # type: ignore[return-value]
+
+
+@pytest.fixture
+def mailer(fake_providers: dict[str, object]):  # type: ignore[no-untyped-def]
+    return fake_providers["mailer"]
 
 
 @pytest.fixture

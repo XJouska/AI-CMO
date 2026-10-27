@@ -35,7 +35,7 @@ if (existsSync(path.join(repoRoot, 'apps/web/vitest.config.ts'))) {
 step('后端 ruff check', py, ['-m', 'ruff', 'check', '.'], { cwd: backend })
 step('后端 ruff format --check', py, ['-m', 'ruff', 'format', '--check', '.'], { cwd: backend })
 step('后端 pytest + 覆盖率', py, ['-m', 'pytest', '--cov', '--cov-report=term', '--cov-fail-under=85'], { cwd: backend })
-step('安全模块覆盖率 100%', py, ['-m', 'pytest', 'tests/test_ssrf.py', 'tests/test_auth.py', 'tests/test_profile_products_assets.py', 'tests/test_route_guard.py', 'tests/test_deps.py', 'tests/test_services.py', '--cov=app.core.security', '--cov=app.services.browser_guard', '--cov=app.core.deps', '--cov-report=term-missing', '--cov-fail-under=100'], { cwd: backend })
+step('安全模块覆盖率 100%', py, ['-m', 'pytest', 'tests/test_ssrf.py', 'tests/test_auth.py', 'tests/test_profile_products_assets.py', 'tests/test_route_guard.py', 'tests/test_deps.py', 'tests/test_services.py', 'tests/test_outreach.py', 'tests/test_mailer.py', '--cov=app.core.security', '--cov=app.services.browser_guard', '--cov=app.core.deps', '--cov-report=term-missing', '--cov-fail-under=100'], { cwd: backend })
 step('商机评测集（指标不得下降）', py, ['-m', 'evals.leads', '--check', 'evals/baseline.json'], { cwd: backend, env: { TEST_MODE: '1', DATABASE_URL: 'postgresql://unused@localhost/x', SECRET_KEY: 'x'.repeat(40) } })
 step('迁移在空库可升级 / 回退', py, ['scripts/migration_roundtrip.py'], { cwd: backend })
 

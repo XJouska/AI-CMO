@@ -95,6 +95,18 @@
 - **问题**：`Markdown variant="Progress"` 的 `status`（loading / done / clarify）由渲染器读取，但生成的类型声明中没有该属性。
 - **处理**：按设计包示例 `screens/generated/agent.tsx` 的写法 `{...{ status: 'loading' }}` 传入，不修改设计包。
 
+## GAP-013 · 日期时间输入（商机「下一步」时间）
+
+- **问题**：正式 `Form/SingleLine` 的 `<input>` 没有 `type` 属性，无法调起系统日期时间选择器。
+- **处理**：`apps/web/src/components/local/DateTimeField.tsx` 复用 `Form/SingleLine` 的 DOM 结构与类名，只设置 `type="datetime-local"`，不新增视觉样式（与 GAP-006 密码框同一做法）。
+- **后续**：设计包提供日期时间选择器（建议 BottomSheet + 滚轮）后替换。
+
+## GAP-014 · Markdown 表格的内容插槽（效果周报）
+
+- **问题**：正式 `Markdown variant="Table"` 的表头写死为设计稿示例（项目 / 预计花费 / 备注），只开放 `tableContent`（tbody）插槽。
+- **处理**：周报表格使用正式 `Settings/fullWidthItem`（左侧指标名、右侧 `trailing` 数值）逐行展示，不使用 Table 变体，不修改设计包。
+- **后续**：设计包为 Table 开放表头插槽后，`MarkdownText` 增加表格映射。
+
 ---
 
 ## 未作为缺口处理的情况

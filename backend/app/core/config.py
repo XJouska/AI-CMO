@@ -69,6 +69,14 @@ class Settings(BaseSettings):
     # 高于该分数且置信度高的商机自动通过复核；为空表示全部人工复核（试点期）
     leads_auto_approve_score: int | None = None
 
+    # 触达与跟进
+    # 发信邮箱凭据加密密钥（Fernet，逗号分隔支持轮换；第一个用于加密）。生产环境必填
+    mail_encryption_key: SecretStr | None = None
+    # 每个绑定邮箱每日发送上限（企业可在此范围内调低）
+    mail_daily_limit_max: int = 50
+    # 退订链接签名有效期（天）
+    unsubscribe_link_days: int = 365
+
     # 测试模式：外部服务（LLM、抓取、短信等）全部使用假实现。生产环境禁止开启。
     test_mode: bool = False
 
@@ -76,6 +84,17 @@ class Settings(BaseSettings):
     def _no_test_mode_in_production(self) -> Settings:
         if self.test_mode and self.app_env == "production":
             raise ValueError("生产环境不允许开启 TEST_MODE")
+        if self.app_env == "production" and not self.mail_encryption_key:
+            raise ValueError("生产环境必须配置 MAIL_ENCRYPTION_KEY")
+        if self.mail_encryption_key:
+            from cryptography.fernet import Fernet
+
+            try:
+                for key in self.mail_encryption_key.get_secret_value().split(","):
+                    if key.strip():
+                        Fernet(key.strip())
+            except ValueError as exc:
+                raise ValueError("MAIL_ENCRYPTION_KEY 格式不正确（应为 Fernet 密钥）") from exc
         return self
 
     @field_validator("secret_key")

@@ -1,5 +1,5 @@
 // 回答渲染：安全 Markdown AST → 正式 Markdown 组件变体。所有文本都是 React 文本子节点。
-import { Markdown } from '@yb/generated/components'
+import { Markdown, SettingsFullWidthItem } from '@yb/generated/components'
 import { Fragment } from 'react'
 import { parseMarkdown, type InlineNode } from './markdown'
 
@@ -51,6 +51,17 @@ export function MarkdownText({ text }: { text: string }) {
             )
           case 'divider':
             return <Markdown key={index} variant="Divider" />
+          case 'table':
+            // 正式 Table 变体表头写死（GAP-014）：用正式列表行逐行展示「第一列 → 其余列」
+            return (
+              <div className="md-table" key={index}>
+                {block.rows.map((row, r) => (
+                  <SettingsFullWidthItem key={r} trailing={row.slice(1).join(' · ') || ' '} trailingKind="none" type="单行列表-常规">
+                    {row[0] ?? ''}
+                  </SettingsFullWidthItem>
+                ))}
+              </div>
+            )
           default:
             return null
         }

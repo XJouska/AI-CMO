@@ -391,3 +391,22 @@ body,
 .watch-editor {
   padding-bottom: 16px;
 }
+
+/* 开发信正文：正式 Form/DoubleLine 的 textarea 默认只有一行高，整封邮件需要更大的编辑区（只改高度，不改外观） */
+.draft-body .yb-form-double textarea {
+  height: auto;
+  min-height: 320px;
+}
+
+.follow-up-stage {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+
+/* 正式 Dialog 正文保留换行（发送确认需要分行展示发件人 / 收件人 / 主题），不改外观 */
+.yb-dialog-body {
+  white-space: pre-line;
+}

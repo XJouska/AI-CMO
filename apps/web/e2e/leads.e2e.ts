@@ -1,29 +1,8 @@
-import { expect, test, type APIRequestContext } from '@playwright/test'
-import { completeProfile, expectNoFallback, signUp, watchPageErrors } from './helpers'
+import { expect, test } from '@playwright/test'
+import { completeProfile, expectNoFallback, signUp, staffHeaders, waitForPendingLeads, watchPageErrors } from './helpers'
 
 // 计划 05：一键创建监控 → 手动运行（假搜索源，worker 真实跑流水线）→ 运营复核通过 → 用户看到商机 → 详情 / 反馈。
 // 运营账号由 backend/scripts/e2e_seed.py 预置。
-
-async function staffHeaders(request: APIRequestContext) {
-  const res = await request.post('/api/v1/auth/login', { data: { email: 'ops-e2e@example.com', password: 'Operator123' } })
-  expect(res.ok()).toBeTruthy()
-  return { Authorization: `Bearer ${(await res.json()).token}` }
-}
-
-async function waitForPendingLeads(request: APIRequestContext, headers: Record<string, string>, companyId: string) {
-  let items: { lead: { id: string; type: string } }[] = []
-  await expect
-    .poll(
-      async () => {
-        const res = await request.get(`/api/v1/ops/review-queue?company_id=${companyId}`, { headers })
-        items = await res.json()
-        return items.length
-      },
-      { timeout: 20_000 },
-    )
-    .toBeGreaterThan(0)
-  return items
-}
 
 test('一键创建监控 → 运行 → 复核通过 → 用户看到商机 → 详情与反馈', async ({ page, request }) => {
   const errors = watchPageErrors(page)

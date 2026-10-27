@@ -101,3 +101,35 @@
 - [ ] 为一家试点工厂创建监控，24 小时内产出 ≥ 20 条经复核的商机（需要真实搜索 API Key：`SEARCH_API_PROVIDER` / `SEARCH_API_KEY`，以及真实 LLM）
 - [ ] 评测集换成真实标注样本（目前为 10 条合成样本），确认指标目标值
 - [ ] 逐个确认数据源的使用条款并记录到 `source_configs`（TED RSS 默认启用；其余需要 API Key 的数据源默认关闭）
+
+## 计划 06 · 触达与跟进
+
+| 验收项 | 状态 | 证据 |
+|---|---|---|
+| 从商机一键生成开发信，内容引用具体需求，无编造事实 | 通过（假数据） | `test_generate_draft_references_requirement_without_fabrication`、`test_fact_check_flags_fabrication`（证书 / 数字 / 价格 / 占位符 / 字数）、`test_prompt_injection_in_lead_stays_data`；`e2e/outreach.e2e.ts` |
+| 三种语气、在对话中修改（「再短一点」「强调 CE 认证」） | 通过 | `test_tones_and_revision`、`test_outreach_tools_draft_revise_and_send_requires_confirmation`；`outreach.spec.tsx` |
+| 复制和 `mailto:` 方式可用 | 通过 | `test_mark_sent_manual_advances_to_contacted`；`outreach.e2e.ts`「未绑定邮箱：复制开发信后标记已发送」 |
+| 绑定邮箱后发送需二次确认，且受每日上限约束 | 通过 | `test_send_requires_confirmation_and_respects_daily_limit`（确认内容不一致拒绝、超限 429、次日恢复）；助手发送工具需确认卡片；`outreach.e2e.ts` 确认对话框截图 |
+| 邮箱凭据加密存储，接口和日志中不出现明文 | 通过 | `test_credentials_never_returned_or_logged`、`test_encryption_roundtrip_and_key_rotation`；`app/core/security/secrets_box.py` 纳入 100% 覆盖率门槛；生产环境未配置 `MAIL_ENCRYPTION_KEY` 拒绝启动 |
+| SMTP 服务器地址经 SSRF 校验 | 通过 | `test_smtp_host_rejected`（内网 IP、非标准 IP 写法、端口、带凭据）、`test_check_smtp_host_dns_rebinding`；`tests/test_mailer.py`：连接固定到已校验 IP、证书按主机名校验、587 强制 STARTTLS |
+| 屏蔽名单与退订（GDPR / CAN-SPAM） | 通过 | `test_send_blocked_for_suppressed_recipient`、`test_unsubscribe_link`（签名、过期、GET 不改状态、一键退订 POST）、`test_unsubscribe_page_escapes_email`；邮件带 `List-Unsubscribe` 头 |
+| 发送前检查 SPF / DMARC 并提示 | 通过 | `test_dns_hints`、`test_system_mail_dns_parses_txt`；发信邮箱页展示检查结果 |
+| 阶段流转与跟进记录正确，状态变化计入评分数据 | 通过 | `test_stage_flow_records_activities`（非法流转 409、放弃需原因、重新打开）、`test_reply_activity_advances_to_replied`、`test_outcome_labels_for_scoring` |
+| 截止日期提醒（7 天、3 天）和下一步提醒按时产生 | 通过 | `test_next_action_reminder_fires_once`、`test_deadline_reminders_7_and_3_days`、`test_deadline_first_seen_at_2_days_sends_single_alert`（freezegun） |
+| 每周一自动生成周报并在助手中推送 | 通过 | `test_weekly_report_scheduled_once_and_pushed_to_assistant`（每位成员一条助手消息 + 站内通知，不重复）、`test_weekly_stats_definitions`（统计口径） |
+| 助手工具（生成 / 修改 / 发送 / 推进 / 待跟进 / 周报） | 通过 | `test_outreach_tools_*`、`test_pipeline_tools_and_report`、`test_tools_scoped_to_company` |
+| 全部页面状态完成截图检查 | 通过 | `e2e/__screenshots__/outreach.e2e.ts/*`（发信邮箱空态 / 绑定、跟进区、开发信、发送确认、语气空态、待跟进、周报；402×874 与 1280×800） |
+| 全部新路由登记越权矩阵 | 通过 | `tests/tenancy_matrix.py`（含退订公开接口）、`test_route_guard.py` |
+
+**说明**
+
+- 商机分类 Tab 改为「全部 / 跟进 / 招标 / 求购 / 询盘」：402 宽度下 5 个 Tab 每个只能放两个字。
+- 新增 UI 缺口：GAP-013（日期时间输入）、GAP-014（Markdown 表格表头写死，周报表格改用正式列表行）。
+- 公告正文中公开的采购邮箱（域名与买家一致）现在会记为买家联系方式，开发信可自动填入收件人。
+
+**人工确认项**
+
+- [ ] 用一个真实企业邮箱（如腾讯企业邮、阿里企业邮）绑定并发送测试邮件，确认送达收件箱而非垃圾箱
+- [ ] 生产环境生成并妥善保管 `MAIL_ENCRYPTION_KEY`（丢失后已绑定的邮箱需重新绑定）
+- [ ] 配置真实 LLM 后，人工审阅 3 种语气的开发信质量
+- [ ] 退订页文案的法律审阅（如需中英双语或公司地址信息，CAN-SPAM 要求邮件含发件人实际地址，可在签名中补充）

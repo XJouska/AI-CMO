@@ -405,6 +405,9 @@ def get_lead(
     me = str(scope.user.id)
     if me not in lead.seen_by:
         lead.seen_by = [*lead.seen_by, me]
+        from app.modules.outreach.service import mark_viewed
+
+        mark_viewed(db, lead, scope.user.id)
         db.commit()
     return lead_out(db, lead, scope.user.id)
 

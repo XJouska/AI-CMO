@@ -193,6 +193,29 @@ def validate_url(url: str, *, allow_hosts: Iterable[str] = ()) -> ParsedUrl:
     return ParsedUrl(url=normalized, scheme=scheme, host=host, port=port, ip_literal=ip_literal)
 
 
+SMTP_PORTS = frozenset({465, 587})
+
+
+async def check_smtp_host(
+    host: str, port: int, *, resolver: Resolver | None = None, allow_hosts: Iterable[str] = ()
+) -> tuple[str, list[IPAddress]]:
+    """SMTP 服务器地址校验：端口只允许 465（SMTPS）/ 587（STARTTLS），主机解析结果不得为内网地址。
+
+    返回规范化主机名与已校验的地址（连接时固定到这些地址，防止 DNS 重绑定）。
+    """
+    if port not in SMTP_PORTS:
+        raise SsrfBlockedError("port_not_allowed", str(port))
+    if not isinstance(host, str) or len(host) > 253 or any(ch in host for ch in "/@:?#[]\r\n\t\x00 "):
+        raise SsrfBlockedError("invalid_url", "malformed host")
+    normalized = _normalize_host(host)
+    ip_literal = _parse_ip_literal(normalized)
+    allowed = {h.lower().rstrip(".") for h in allow_hosts}
+    if ip_literal is not None and normalized not in allowed and is_blocked_ip(ip_literal):
+        raise SsrfBlockedError("blocked_ip", str(ip_literal))
+    parsed = ParsedUrl(url="", scheme="smtp", host=normalized, port=port, ip_literal=ip_literal)
+    return normalized, await resolve_and_check(parsed, resolver=resolver, allow_hosts=allow_hosts)
+
+
 async def system_resolver(host: str, port: int) -> list[str]:
     loop = asyncio.get_running_loop()
     infos = await loop.getaddrinfo(host, port, type=socket.SOCK_STREAM)

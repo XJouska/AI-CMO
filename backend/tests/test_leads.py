@@ -303,7 +303,7 @@ def test_buyer_dedupe_and_enrichment(client, db, fetcher, llm) -> None:
             "web_search",
             f"https://s.example/{i}",
             f"RFQ ball valves batch {i}",
-            "Need ball valves. procurement@city.example (Germany)",
+            "Need ball valves. procurement@city.example or agent@gmail.com (Germany)",
         )
         for i in range(2)
     ]
@@ -313,7 +313,8 @@ def test_buyer_dedupe_and_enrichment(client, db, fetcher, llm) -> None:
     buyers = db.scalars(select(Buyer).where(Buyer.company_id == tenant.company.id)).all()
     assert len(buyers) == 1
     assert buyers[0].domain == "city.example"
-    assert buyers[0].public_contacts["emails"] == ["buy@city.example"]  # 只保留买家自己域名的公开邮箱
+    # 公告中的采购邮箱 + 买家官网邮箱；只保留买家自己域名的公开邮箱
+    assert buyers[0].public_contacts["emails"] == ["procurement@city.example", "buy@city.example"]
     assert buyers[0].public_contacts["source"] == "https://city.example/"
 
 

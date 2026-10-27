@@ -141,6 +141,34 @@ def _lead(db: Session, victim: Tenant) -> dict[str, str]:
     return {"watch_id": str(watch.id), "lead_id": str(lead.id)}
 
 
+def _outreach(db: Session, victim: Tenant) -> dict[str, str]:
+    from datetime import date
+
+    from app.core.security.secrets_box import encrypt_json
+    from app.modules.outreach.models import MailAccount, OutreachDraft, WeeklyReport
+
+    params = _lead(db, victim)
+    draft = OutreachDraft(
+        lead_id=params["lead_id"],
+        company_id=victim.company.id,
+        to_email="buyer@victim.example",
+        subject="victim subject",
+        body="victim body",
+    )
+    account = MailAccount(
+        company_id=victim.company.id,
+        from_address="sales@victim.example",
+        encrypted_credentials=encrypt_json(
+            {"host": "smtp.victim.example", "port": 465, "username": "u", "password": "p"}
+        ),
+        verified=True,
+    )
+    report = WeeklyReport(company_id=victim.company.id, week_start=date(2026, 10, 19), stats={}, markdown="victim")
+    db.add_all([draft, account, report])
+    db.flush()
+    return {**params, "draft_id": str(draft.id), "account_id": str(account.id), "report_id": str(report.id)}
+
+
 def png_bytes() -> bytes:
     from PIL import Image
 
@@ -252,6 +280,50 @@ ROUTES: list[Route] = [
     Route("GET", "/api/v1/leads", "company"),
     Route("GET", "/api/v1/leads/{lead_id}", "company", _lead),
     Route("POST", "/api/v1/leads/{lead_id}/feedback", "company", _lead, {"verdict": "useful"}),
+    # 触达与跟进
+    Route("GET", "/api/v1/leads/{lead_id}/follow-up", "company", _lead),
+    Route("POST", "/api/v1/leads/{lead_id}/stage", "company", _lead, {"stage": "contacted"}),
+    Route("PUT", "/api/v1/leads/{lead_id}/next-action", "company", _lead, {"next_action": "x"}),
+    Route("POST", "/api/v1/leads/{lead_id}/activities", "company", _lead, {"kind": "note", "text": "x"}),
+    Route("GET", "/api/v1/follow-ups/due", "company"),
+    Route("GET", "/api/v1/leads/{lead_id}/drafts", "company", _lead),
+    Route("POST", "/api/v1/leads/{lead_id}/drafts", "company", _lead, {"tone": "concise"}),
+    Route("POST", "/api/v1/drafts/{draft_id}/revise", "company", _outreach, {"instruction": "shorter"}),
+    Route("PATCH", "/api/v1/drafts/{draft_id}", "company", _outreach, {"subject": "hacked"}),
+    Route("POST", "/api/v1/drafts/{draft_id}/mark-sent", "company", _outreach, {"method": "copy"}),
+    Route(
+        "POST",
+        "/api/v1/drafts/{draft_id}/send",
+        "company",
+        _outreach,
+        {
+            "mail_account_id": "00000000-0000-0000-0000-000000000000",
+            "confirm_to": "buyer@victim.example",
+            "confirm_subject": "victim subject",
+        },
+    ),
+    Route("GET", "/api/v1/mail-accounts", "company"),
+    Route(
+        "POST",
+        "/api/v1/mail-accounts",
+        "company",
+        body={
+            "from_address": "a@b.example",
+            "smtp_host": "smtp.b.example",
+            "username": "a",
+            "password": "p",
+        },
+    ),
+    Route("PATCH", "/api/v1/mail-accounts/{account_id}", "company", _outreach, {"daily_limit": 1}),
+    Route("DELETE", "/api/v1/mail-accounts/{account_id}", "company", _outreach),
+    Route("GET", "/api/v1/email-suppressions", "company"),
+    Route("POST", "/api/v1/email-suppressions", "company", body={"email": "x@y.example"}),
+    Route("GET", "/api/v1/reports/weekly", "company"),
+    Route("GET", "/api/v1/reports/weekly/{report_id}", "company", _outreach),
+    Route("GET", "/api/v1/reports/weekly-preview", "company"),
+    # 公开：退订（签名链接，见 test_outreach）
+    Route("GET", "/api/v1/public/unsubscribe", "public"),
+    Route("POST", "/api/v1/public/unsubscribe", "public"),
     # 运营
     Route("GET", "/api/v1/ops/review-queue", "staff"),
     Route("POST", "/api/v1/ops/leads/{lead_id}/review", "staff", _lead, {"decision": "approved"}),
