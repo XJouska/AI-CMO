@@ -114,3 +114,78 @@ body,
 .me-list {
   padding-bottom: 24px;
 }
+
+.me-logout {
+  padding-top: 16px;
+}
+
+/* ---------- 二级页面 ---------- */
+
+.page-footer {
+  background: inherit;
+  flex: none;
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom, 0px));
+  position: relative;
+  z-index: 2;
+}
+
+.page-footer .yb-button[data-size="L"] {
+  width: 100%;
+}
+
+/* 内容层页面边距 */
+.content-inset {
+  padding: 16px 16px 8px;
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.form-stack .yb-form-wrap {
+  width: 100%;
+}
+
+.form-actions {
+  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+.form-actions .yb-button {
+  width: 100%;
+}
+
+.list-block {
+  padding-bottom: 16px;
+}
+
+/* 确认变更：勾选框 + 正式列表项，勾选框位于内容层边距内 */
+.review-row {
+  align-items: center;
+  background: var(--yb-color-basic-bg-primary);
+  display: flex;
+}
+
+.review-check {
+  flex: none;
+  padding-left: 16px;
+}
+
+.review-row .review-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.sheet-form {
+  padding: 8px 0;
+}
+
+.sheet-actions > .yb-bottomsheet {
+  width: 100%;
+}

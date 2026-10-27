@@ -23,7 +23,7 @@
 ## 3. 第三方依赖
 
 - 前端运行时依赖（React、React Router、TanStack Query）均为 MIT 许可；构建与测试工具（Vite、Vitest、Testing Library、Playwright）为 MIT / Apache-2.0，只在开发环境使用。
-- 后端运行时依赖：FastAPI、Starlette、Pydantic、SQLAlchemy、Alembic、httpx、uvicorn、openai SDK、cachetools（MIT / BSD）；psycopg 3（LGPL-3.0，作为未修改的动态链接库使用）。
+- 后端运行时依赖：FastAPI、Starlette、Pydantic、SQLAlchemy、Alembic、httpx、uvicorn、openai SDK、cachetools（MIT / BSD）；psycopg 3（LGPL-3.0，作为未修改的动态链接库使用）；argon2-cffi（MIT）、Pillow（MIT-CMU）、pypdf（BSD-3）。
 - worker 依赖 Playwright（Apache-2.0）与 Chromium（BSD 及其组件许可）。
 
 ## 4. 测试环境字体

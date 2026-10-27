@@ -3,6 +3,7 @@
 - 测试数据库：TEST_DATABASE_URL（默认 127.0.0.1:55432 的隔离容器 aicmo-v2-testdb）
 - 会话开始时对测试库执行 alembic upgrade head
 - 每个用例在一个外层事务中运行，结束后回滚；业务代码中的 commit 落在 SAVEPOINT 上
+- 外部服务一律使用假实现：FakeLLM、FakeFetcher、MemoryStorage
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ os.environ.setdefault(
 os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 os.environ.setdefault("SECRET_KEY", "test-secret-key-0123456789abcdef-0123456789")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
+os.environ["TEST_MODE"] = "1"
 
 import pytest
 from alembic.config import Config
@@ -28,6 +30,11 @@ from sqlalchemy.orm import Session
 from alembic import command
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.providers import providers
+from app.services.fakes import FakeLLM
+from app.services.fetcher import FakeFetcher
+from app.services.storage import MemoryStorage
+from app.workers import handlers  # noqa: F401  注册任务处理函数
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -66,6 +73,30 @@ def db(engine: Engine) -> Iterator[Session]:
         if outer.is_active:
             outer.rollback()
         connection.close()
+
+
+@pytest.fixture(autouse=True)
+def fake_providers() -> Iterator[dict[str, object]]:
+    fakes: dict[str, object] = {"llm": FakeLLM(), "fetcher": FakeFetcher(), "storage": MemoryStorage()}
+    providers.reset()
+    providers.set(**fakes)
+    yield fakes
+    providers.reset()
+
+
+@pytest.fixture
+def llm(fake_providers: dict[str, object]) -> FakeLLM:
+    return fake_providers["llm"]  # type: ignore[return-value]
+
+
+@pytest.fixture
+def fetcher(fake_providers: dict[str, object]) -> FakeFetcher:
+    return fake_providers["fetcher"]  # type: ignore[return-value]
+
+
+@pytest.fixture
+def storage(fake_providers: dict[str, object]) -> MemoryStorage:
+    return fake_providers["storage"]  # type: ignore[return-value]
 
 
 @pytest.fixture

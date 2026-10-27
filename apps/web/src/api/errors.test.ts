@@ -13,13 +13,22 @@ const messages = {
   unknown: 'unknown',
 }
 
-test('状态码映射到固定文案', () => {
+test('通用错误码映射到固定文案', () => {
   assert.equal(errorToMessage(new ApiError(0, 'network_error', ''), messages), 'network')
-  assert.equal(errorToMessage(new ApiError(401, 'x', 'leak'), messages), 'unauthorized')
-  assert.equal(errorToMessage(new ApiError(403, 'x', 'leak'), messages), 'forbidden')
-  assert.equal(errorToMessage(new ApiError(404, 'x', 'leak'), messages), 'notFound')
-  assert.equal(errorToMessage(new ApiError(429, 'x', 'leak'), messages), 'rateLimited')
+  assert.equal(errorToMessage(new ApiError(401, 'unauthorized', 'leak'), messages), 'unauthorized')
+  assert.equal(errorToMessage(new ApiError(403, 'forbidden', 'leak'), messages), 'forbidden')
+  assert.equal(errorToMessage(new ApiError(404, 'not_found', 'leak'), messages), 'notFound')
+  assert.equal(errorToMessage(new ApiError(404, 'http_404', 'leak'), messages), 'notFound')
+  assert.equal(errorToMessage(new ApiError(429, 'rate_limited', 'leak'), messages), 'rateLimited')
   assert.equal(errorToMessage(new ApiError(502, 'x', 'stack trace'), messages), 'server')
+  assert.equal(errorToMessage(new ApiError(500, 'account_locked', 'leak'), messages), 'server')
+  assert.equal(errorToMessage(new ApiError(422, 'validation_error', '提交的信息格式不正确'), messages), '提交的信息格式不正确')
+})
+
+test('具体业务错误码展示后端文案', () => {
+  assert.equal(errorToMessage(new ApiError(401, 'invalid_credentials', '邮箱或密码不正确'), messages), '邮箱或密码不正确')
+  assert.equal(errorToMessage(new ApiError(429, 'account_locked', '账号已临时锁定'), messages), '账号已临时锁定')
+  assert.equal(errorToMessage(new ApiError(404, 'invite_invalid', ''), messages), 'notFound')
 })
 
 test('业务错误展示后端文案，缺失时回退', () => {

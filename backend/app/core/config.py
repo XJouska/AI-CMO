@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 APP_VERSION = "0.1.0"
@@ -38,6 +38,24 @@ class Settings(BaseSettings):
     ssrf_allow_hosts: list[str] = Field(default_factory=list)
 
     storage_dir: str = "/data/storage"
+    max_upload_bytes: int = 20 * 1024 * 1024
+
+    session_ttl_days: int = 7
+    # 登录限流：单 IP 15 分钟内最多尝试次数；单账号连续失败次数达到上限后锁定。
+    login_ip_limit: int = 20
+    register_ip_limit_per_hour: int = 10
+    login_fail_lock_threshold: int = 5
+    login_lock_minutes: int = 15
+    invite_ttl_hours: int = 72
+
+    # 测试模式：外部服务（LLM、抓取、短信等）全部使用假实现。生产环境禁止开启。
+    test_mode: bool = False
+
+    @model_validator(mode="after")
+    def _no_test_mode_in_production(self) -> Settings:
+        if self.test_mode and self.app_env == "production":
+            raise ValueError("生产环境不允许开启 TEST_MODE")
+        return self
 
     @field_validator("secret_key")
     @classmethod

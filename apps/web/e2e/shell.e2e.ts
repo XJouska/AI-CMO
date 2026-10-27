@@ -1,20 +1,17 @@
 import { expect, test } from '@playwright/test'
+import { expectNoFallback, signUp, watchPageErrors } from './helpers'
 
 // 计划 01：应用壳。四个 Tab、画布尺寸、无品牌字样、无渲染降级、Toast。
 
-test.beforeEach(async ({ page }) => {
-  page.on('pageerror', (error) => {
-    throw error
-  })
-})
-
-test('后端健康检查经前端代理可达', async ({ request }) => {
+test('后端经前端代理可达', async ({ request }) => {
   const res = await request.get('/api/v1/meta')
   expect(res.ok()).toBeTruthy()
   expect((await res.json()).name).toBe('AI-CMO')
 })
 
-test('四个 Tab 可切换，且没有设计包品牌字样和降级渲染', async ({ page }) => {
+test('四个 Tab 可切换，且没有设计包品牌字样和降级渲染', async ({ page, request }) => {
+  const errors = watchPageErrors(page)
+  await signUp(page, request)
   await page.goto('/')
   await expect(page).toHaveURL(/\/assistant$/)
   const nav = page.getByRole('navigation', { name: '主导航' })
@@ -23,13 +20,13 @@ test('四个 Tab 可切换，且没有设计包品牌字样和降级渲染', asy
   for (const [label, path] of [['商机', '/leads'], ['官网', '/site'], ['我的', '/me'], ['助手', '/assistant']] as const) {
     await nav.getByRole('button', { name: label }).click()
     await expect(page).toHaveURL(new RegExp(`${path}$`))
-    expect(await page.locator('body').innerText()).not.toMatch(/\u5143\u5b9d/)
-    expect(await page.locator('.yb-fallback').count()).toBe(0)
+    await expectNoFallback(page)
   }
+  expect(errors).toEqual([])
 })
 
 test('桌面端画布居中 402 宽；手机端铺满且无横向溢出', async ({ page }, info) => {
-  await page.goto('/assistant')
+  await page.goto('/login')
   const box = await page.locator('.app-canvas').boundingBox()
   const viewport = page.viewportSize()!
   expect(box).not.toBeNull()
@@ -43,7 +40,8 @@ test('桌面端画布居中 402 宽；手机端铺满且无横向溢出', async 
   expect(overflow).toBe(false)
 })
 
-test('发送消息弹出 Toast，3 秒后消失', async ({ page }) => {
+test('发送消息弹出 Toast，3 秒后消失', async ({ page, request }) => {
+  await signUp(page, request)
   await page.goto('/assistant')
   const input = page.locator('.yb-agent-native')
   await input.fill('找德国的阀门买家')
@@ -54,10 +52,14 @@ test('发送消息弹出 Toast，3 秒后消失', async ({ page }) => {
   await expect(toast).toBeHidden({ timeout: 5000 })
 })
 
-test('页面截图基线', async ({ page }) => {
+test('页面截图基线', async ({ page, request }) => {
+  await page.goto('/login')
+  await expect(page.getByRole('button', { name: '登录' })).toBeVisible()
+  await expect(page).toHaveScreenshot('shell-login.png')
+  await signUp(page, request)
   for (const path of ['/assistant', '/leads', '/site', '/me']) {
     await page.goto(path)
     await page.waitForLoadState('networkidle')
-    await expect(page).toHaveScreenshot(`shell${path.replace('/', '-')}.png`, { fullPage: false })
+    await expect(page).toHaveScreenshot(`shell${path.replace('/', '-')}.png`)
   }
 })

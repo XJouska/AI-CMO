@@ -35,7 +35,7 @@ if (existsSync(path.join(repoRoot, 'apps/web/vitest.config.ts'))) {
 step('后端 ruff check', py, ['-m', 'ruff', 'check', '.'], { cwd: backend })
 step('后端 ruff format --check', py, ['-m', 'ruff', 'format', '--check', '.'], { cwd: backend })
 step('后端 pytest + 覆盖率', py, ['-m', 'pytest', '--cov', '--cov-report=term', '--cov-fail-under=85'], { cwd: backend })
-step('安全模块覆盖率 100%', py, ['-m', 'pytest', 'tests/test_ssrf.py', '--cov=app.core.security', '--cov-report=term-missing', '--cov-fail-under=100'], { cwd: backend })
+step('安全模块覆盖率 100%', py, ['-m', 'pytest', 'tests/test_ssrf.py', 'tests/test_auth.py', 'tests/test_profile_products_assets.py', 'tests/test_route_guard.py', 'tests/test_deps.py', '--cov=app.core.security', '--cov=app.core.deps', '--cov-report=term-missing', '--cov-fail-under=100'], { cwd: backend })
 step('迁移在空库可升级 / 回退', py, ['scripts/migration_roundtrip.py'], { cwd: backend })
 
 if (!args.has('--skip-e2e') && existsSync(path.join(repoRoot, 'apps/web/playwright.config.ts'))) {

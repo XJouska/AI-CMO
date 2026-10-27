@@ -1,5 +1,5 @@
 // 基于 fetch 的请求封装。
-// - 自动携带 Authorization: Bearer <token>
+// - 自动携带 Authorization: Bearer <token> 和当前企业 X-Company-Id
 // - 401 时调用注册的回调（由应用跳转到登录页）
 // - 非 2xx 响应统一抛出 ApiError，界面层用 errorToMessage() 转成 Toast 文案
 import { ApiError, readApiError } from './errors'
@@ -12,10 +12,16 @@ type TokenGetter = () => string | null
 type UnauthorizedHandler = () => void
 
 let getToken: TokenGetter = () => null
+let getCompanyId: TokenGetter = () => null
 let onUnauthorized: UnauthorizedHandler = () => {}
 
-export function configureApi(options: { getToken?: TokenGetter; onUnauthorized?: UnauthorizedHandler }) {
+export function configureApi(options: {
+  getToken?: TokenGetter
+  getCompanyId?: TokenGetter
+  onUnauthorized?: UnauthorizedHandler
+}) {
   if (options.getToken) getToken = options.getToken
+  if (options.getCompanyId) getCompanyId = options.getCompanyId
   if (options.onUnauthorized) onUnauthorized = options.onUnauthorized
 }
 
@@ -28,6 +34,8 @@ export function buildHeaders(init?: HeadersInit, json = false): Headers {
   const headers = new Headers(init)
   const token = getToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
+  const companyId = getCompanyId()
+  if (companyId && !headers.has('X-Company-Id')) headers.set('X-Company-Id', companyId)
   if (json && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   if (!headers.has('Accept')) headers.set('Accept', 'application/json')
   return headers

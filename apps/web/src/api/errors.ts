@@ -23,16 +23,30 @@ export interface ErrorMessages {
   unknown: string
 }
 
-/** 把任意错误转换为可以直接放进 Toast 的中文文案。后端给出的 message 只用于已知的业务错误码。 */
+// 通用错误码使用前端固定文案；其他业务错误码（如 invalid_credentials、account_locked）
+// 的 message 由后端按面向用户的中文编写，直接展示。5xx 永远不展示后端内容。
+const GENERIC_CODES = new Set([
+  'unauthorized',
+  'forbidden',
+  'not_found',
+  'rate_limited',
+  'bad_request',
+  'validation_error',
+  'internal_error',
+  'network_error',
+])
+
+/** 把任意错误转换为可以直接放进 Toast 的中文文案。 */
 export function errorToMessage(error: unknown, messages: ErrorMessages): string {
   if (!(error instanceof ApiError)) return messages.unknown
   if (error.status === 0) return messages.network
+  if (error.status >= 500) return messages.server
+  const specific = !GENERIC_CODES.has(error.code) && !error.code.startsWith('http_') && error.message
+  if (specific) return error.message
   if (error.status === 401) return messages.unauthorized
   if (error.status === 403) return messages.forbidden
   if (error.status === 404) return messages.notFound
   if (error.status === 429) return messages.rateLimited
-  if (error.status >= 500) return messages.server
-  // 4xx 业务错误：后端返回的 message 面向用户，直接展示。
   return error.message || messages.unknown
 }
 

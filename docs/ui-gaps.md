@@ -51,6 +51,34 @@
   iOS / macOS 使用系统自带 PingFang SC，其他平台使用系统中文字体。
 - **影响**：Android / Windows 上字形与设计稿略有差异；数字字体 DIN Pro 回退为系统字体。
 
+## GAP-006 · 密码输入框（`SecureTextField`）
+
+- **正式组件**：`Form/SingleLine` 渲染的 `<input>` 没有 `type` 属性，无法隐藏密码，也无法提示浏览器自动填充。
+- **处理**：`apps/web/src/components/local/SecureTextField.tsx` 只复用 `Form/SingleLine` 的 DOM 结构与 CSS 类
+  （`yb-form-wrap` / `yb-form-single` / `yb-form-value` / `yb-form-label`），设置 `type="password"` 和 `autocomplete`，
+  不新增任何视觉样式。
+- **后续**：设计系统提供密码输入变体后替换。
+
+## GAP-007 · 页面布局与状态容器（`StackPage` / `QueryView`）
+
+- **问题**：设计包没有「二级页面」与「数据加载四态」的容器组件。
+- **处理**：`apps/web/src/components/local/StackPage.tsx` 只负责布局分区（正式 `NavBar` + 滚动内容 + 底部固定区）；
+  `QueryView.tsx` 把加载 / 错误 / 空态分别映射到正式 `Loading` / `EmptyPage networkError` / `EmptyPage noContent`，
+  并按规范 `page-empty` 相对整屏居中。两者都不定义组件外观，布局样式只用 Token。
+
+## GAP-008 · 确认变更页的勾选行
+
+- **问题**：`Settings/fullWidthItem` 没有前置勾选框的变体；`Settings/items` 的 Radio 单元格固定在右侧且只表示单选。
+- **处理**：`.review-row` 把正式 `RadioCheckBox`（circled / sm）放在正式 `Settings/fullWidthItem` 左侧，
+  勾选框位于内容层边距内。只有布局 CSS，没有新的视觉样式。
+
+## GAP-009 · BottomSheet 按钮回调
+
+- **问题**：正式 `bottomSheet` 的按钮组不向外暴露 `onAction`（内部 `.buttonGroup` 渲染的 Button 没有回调）。
+- **处理**：`apps/web/src/feedback/overlays.tsx` 的 `FormSheet` 在外层容器捕获点击，按按钮在按钮组中的位置
+  区分「次要 / 主要」。不修改设计包代码。
+- **后续**：设计包为 `bottomSheet` 增加按钮回调后改为直接使用。
+
 ---
 
 ## 未作为缺口处理的情况

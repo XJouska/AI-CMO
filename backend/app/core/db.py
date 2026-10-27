@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from functools import lru_cache
 
-from sqlalchemy import DateTime, MetaData, create_engine
+from sqlalchemy import DateTime, MetaData, Uuid, create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
@@ -32,6 +33,16 @@ class Base(DeclarativeBase):
 
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+def new_id() -> uuid.UUID:
+    return uuid.uuid4()
+
+
+class IdMixin:
+    """UUID 主键：不可猜测，避免通过自增 ID 枚举其他企业的数据。"""
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
 
 
 @lru_cache

@@ -22,3 +22,19 @@
 
 - [ ] 设计系统（yb-mobile-design）与字体的商业使用授权（见 `docs/licensing.md`）
 - [ ] 正式域名切换：目前 `aicmo.site` 仍指向旧版容器（9010/9011），新版只在 `127.0.0.1:9020` 运行
+
+## 计划 02 · 账号、企业与企业档案
+
+| 验收项 | 状态 | 证据 |
+|---|---|---|
+| 注册 → 创建企业 → 输入工厂网址 → 得到可确认的档案草稿 | 通过（假数据） | `e2e/accounts.e2e.ts`「从网址建档」；`tests/test_extraction.py::test_extract_from_url_end_to_end` |
+| 确认后档案完整度正确显示，缺失项可点击跳转补充 | 通过 | `tests/test_profile_products_assets.py` 完整度用例；`me.spec.tsx`「缺失项可点击跳转」 |
+| 产品增删改、图片上传正常，非法文件类型被拒绝 | 通过 | `test_product_crud`、`test_upload_rejects_disguised_or_broken_files`（伪造扩展名、SVG、损坏文件） |
+| 越权测试全部通过 | 通过 | `tests/test_route_guard.py`：33 个路由全部登记，自动验证未登录 / 非成员 / 跨企业 |
+| 登录限流生效 | 通过 | `test_account_locks_after_consecutive_failures`、`test_login_rate_limited_per_ip`（freezegun） |
+| 页面覆盖默认、加载、空态、错误状态，并完成 402×874 截图检查 | 通过 | `e2e/__screenshots__/accounts.e2e.ts/*`（402×874 与 1280×800） |
+
+**人工确认项**
+
+- [ ] 用一家真实工厂的网址在配置了真实 LLM 的环境中走通建档，并在 10 分钟内得到档案草稿（需要 `LLM_API_KEY`）
+- [ ] 抓取真实网站时的合规确认（robots.txt 与条款，计划 05 统一实现）

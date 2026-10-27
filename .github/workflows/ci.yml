@@ -49,7 +49,7 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest --cov --cov-report=term --cov-fail-under=85
-      - run: pytest tests/test_ssrf.py --cov=app.core.security --cov-fail-under=100
+      - run: pytest tests/test_ssrf.py tests/test_auth.py tests/test_profile_products_assets.py tests/test_route_guard.py tests/test_deps.py --cov=app.core.security --cov=app.core.deps --cov-fail-under=100
       - run: python scripts/migration_roundtrip.py
       - name: pip-audit (report only)
         run: pip-audit -r requirements.txt || true

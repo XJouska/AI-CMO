@@ -1,7 +1,11 @@
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, vi } from 'vitest'
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  window.localStorage.clear()
+  vi.unstubAllGlobals()
+})
 
 // jsdom 未实现的浏览器接口
 if (!window.matchMedia) {

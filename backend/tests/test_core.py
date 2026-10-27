@@ -149,6 +149,7 @@ def test_settings_normalize_database_url(monkeypatch: pytest.MonkeyPatch, raw: s
 def test_settings_llm_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "sk-test")
     monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("TEST_MODE", "0")
     settings = Settings()  # type: ignore[call-arg]
     assert settings.llm_enabled is True
     assert settings.is_production is True
@@ -162,6 +163,7 @@ def test_production_hides_docs(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.main import create_app
 
     monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("TEST_MODE", "0")
     config.get_settings.cache_clear()
     try:
         with TestClient(create_app()) as prod_client:
@@ -169,6 +171,7 @@ def test_production_hides_docs(monkeypatch: pytest.MonkeyPatch) -> None:
             assert prod_client.get("/openapi.json").status_code == 404
     finally:
         monkeypatch.setenv("APP_ENV", "test")
+        monkeypatch.setenv("TEST_MODE", "1")
         config.get_settings.cache_clear()
 
 
@@ -261,3 +264,10 @@ def test_db_dependency_rolls_back_on_error(monkeypatch: pytest.MonkeyPatch) -> N
     with pytest.raises(RuntimeError):
         gen.throw(RuntimeError("boom"))
     assert events == ["rollback", "close"]
+
+
+def test_test_mode_forbidden_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("TEST_MODE", "1")
+    with pytest.raises(ValidationError, match="TEST_MODE"):
+        Settings()  # type: ignore[call-arg]
