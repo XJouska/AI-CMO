@@ -17,7 +17,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S104", "S105", "S106", "S311"]
+"tests/**" = ["S104", "S105", "S106", "S311", "E501"]
 # 迁移的遗留代码，计划 05 加固时移除这些豁免。
 "app/services/browser.py" = ["SIM105", "S110", "E501", "S324"]
 

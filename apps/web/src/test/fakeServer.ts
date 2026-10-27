@@ -1,7 +1,7 @@
 // 组件测试用的假后端：拦截 fetch，按「方法 + 路径」返回预设响应，并记录请求。
 import { vi } from 'vitest'
 
-type Handler = (request: { method: string; path: string; body: unknown; headers: Headers }) => unknown
+type Handler = (request: { method: string; path: string; body: unknown; headers: Headers; signal?: AbortSignal | null }) => unknown
 
 export interface FakeRoute {
   method: string
@@ -45,7 +45,9 @@ export function installFakeServer(): FakeServer {
         (r) => r.method === method && (typeof r.path === 'string' ? r.path === path : r.path.test(path)),
       )
       if (!route) return json(404, { error: { code: 'not_found', message: '' } })
-      const payload = typeof route.handler === 'function' ? (route.handler as Handler)({ method, path, body, headers }) : route.handler
+      const payload =
+        typeof route.handler === 'function' ? (route.handler as Handler)({ method, path, body, headers, signal: init?.signal }) : route.handler
+      if (payload instanceof Response) return payload
       if (route.status === 204) return new Response(null, { status: 204 })
       return json(route.status ?? 200, payload)
     }),
@@ -55,6 +57,24 @@ export function installFakeServer(): FakeServer {
 
 function json(status: number, payload: unknown) {
   return new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+/** 把事件列表编码为 SSE 响应体（与后端 app/modules/assistant/sse.py 的编码一致）。 */
+export function sseBody(events: { event: string; data: unknown }[]): Response {
+  const text = events.map((e) => `event: ${e.event}\ndata: ${JSON.stringify(e.data)}\n\n`).join('')
+  return new Response(text, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+}
+
+/** 一个不会自行结束的 SSE 响应：先推送给定事件，然后保持连接直到被取消。用于测试「生成中」状态。 */
+export function hangingSse(events: { event: string; data: unknown }[], signal?: AbortSignal | null): Response {
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const e of events) controller.enqueue(encoder.encode(`event: ${e.event}\ndata: ${JSON.stringify(e.data)}\n\n`))
+      signal?.addEventListener('abort', () => controller.error(new DOMException('aborted', 'AbortError')))
+    },
+  })
+  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
 }
 
 export const DEMO_USER = {

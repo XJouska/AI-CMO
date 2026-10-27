@@ -29,3 +29,16 @@ if (!window.ResizeObserver) {
     disconnect() {}
   }
 }
+// 正式 Card 组件在按下时调用 setPointerCapture
+if (!Element.prototype.setPointerCapture) {
+  const captured = new WeakSet<Element>()
+  Element.prototype.setPointerCapture = function () {
+    captured.add(this)
+  }
+  Element.prototype.releasePointerCapture = function () {
+    captured.delete(this)
+  }
+  Element.prototype.hasPointerCapture = function () {
+    return captured.has(this)
+  }
+}

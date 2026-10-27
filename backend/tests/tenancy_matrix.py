@@ -70,6 +70,41 @@ def _extraction(db: Session, victim: Tenant) -> dict[str, str]:
     return {"extraction_id": str(item.id)}
 
 
+def _conversation(db: Session, victim: Tenant) -> dict[str, str]:
+    from app.modules.assistant.models import Conversation, Message
+
+    conversation = Conversation(company_id=victim.company.id, user_id=victim.user.id, title="victim")
+    db.add(conversation)
+    db.flush()
+    message = Message(
+        conversation_id=conversation.id,
+        company_id=victim.company.id,
+        role="assistant",
+        state="completed",
+        parent_id=None,
+    )
+    db.add(message)
+    db.flush()
+    return {"conversation_id": str(conversation.id), "message_id": str(message.id)}
+
+
+def _tool_run(db: Session, victim: Tenant) -> dict[str, str]:
+    from app.modules.assistant.models import ToolRun
+
+    ids = _conversation(db, victim)
+    run = ToolRun(
+        message_id=ids["message_id"],
+        company_id=victim.company.id,
+        user_id=victim.user.id,
+        tool_name="product_delete",
+        args={"product_id": str(make_product(db, victim.company).id)},
+        status="pending_confirm",
+    )
+    db.add(run)
+    db.flush()
+    return {"run_id": str(run.id)}
+
+
 def png_bytes() -> bytes:
     from PIL import Image
 
@@ -87,6 +122,8 @@ class Route:
     body: dict[str, Any] | None = None
     files: dict[str, Any] | None = field(default=None, hash=False)
 
+
+CONV = "/api/v1/assistant/conversations/{conversation_id}"
 
 ROUTES: list[Route] = [
     # 系统
@@ -130,4 +167,17 @@ ROUTES: list[Route] = [
     ),
     Route("GET", "/api/v1/extractions/{extraction_id}", "company", _extraction),
     Route("POST", "/api/v1/extractions/{extraction_id}/apply", "company", _extraction, {"accept": ["f:usp"]}),
+    # 助手
+    Route("POST", "/api/v1/assistant/conversations", "company", body={}),
+    Route("GET", "/api/v1/assistant/conversations", "company"),
+    Route("PATCH", f"{CONV}", "company", _conversation, {"title": "x"}),
+    Route("DELETE", f"{CONV}", "company", _conversation),
+    Route("GET", f"{CONV}/messages", "company", _conversation),
+    Route("POST", f"{CONV}/messages", "company", _conversation, {"text": "hi"}),
+    Route("POST", f"{CONV}/messages/{{message_id}}/retry", "company", _conversation),
+    Route("POST", f"{CONV}/messages/{{message_id}}/cancel", "company", _conversation),
+    Route("POST", f"{CONV}/messages/{{message_id}}/feedback", "company", _conversation, {"value": "like"}),
+    Route("GET", "/api/v1/assistant/tool-runs/{run_id}", "company", _tool_run),
+    Route("POST", "/api/v1/assistant/tool-runs/{run_id}/confirm", "company", _tool_run),
+    Route("POST", "/api/v1/assistant/tool-runs/{run_id}/reject", "company", _tool_run),
 ]

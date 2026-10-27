@@ -40,18 +40,6 @@ test('桌面端画布居中 402 宽；手机端铺满且无横向溢出', async 
   expect(overflow).toBe(false)
 })
 
-test('发送消息弹出 Toast，3 秒后消失', async ({ page, request }) => {
-  await signUp(page, request)
-  await page.goto('/assistant')
-  const input = page.locator('.yb-agent-native')
-  await input.fill('找德国的阀门买家')
-  await input.press('Enter')
-  const toast = page.getByText('对话功能即将上线')
-  await expect(toast).toBeVisible()
-  await expect(input).toHaveValue('')
-  await expect(toast).toBeHidden({ timeout: 5000 })
-})
-
 test('页面截图基线', async ({ page, request }) => {
   await page.goto('/login')
   await expect(page.getByRole('button', { name: '登录' })).toBeVisible()

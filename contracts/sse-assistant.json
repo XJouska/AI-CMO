@@ -1,0 +1,44 @@
+{
+  "$comment": "助手 SSE 协议样例（plans/03-assistant.md 4.1）。后端测试校验实际输出符合这些事件结构；前端解析器与状态机测试直接消费本文件。修改协议时两端测试都会失败，必须同步更新。",
+  "schemas": {
+    "message.start": { "required": { "message_id": "string", "conversation_id": "string" } },
+    "progress": { "required": { "step": "number", "label": "string", "status": "string" }, "optional": { "summary": "string" } },
+    "block.delta": { "required": { "block_index": "number", "text": "string" } },
+    "block.card": { "required": { "block_index": "number", "card_type": "string", "payload": "object" } },
+    "followups": { "required": { "items": "array" } },
+    "message.done": { "required": { "usage": "object" } },
+    "error": { "required": { "code": "string", "message": "string", "retryable": "boolean" } }
+  },
+  "progressStatuses": ["running", "done", "failed"],
+  "cardTypes": ["confirm", "profile_diff", "product_draft", "profile_completeness"],
+  "samples": {
+    "completedWithTool": [
+      { "event": "message.start", "data": { "message_id": "m1", "conversation_id": "c1" } },
+      { "event": "progress", "data": { "step": 1, "label": "查询档案完整度", "status": "running" } },
+      { "event": "block.card", "data": { "block_index": 0, "card_type": "profile_completeness", "payload": { "completeness": 30, "missing": ["英文公司介绍", "产品图片"] } } },
+      { "event": "progress", "data": { "step": 1, "label": "查询档案完整度", "status": "done", "summary": "完整度 30%" } },
+      { "event": "block.delta", "data": { "block_index": 1, "text": "### 档案情况\n目前完整度 " } },
+      { "event": "block.delta", "data": { "block_index": 1, "text": "**30%**，建议先补充：\n- 英文公司介绍\n- 产品图片" } },
+      { "event": "followups", "data": { "items": ["帮我补充英文公司介绍", "帮我找海外采购商"] } },
+      { "event": "message.done", "data": { "usage": { "prompt_tokens": 120, "completion_tokens": 40 } } }
+    ],
+    "needsConfirmation": [
+      { "event": "message.start", "data": { "message_id": "m2", "conversation_id": "c1" } },
+      { "event": "progress", "data": { "step": 1, "label": "删除产品", "status": "running" } },
+      { "event": "block.card", "data": { "block_index": 0, "card_type": "confirm", "payload": { "tool_run_id": "r1", "title": "删除产品", "summary": "将删除产品「Ball Valve」，删除后无法恢复。", "confirm_label": "删除", "danger": true } } },
+      { "event": "progress", "data": { "step": 1, "label": "删除产品", "status": "done" } },
+      { "event": "block.delta", "data": { "block_index": 1, "text": "这个操作需要你确认后才会执行，请在上方卡片中确认。" } },
+      { "event": "message.done", "data": { "usage": { "prompt_tokens": 80, "completion_tokens": 10 } } }
+    ],
+    "failedAfterPartial": [
+      { "event": "message.start", "data": { "message_id": "m3", "conversation_id": "c1" } },
+      { "event": "block.delta", "data": { "block_index": 0, "text": "正在为你整理" } },
+      { "event": "error", "data": { "code": "llm_failed", "message": "AI 暂时没有响应，请稍后重试", "retryable": true } }
+    ],
+    "unknownCard": [
+      { "event": "message.start", "data": { "message_id": "m4", "conversation_id": "c1" } },
+      { "event": "block.card", "data": { "block_index": 0, "card_type": "future_card", "payload": { "fallback_text": "新版本卡片" } } },
+      { "event": "message.done", "data": { "usage": {} } }
+    ]
+  }
+}

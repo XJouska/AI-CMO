@@ -1,5 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { TABS } from '@/components/local/TabPage'
 import { demoProfile, DEMO_USER, installFakeServer, signedIn, type FakeServer } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
@@ -37,23 +37,18 @@ describe('应用壳与 Tab', () => {
     expect(router.state.location.pathname).toBe('/assistant')
   })
 
-  it('助手页发送后清空输入并弹出 Toast，3 秒后消失', async () => {
+  it('Toast 3 秒后自动消失（规范：同一时间只显示一条）', async () => {
+    server.on('POST', '/assistant/conversations', { error: { code: 'internal_error', message: '' } }, 500)
     renderRoutes('/assistant')
     await screen.findByRole('navigation', { name: '主导航' })
-    vi.useFakeTimers()
-    try {
-      const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>('.yb-agent-native')!
-      fireEvent.change(input, { target: { value: '找德国的阀门买家' } })
-      fireEvent.keyDown(input, { key: 'Enter' })
-      expect(screen.getByText('对话功能即将上线')).toBeTruthy()
-      expect(input.value).toBe('')
-      act(() => {
-        vi.advanceTimersByTime(3100)
-      })
-      expect(screen.queryByText('对话功能即将上线')).toBeNull()
-    } finally {
-      vi.useRealTimers()
-    }
+    const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>('.yb-agent-native')!
+    fireEvent.change(input, { target: { value: '找德国的阀门买家' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText('服务暂时不可用，请稍后重试')).toBeTruthy()
+    expect(input.value).toBe('')
+    const shownAt = Date.now()
+    await waitFor(() => expect(screen.queryByText('服务暂时不可用，请稍后重试')).toBeNull(), { timeout: 4500 })
+    expect(Date.now() - shownAt).toBeGreaterThanOrEqual(2500)
   })
 
   it('请求携带登录 token 与当前企业头', async () => {

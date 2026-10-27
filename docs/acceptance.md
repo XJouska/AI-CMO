@@ -38,3 +38,20 @@
 
 - [ ] 用一家真实工厂的网址在配置了真实 LLM 的环境中走通建档，并在 10 分钟内得到档案草稿（需要 `LLM_API_KEY`）
 - [ ] 抓取真实网站时的合规确认（robots.txt 与条款，计划 05 统一实现）
+
+## 计划 03 · AI 获客助手
+
+| 验收项 | 状态 | 证据 |
+|---|---|---|
+| 「我们是做不锈钢阀门的，官网是 xxx.com」→ 抽取工具 → 档案变更卡片 → 确认后档案更新 | 通过（假数据） | `e2e/assistant.e2e.ts` 第一条；`tests/test_assistant.py::test_extract_from_url_tool_*` |
+| 生成中可停止；停止后消息状态为 `cancelled`，可重新生成 | 通过 | `test_cancel_marks_message_cancelled_and_stops_stream`；`assistant.spec.tsx`、`assistant.e2e.ts`「生成中可停止」 |
+| 断网后保持输出中并出现轻提示；恢复后可重试 | 通过 | `assistant.spec.tsx`「弱网」「网络断开」；`assistant.e2e.ts`「弱网」 |
+| 有副作用的工具未经确认不会执行 | 通过 | `test_side_effect_tool_requires_confirmation`、`test_prompt_injection_in_tool_data_cannot_trigger_side_effects` |
+| 通过提示词让助手读取其他企业数据失败 | 通过 | `test_llm_cannot_target_other_company`（多余参数被拒、跨企业 ID 不可见）；全部工具参数禁止多余字段 |
+| 所有状态在 402×874 下截图检查，输入框与 TabBar 贴底铺满 | 通过 | `e2e/__screenshots__/assistant.e2e.ts/*`（欢迎、生成中、完成、卡片、历史） |
+| SSE 协议前后端一致 | 通过 | `contracts/sse-assistant.json` 同时被 `test_assistant.py` 与 `turn.test.ts`、`assistant.spec.tsx` 使用 |
+
+**说明与人工确认项**
+
+- 首版的「流式」是在 LLM 返回完整回答后分段推送（`block.delta`），首字延迟取决于 LLM 响应时间。真正的逐 token 流式需要在函数调用模式下解析流式工具调用，计划 07 性能优化时评估。
+- [ ] 配置真实 LLM 后，人工检查工具选择是否准确、回答是否遵守「不编造」规则

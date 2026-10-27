@@ -189,3 +189,68 @@ body,
 .sheet-actions > .yb-bottomsheet {
   width: 100%;
 }
+
+/* ---------- 助手 ---------- */
+
+.assistant-thread {
+  margin: 0 auto;
+  max-width: 402px;
+  padding: 8px 16px 24px;
+}
+
+.assistant-thread .assistant-welcome {
+  padding: 16px 8px 8px;
+}
+
+.assistant-turn {
+  padding: 4px 0;
+}
+
+.assistant-card {
+  margin: 8px 0;
+}
+
+.assistant-card .yb-card {
+  width: 100%;
+}
+
+.assistant-card-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.assistant-card-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.assistant-error {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assistant-snackbar {
+  bottom: 8px;
+  display: flex;
+  justify-content: center;
+  left: 16px;
+  pointer-events: none;
+  position: sticky;
+  right: 16px;
+}
+
+.history-list {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.assistant-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

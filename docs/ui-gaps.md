@@ -79,6 +79,22 @@
   区分「次要 / 主要」。不修改设计包代码。
 - **后续**：设计包为 `bottomSheet` 增加按钮回调后改为直接使用。
 
+## GAP-010 · 助手页 NavBar 右侧「新对话」按钮
+
+- **正式组件**：`NavBar barType="Agent"` 右侧默认渲染 `NavBar / Buttons type="Multiple"`（朗读 / 通话 / 临时对话三个图标，无回调）。
+- **处理**：通过正式属性 `rightSlot` 传入一个按钮，复用 NavBar 自身的按钮类名 `yb-navbar-btn`，图标为设计包 `Icon/NewChat`。
+- **后续**：设计包提供「单图标 + 回调」的 Agent 右侧按钮后替换。
+
+## GAP-011 · 助手卡片的操作按钮区
+
+- **问题**：正式 `卡片 Card` 的 Output 变体只有标题、副标题与左侧图标，没有按钮区；确认操作需要「取消 / 确认」两个按钮。
+- **处理**：`ConfirmCard` 在正式 `Card Output` 下方放置两个正式 `Button`（M 尺寸），容器 `.assistant-card-actions` 只做布局。
+
+## GAP-012 · Markdown Progress 的 status 属性
+
+- **问题**：`Markdown variant="Progress"` 的 `status`（loading / done / clarify）由渲染器读取，但生成的类型声明中没有该属性。
+- **处理**：按设计包示例 `screens/generated/agent.tsx` 的写法 `{...{ status: 'loading' }}` 传入，不修改设计包。
+
 ---
 
 ## 未作为缺口处理的情况

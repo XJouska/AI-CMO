@@ -58,3 +58,19 @@ test('生产容器：注册、建企业、写档案；未配置 LLM 时 AI 建�
     })
     .toBe('failed')
 })
+
+test('生产容器：助手 SSE 经过 Nginx 不被缓冲；未配置 LLM 时返回明确错误', async ({ request }) => {
+  const reg = await request.post('/api/v1/auth/register', {
+    data: { email: `sse-${Date.now()}@example.com`, password: 'Factory123', name: 'sse' },
+  })
+  const auth = { Authorization: `Bearer ${(await reg.json()).token}` }
+  const company = await (await request.post('/api/v1/companies', { data: { name_cn: 'SSE 测试厂' }, headers: auth })).json()
+  const headers = { ...auth, 'X-Company-Id': company.id }
+  const conversation = await (await request.post('/api/v1/assistant/conversations', { data: {}, headers })).json()
+  const res = await request.post(`/api/v1/assistant/conversations/${conversation.id}/messages`, { data: { text: '你好' }, headers })
+  expect(res.headers()['content-type']).toContain('text/event-stream')
+  expect(res.headers()['x-accel-buffering']).toBe('no')
+  const body = await res.text()
+  expect(body).toContain('event: message.start')
+  expect(body).toContain('"code":"llm_not_configured"')
+})

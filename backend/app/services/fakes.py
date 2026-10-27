@@ -57,8 +57,45 @@ def fake_profile_extract(messages: list[Message]) -> dict[str, Any]:
     return result
 
 
+_URL_RE = re.compile(r"(?:https?://)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:/\S*)?", re.I)
+
+
+def fake_assistant_chat(messages: list[Message]) -> LLMResult:
+    """TEST_MODE 下的助手：按关键词选择工具，拿到工具结果后给出固定格式的回答。"""
+    last = messages[-1] if messages else {}
+    if last.get("role") == "tool":
+        content = str(last.get("content", ""))
+        if '"completeness"' in content:
+            data = json.loads(content).get("untrusted_data", {})
+            missing = "\n".join(f"- {item['label']}" for item in data.get("missing", [])[:3])
+            score = data.get("completeness", 0)
+            return LLMResult(content=f"### 档案情况\n目前完整度 **{score}%**，建议先补充：\n{missing}")
+        if '"extraction_id"' in content:
+            return LLMResult(content="我已经开始整理，完成后请在上方卡片中确认要采纳的内容。")
+        if '"waiting_for_user_confirmation"' in content:
+            return LLMResult(content="")
+        return LLMResult(content="好的，已经处理完成。")
+    text = _last_user_text(messages)
+    if m := _URL_RE.search(text):
+        return _tool_call("profile_extract_from_url", {"url": m.group(0)})
+    if re.search(r"档案|完整度", text):
+        return _tool_call("profile_get_completeness", {})
+    if m := re.search(r"成立于?\s*(\d{4})", text):
+        return _tool_call("profile_update_fields", {"company": {"founded_year": int(m.group(1))}})
+    return LLMResult(content="我可以帮你整理企业档案、生成英文官网、寻找海外采购商。你想先做哪一件？")
+
+
+def _tool_call(name: str, args: dict[str, Any]) -> LLMResult:
+    return LLMResult(
+        content="",
+        usage=LLMUsage(prompt_tokens=50, completion_tokens=10),
+        tool_calls=[{"id": f"call_{name}", "name": name, "arguments": json.dumps(args, ensure_ascii=False)}],
+    )
+
+
 DEFAULT_RESPONDERS: dict[str, Responder] = {
     "profile.extract": fake_profile_extract,
+    "assistant.chat": fake_assistant_chat,
 }
 
 
@@ -106,7 +143,10 @@ class FakeLLM:
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int = 2048,
     ) -> LLMResult:
-        self.calls.append({"task": task, "messages": messages, "json_mode": json_mode, "tools": tools})
+        # 保存调用时的消息快照（调用方之后会继续向同一个列表追加消息）
+        self.calls.append(
+            {"task": task, "messages": [dict(m) for m in messages], "json_mode": json_mode, "tools": tools}
+        )
         return self._respond(task, messages)
 
     async def stream(
