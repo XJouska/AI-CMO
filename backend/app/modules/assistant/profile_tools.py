@@ -85,14 +85,10 @@ def profile_extract_from_url(ctx: ToolContext, args: UrlArgs) -> ToolResult:
 class ProfileFieldsArgs(ToolArgs):
     company: ExtractedCompany = Field(default_factory=ExtractedCompany, description="从对话中提取的公司信息")
     certifications: list[str] = Field(default_factory=list, max_length=30)
-    contacts: dict[str, str] = Field(
-        default_factory=dict, description="email / phone / whatsapp / address / website"
-    )
+    contacts: dict[str, str] = Field(default_factory=dict, description="email / phone / whatsapp / address / website")
 
 
-def _draft_extraction(
-    ctx: ToolContext, output: ExtractionOutput
-) -> tuple[ProfileExtraction, list[dict[str, Any]]]:
+def _draft_extraction(ctx: ToolContext, output: ExtractionOutput) -> tuple[ProfileExtraction, list[dict[str, Any]]]:
     changes = build_changes(ctx.db, ctx.company, output)
     item = ProfileExtraction(
         company_id=ctx.company_id,
@@ -115,9 +111,7 @@ def _draft_extraction(
     label="整理档案变更",
 )
 def profile_update_fields(ctx: ToolContext, args: ProfileFieldsArgs) -> ToolResult:
-    output = ExtractionOutput(
-        company=args.company, certifications=args.certifications, contacts=args.contacts
-    )
+    output = ExtractionOutput(company=args.company, certifications=args.certifications, contacts=args.contacts)
     item, changes = _draft_extraction(ctx, output)
     return ToolResult(
         data={
@@ -146,10 +140,7 @@ class ListArgs(ToolArgs):
 @tool("product_list", description="列出当前企业的产品。", args=ListArgs, label="查询产品")
 def product_list(ctx: ToolContext, args: ListArgs) -> ToolResult:
     products = ctx.db.scalars(
-        select(Product)
-        .where(Product.company_id == ctx.company_id)
-        .order_by(Product.created_at)
-        .limit(args.limit)
+        select(Product).where(Product.company_id == ctx.company_id).order_by(Product.created_at).limit(args.limit)
     ).all()
     return ToolResult(
         data={

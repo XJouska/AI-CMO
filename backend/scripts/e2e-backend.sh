@@ -13,6 +13,9 @@ export TEST_MODE=1
 export LOG_LEVEL=WARNING
 STORAGE_DIR="$(mktemp -d)"
 export STORAGE_DIR
+SITES_OUTPUT_DIR="$(mktemp -d)"
+export SITES_OUTPUT_DIR
+export SITES_BASE_DOMAIN=sites.e2e.test
 # 端到端测试会多次注册 / 登录，放宽限流（限流本身由后端单元测试覆盖）
 export LOGIN_IP_LIMIT=1000
 export REGISTER_IP_LIMIT_PER_HOUR=1000

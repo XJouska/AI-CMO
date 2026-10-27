@@ -253,9 +253,7 @@ def resolver_for(mapping: dict[str, list[str]]):
 
 async def test_resolve_all_records_public() -> None:
     parsed = validate_url("https://example.com/")
-    result = await resolve_and_check(
-        parsed, resolver=resolver_for({"example.com": [PUBLIC_V4, PUBLIC_V6, PUBLIC_V4]})
-    )
+    result = await resolve_and_check(parsed, resolver=resolver_for({"example.com": [PUBLIC_V4, PUBLIC_V6, PUBLIC_V4]}))
     assert [str(ip) for ip in result] == [PUBLIC_V4, PUBLIC_V6]
 
 
@@ -412,9 +410,7 @@ async def test_redirect_to_internal_address_blocked() -> None:
 
 
 async def test_redirect_to_host_resolving_internal_blocked() -> None:
-    servers = FakeServers(
-        {PUBLIC_V4: [http_response(301, headers={"Location": "https://intranet.example/"})]}
-    )
+    servers = FakeServers({PUBLIC_V4: [http_response(301, headers={"Location": "https://intranet.example/"})]})
     with pytest.raises(SsrfBlockedError) as exc:
         await safe_fetch(
             "http://example.com/",

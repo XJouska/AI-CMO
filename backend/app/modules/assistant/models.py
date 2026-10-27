@@ -17,9 +17,7 @@ class Conversation(IdMixin, TimestampMixin, Base):
     __tablename__ = "conversations"
     __table_args__ = (Index("ix_conversations_company_user_updated", "company_id", "user_id", "updated_at"),)
 
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
-    )
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title: Mapped[str] = mapped_column(String(60), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")  # active / deleted

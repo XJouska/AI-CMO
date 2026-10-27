@@ -12,9 +12,7 @@ import os
 from collections.abc import Iterator
 
 os.environ.setdefault("APP_ENV", "test")
-os.environ.setdefault(
-    "TEST_DATABASE_URL", "postgresql+psycopg://aicmo:aicmo_test_only@127.0.0.1:55432/aicmo_test"
-)
+os.environ.setdefault("TEST_DATABASE_URL", "postgresql+psycopg://aicmo:aicmo_test_only@127.0.0.1:55432/aicmo_test")
 os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 os.environ.setdefault("SECRET_KEY", "test-secret-key-0123456789abcdef-0123456789")
 os.environ.setdefault("LOG_LEVEL", "WARNING")

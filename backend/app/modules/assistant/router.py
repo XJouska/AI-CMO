@@ -17,7 +17,7 @@ from app.core.db import get_db, utcnow
 from app.core.deps import CompanyScope, current_company
 from app.core.errors import AppError, ConflictError, ForbiddenError, NotFoundError, RateLimitedError
 from app.modules.assistant import (
-    profile_tools,  # noqa: F401  注册第一批工具
+    all_tools,  # noqa: F401  注册全部助手工具
     sse,
 )
 from app.modules.assistant.models import Conversation, Message, ToolRun
@@ -78,9 +78,7 @@ def _own_conversation(db: Session, scope: CompanyScope, conversation_id: uuid.UU
     return conversation
 
 
-def _own_message(
-    db: Session, scope: CompanyScope, conversation: Conversation, message_id: uuid.UUID
-) -> Message:
+def _own_message(db: Session, scope: CompanyScope, conversation: Conversation, message_id: uuid.UUID) -> Message:
     message = db.get(Message, message_id)
     if message is None or message.conversation_id != conversation.id:
         raise NotFoundError("消息不存在")
@@ -154,10 +152,7 @@ def list_messages(
 ) -> list[MessageOut]:
     conversation = _own_conversation(db, scope, conversation_id)
     rows = db.scalars(
-        select(Message)
-        .where(Message.conversation_id == conversation.id)
-        .order_by(Message.created_at)
-        .limit(500)
+        select(Message).where(Message.conversation_id == conversation.id).order_by(Message.created_at).limit(500)
     ).all()
     return [message_out(m) for m in rows]
 
@@ -369,14 +364,10 @@ async def confirm_tool_run(
         run = db.get(ToolRun, run_id)  # type: ignore[assignment]
         run.status, run.error, run.finished_at = "failed", str(exc), utcnow()
         db.commit()
-        return ToolRunOut(
-            id=str(run.id), tool_name=run.tool_name, status=run.status, summary="", error=str(exc)
-        )
+        return ToolRunOut(id=str(run.id), tool_name=run.tool_name, status=run.status, summary="", error=str(exc))
     run.status, run.result, run.finished_at = "succeeded", result.data, utcnow()
     db.commit()
-    return ToolRunOut(
-        id=str(run.id), tool_name=run.tool_name, status=run.status, summary=result.summary, error=""
-    )
+    return ToolRunOut(id=str(run.id), tool_name=run.tool_name, status=run.status, summary=result.summary, error="")
 
 
 @router.post("/tool-runs/{run_id}/reject", response_model=ToolRunOut)

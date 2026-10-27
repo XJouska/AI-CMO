@@ -156,9 +156,7 @@ class Orchestrator:
             return
         except (LLMError, ServiceUnavailableError) as exc:
             code = "llm_not_configured" if isinstance(exc, ServiceUnavailableError) else "llm_failed"
-            message = (
-                exc.message if isinstance(exc, ServiceUnavailableError) else "AI 暂时没有响应，请稍后重试"
-            )
+            message = exc.message if isinstance(exc, ServiceUnavailableError) else "AI 暂时没有响应，请稍后重试"
             self._finish("error", error_code=code)
             yield sse.event("error", {"code": code, "message": message, "retryable": True})
             return
@@ -166,17 +164,13 @@ class Orchestrator:
             logger.exception("assistant turn failed")
             self.db.rollback()
             self._finish("error", error_code="internal_error")
-            yield sse.event(
-                "error", {"code": "internal_error", "message": "出了点问题，请重试", "retryable": True}
-            )
+            yield sse.event("error", {"code": "internal_error", "message": "出了点问题，请重试", "retryable": True})
             return
         finally:
             _cancel_events.pop(self.assistant.id, None)
 
         followups = (
-            []
-            if self.state.pending_confirm
-            else suggest_followups(self.db, self.company, self.state.tools_used)
+            [] if self.state.pending_confirm else suggest_followups(self.db, self.company, self.state.tools_used)
         )
         if followups:
             self.state.blocks.append({"semanticRole": "followUp", "items": followups})
@@ -204,9 +198,7 @@ class Orchestrator:
         for _round in range(MAX_TOOL_ROUNDS + 1):
             self._check_cancel()
             allow_tools = _round < MAX_TOOL_ROUNDS
-            result = await llm.complete(
-                messages, task="assistant.chat", tools=schemas if allow_tools else None
-            )
+            result = await llm.complete(messages, task="assistant.chat", tools=schemas if allow_tools else None)
             self.state.usage.add(result.usage)
             self._check_cancel()
             calls = result.tool_calls if allow_tools else []
@@ -246,9 +238,7 @@ class Orchestrator:
                         yield item
                     return
 
-    async def _run_tool(
-        self, step: int, call: dict[str, Any], output: dict[str, Any]
-    ) -> AsyncIterator[dict[str, Any]]:
+    async def _run_tool(self, step: int, call: dict[str, Any], output: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
         """执行一个工具调用，产出进度 / 卡片事件；回传给 LLM 的内容写入 output。"""
         tool = self.tools.get(call["name"])
         label = tool.label if tool else "调用工具"
@@ -301,9 +291,7 @@ class Orchestrator:
         self.db.commit()
         if result.card:
             yield self._card(result.card)
-        yield sse.event(
-            "progress", {"step": step, "label": label, "status": "done", "summary": result.summary}
-        )
+        yield sse.event("progress", {"step": step, "label": label, "status": "done", "summary": result.summary})
         output.update({"untrusted_data": result.data})
 
     def _card(self, card: dict[str, Any]) -> dict[str, Any]:

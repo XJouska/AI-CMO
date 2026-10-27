@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-EventName = Literal[
-    "message.start", "progress", "block.delta", "block.card", "followups", "message.done", "error"
-]
+EventName = Literal["message.start", "progress", "block.delta", "block.card", "followups", "message.done", "error"]
 EVENT_NAMES: tuple[str, ...] = (
     "message.start",
     "progress",

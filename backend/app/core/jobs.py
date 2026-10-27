@@ -35,13 +35,9 @@ class Job(IdMixin, TimestampMixin, Base):
     __table_args__ = (Index("ix_jobs_status_run_after", "status", "run_after"),)
 
     kind: Mapped[str] = mapped_column(String(64), nullable=False)
-    company_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("companies.id", ondelete="CASCADE"), index=True
-    )
+    company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
-    status: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="queued"
-    )  # queued/running/done/failed
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")  # queued/running/done/failed
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     run_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)

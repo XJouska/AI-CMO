@@ -88,13 +88,8 @@ def company_out(company: Company, role: str) -> CompanyOut:
 
 
 @router.post("/companies", response_model=CompanyOut, status_code=201)
-def create_company(
-    body: CompanyIn, user: User = Depends(current_user), db: Session = Depends(get_db)
-) -> CompanyOut:
-    owned = (
-        db.scalar(select(func.count()).select_from(CompanyMember).where(CompanyMember.user_id == user.id))
-        or 0
-    )
+def create_company(body: CompanyIn, user: User = Depends(current_user), db: Session = Depends(get_db)) -> CompanyOut:
+    owned = db.scalar(select(func.count()).select_from(CompanyMember).where(CompanyMember.user_id == user.id)) or 0
     if owned >= MAX_COMPANIES_PER_USER:
         raise AppError("企业数量已达上限", code="company_limit")
     company = Company(name_cn=body.name_cn, name_en=body.name_en)
@@ -119,9 +114,7 @@ def list_companies(user: User = Depends(current_user), db: Session = Depends(get
     return [company_out(company, role) for company, role in rows]
 
 
-def path_scope(
-    company_id: uuid.UUID, user: User, db: Session, roles: tuple[str, ...] | None = None
-) -> CompanyScope:
+def path_scope(company_id: uuid.UUID, user: User, db: Session, roles: tuple[str, ...] | None = None) -> CompanyScope:
     scope = load_scope(db, user, company_id)
     if roles and scope.role not in roles:
         raise ForbiddenError("没有权限执行此操作")
@@ -129,9 +122,7 @@ def path_scope(
 
 
 @router.get("/companies/{company_id}", response_model=CompanyOut)
-def get_company(
-    company_id: uuid.UUID, user: User = Depends(current_user), db: Session = Depends(get_db)
-) -> CompanyOut:
+def get_company(company_id: uuid.UUID, user: User = Depends(current_user), db: Session = Depends(get_db)) -> CompanyOut:
     scope = path_scope(company_id, user, db)
     return company_out(scope.company, scope.role)
 
@@ -255,21 +246,15 @@ def _valid_invite(db: Session, token: str, *, lock: bool = False) -> Invite:
 
 
 @router.get("/invites/{token}", response_model=InvitePreview)
-def preview_invite(
-    token: str, _: User = Depends(current_user), db: Session = Depends(get_db)
-) -> InvitePreview:
+def preview_invite(token: str, _: User = Depends(current_user), db: Session = Depends(get_db)) -> InvitePreview:
     invite = _valid_invite(db, token)
     company = db.get(Company, invite.company_id)
     assert company is not None
-    return InvitePreview(
-        company_name=company.name_cn, role=invite.role, expires_at=invite.expires_at.isoformat()
-    )
+    return InvitePreview(company_name=company.name_cn, role=invite.role, expires_at=invite.expires_at.isoformat())
 
 
 @router.post("/invites/{token}/accept", response_model=CompanyOut)
-def accept_invite(
-    token: str, user: User = Depends(current_user), db: Session = Depends(get_db)
-) -> CompanyOut:
+def accept_invite(token: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> CompanyOut:
     invite = _valid_invite(db, token, lock=True)
     company = db.get(Company, invite.company_id)
     assert company is not None
@@ -511,9 +496,7 @@ def _check_images(db: Session, scope: CompanyScope, image_ids: list[uuid.UUID]) 
 
 
 @router.get("/products", response_model=list[ProductOut])
-def list_products(
-    scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)
-) -> list[ProductOut]:
+def list_products(scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)) -> list[ProductOut]:
     products = db.scalars(
         select(Product).where(Product.company_id == scope.company_id).order_by(Product.created_at)
     ).all()
@@ -524,10 +507,7 @@ def list_products(
 def create_product(
     body: ProductIn, scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)
 ) -> ProductOut:
-    count = (
-        db.scalar(select(func.count()).select_from(Product).where(Product.company_id == scope.company_id))
-        or 0
-    )
+    count = db.scalar(select(func.count()).select_from(Product).where(Product.company_id == scope.company_id)) or 0
     if count >= 500:
         raise AppError("产品数量已达上限", code="product_limit")
     data = body.model_dump()
@@ -610,9 +590,7 @@ async def _read_limited(upload: UploadFile, limit: int) -> bytes:
     while chunk := await upload.read(1024 * 1024):
         total += len(chunk)
         if total > limit:
-            raise AppError(
-                f"文件不能超过 {limit // (1024 * 1024)}MB", code="payload_too_large", status_code=413
-            )
+            raise AppError(f"文件不能超过 {limit // (1024 * 1024)}MB", code="payload_too_large", status_code=413)
         chunks.append(chunk)
     return b"".join(chunks)
 
@@ -785,9 +763,7 @@ def create_extraction(
         if not body.asset_ids:
             raise AppError("请先上传资料", code="assets_required")
         owned = set(
-            db.scalars(
-                select(Asset.id).where(Asset.company_id == scope.company_id, Asset.id.in_(body.asset_ids))
-            )
+            db.scalars(select(Asset.id).where(Asset.company_id == scope.company_id, Asset.id.in_(body.asset_ids)))
         )
         if len(owned) != len(set(body.asset_ids)):
             raise NotFoundError("资料不存在")
@@ -797,9 +773,7 @@ def create_extraction(
         if len(text) < 10:
             raise AppError("请多介绍一些企业和产品信息", code="text_too_short")
         payload = {"text": text}
-    item = extraction_service.create_extraction(
-        db, scope.company, scope.user.id, source=body.source, payload=payload
-    )
+    item = extraction_service.create_extraction(db, scope.company, scope.user.id, source=body.source, payload=payload)
     db.commit()
     return extraction_out(item)
 

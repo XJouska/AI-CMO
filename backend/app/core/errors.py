@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
@@ -106,9 +107,15 @@ def install_error_handlers(app: FastAPI) -> None:
         for err in exc.errors():
             loc = ".".join(str(part) for part in err.get("loc", ()) if part != "body")
             fields.append({"field": loc, "type": err.get("type")})
-        return JSONResponse(
-            error_body("validation_error", "提交的信息格式不正确", {"fields": fields}), status_code=422
-        )
+        return JSONResponse(error_body("validation_error", "提交的信息格式不正确", {"fields": fields}), status_code=422)
+
+    @app.exception_handler(ValidationError)
+    async def _model_validation_error(_: Request, exc: ValidationError) -> JSONResponse:
+        """接口内部对请求数据做的二次校验（例如按分区模型校验）同样返回 422。"""
+        fields = [
+            {"field": ".".join(str(p) for p in err.get("loc", ())), "type": err.get("type")} for err in exc.errors()
+        ]
+        return JSONResponse(error_body("validation_error", "提交的信息格式不正确", {"fields": fields}), status_code=422)
 
     @app.exception_handler(Exception)
     async def _unhandled(_: Request, exc: Exception) -> JSONResponse:

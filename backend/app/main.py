@@ -21,6 +21,7 @@ from app.modules.billing.router import router as billing_router
 from app.modules.companies.router import router as companies_router
 from app.modules.leads.router import router as leads_router
 from app.modules.outreach.router import router as outreach_router
+from app.modules.sites.router import public as sites_public_router
 from app.modules.sites.router import router as sites_router
 from app.modules.sources.router import router as sources_router
 
@@ -38,6 +39,7 @@ MODULE_ROUTERS = [
     outreach_router,
     billing_router,
     admin_router,
+    sites_public_router,
 ]
 
 

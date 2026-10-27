@@ -19,9 +19,7 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 _DEFAULT_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/131.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 
 _MAX_CONCURRENT_PAGES = 12
@@ -108,9 +106,7 @@ class BrowserService:
         """Schedule browser shutdown after idle delay."""
         self._cancel_close_timer()
         loop = asyncio.get_event_loop()
-        self._close_timer = loop.call_later(
-            _IDLE_CLOSE_DELAY, lambda: asyncio.ensure_future(self._idle_close())
-        )
+        self._close_timer = loop.call_later(_IDLE_CLOSE_DELAY, lambda: asyncio.ensure_future(self._idle_close()))
 
     async def _idle_close(self):
         if self._active_pages > 0:
@@ -242,9 +238,7 @@ class BrowserService:
             keywords = extract_meta(html, "name", "keywords")
 
             links = []
-            link_pattern = re.compile(
-                r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.DOTALL | re.IGNORECASE
-            )
+            link_pattern = re.compile(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.DOTALL | re.IGNORECASE)
             for m in link_pattern.finditer(html):
                 href = m.group(1).strip()
                 link_text = re.sub(r"<[^>]+>", "", m.group(2)).strip()[:200]

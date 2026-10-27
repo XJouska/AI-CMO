@@ -12,6 +12,7 @@ from app.modules.companies.models import (
     Product,
     ProfileExtraction,
 )
+from app.modules.sites.models import Notification, Site, SiteHealthReport, SiteInquiry, SiteVersion
 
 __all__ = [
     "Asset",
@@ -23,9 +24,14 @@ __all__ = [
     "Job",
     "LoginAttempt",
     "Message",
+    "Notification",
     "Product",
     "ProfileExtraction",
     "Session",
+    "Site",
+    "SiteHealthReport",
+    "SiteInquiry",
+    "SiteVersion",
     "ToolRun",
     "User",
 ]

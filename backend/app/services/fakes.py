@@ -70,6 +70,8 @@ def fake_assistant_chat(messages: list[Message]) -> LLMResult:
             missing = "\n".join(f"- {item['label']}" for item in data.get("missing", [])[:3])
             score = data.get("completeness", 0)
             return LLMResult(content=f"### 档案情况\n目前完整度 **{score}%**，建议先补充：\n{missing}")
+        if '"generating"' in content:
+            return LLMResult(content="官网正在生成，通常需要一两分钟，完成后可以在「官网」页预览。")
         if '"extraction_id"' in content:
             return LLMResult(content="我已经开始整理，完成后请在上方卡片中确认要采纳的内容。")
         if '"waiting_for_user_confirmation"' in content:
@@ -78,6 +80,10 @@ def fake_assistant_chat(messages: list[Message]) -> LLMResult:
     text = _last_user_text(messages)
     if m := _URL_RE.search(text):
         return _tool_call("profile_extract_from_url", {"url": m.group(0)})
+    if re.search(r"发布官网|上线官网", text):
+        return _tool_call("site_publish", {})
+    if re.search(r"生成.*官网|官网.*生成", text):
+        return _tool_call("site_generate_draft", {})
     if re.search(r"档案|完整度", text):
         return _tool_call("profile_get_completeness", {})
     if m := re.search(r"成立于?\s*(\d{4})", text):
@@ -93,9 +99,65 @@ def _tool_call(name: str, args: dict[str, Any]) -> LLMResult:
     )
 
 
+def fake_site_generate(messages: list[Message]) -> dict[str, Any]:
+    """TEST_MODE：根据档案数据生成固定格式的官网文案（只使用输入中的事实）。"""
+    raw = _last_user_text(messages)
+    try:
+        data = json.loads(raw.split("<data>\n", 1)[1].rsplit("\n</data>", 1)[0])
+    except (IndexError, json.JSONDecodeError):
+        data = {"company": {}, "products": []}
+    company = data.get("company", {})
+    name = company.get("name_en") or company.get("name_cn") or "Our Company"
+    products = data.get("products", [])
+    first = products[0]["name_en"] if products else "industrial products"
+    return {
+        "hero": {
+            "headline": f"{name}: Reliable {first} Manufacturer",
+            "subheadline": company.get("usp") or "",
+            "cta": "Request a Quote",
+        },
+        "about": {
+            "title": "About Us",
+            "body": company.get("about_en") or company.get("usp") or "",
+            "highlights": [h for h in [company.get("usp")] if h],
+        },
+        "products": {
+            "items": [
+                {
+                    "product_id": p["id"],
+                    "name": p["name_en"],
+                    "summary": f"{p['name_en']} for {', '.join(p.get('applications') or ['industrial use'])}.",
+                }
+                for p in products
+            ]
+        },
+        "factory": {"body": f"Our factory covers {company['factory_area']}." if company.get("factory_area") else ""},
+        "faq": {"items": [{"q": "What is your MOQ?", "a": "Please contact us for details."}]},
+        "cases": {"items": []},
+        "seo": {
+            "title": f"{name} | {first} Manufacturer"[:70],
+            "description": f"{name} manufactures {first}. Factory-direct supply for global B2B buyers."[:200],
+            "keywords": [p["name_en"].lower() for p in products][:10],
+        },
+    }
+
+
+def fake_site_rewrite(messages: list[Message]) -> dict[str, Any]:
+    raw = _last_user_text(messages)
+    try:
+        section = json.loads(raw.split("<data>", 1)[1].split("</data>", 1)[0])
+    except (IndexError, json.JSONDecodeError):
+        return {}
+    if isinstance(section, dict) and "headline" in section:
+        section["headline"] = (section["headline"] + " — Factory Direct")[:120]
+    return section
+
+
 DEFAULT_RESPONDERS: dict[str, Responder] = {
     "profile.extract": fake_profile_extract,
     "assistant.chat": fake_assistant_chat,
+    "site.generate": fake_site_generate,
+    "site.rewrite": fake_site_rewrite,
 }
 
 
@@ -149,9 +211,7 @@ class FakeLLM:
         )
         return self._respond(task, messages)
 
-    async def stream(
-        self, messages: list[Message], *, task: str, max_tokens: int = 2048
-    ) -> AsyncIterator[str]:
+    async def stream(self, messages: list[Message], *, task: str, max_tokens: int = 2048) -> AsyncIterator[str]:
         self.calls.append({"task": task, "messages": messages, "stream": True})
         result = self._respond(task, messages)
         for index in range(0, len(result.content), 8):

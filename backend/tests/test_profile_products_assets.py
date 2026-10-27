@@ -106,9 +106,7 @@ def test_profile_can_clear_founded_year(client, db) -> None:
     tenant = make_tenant(db)
     client.patch("/api/v1/profile", json={"founded_year": 2001}, headers=tenant.headers)
     assert (
-        client.patch("/api/v1/profile", json={"founded_year": None}, headers=tenant.headers).json()[
-            "founded_year"
-        ]
+        client.patch("/api/v1/profile", json={"founded_year": None}, headers=tenant.headers).json()["founded_year"]
         is None
     )
 
@@ -142,9 +140,7 @@ def test_product_crud(client, db) -> None:
     assert [p["id"] for p in client.get("/api/v1/products", headers=tenant.headers).json()] == [pid]
     profile = client.get("/api/v1/profile", headers=tenant.headers).json()
     assert profile["product_count"] == 1
-    assert {"products", "product_keywords", "product_images"}.isdisjoint(
-        {m["key"] for m in profile["missing"]}
-    )
+    assert {"products", "product_keywords", "product_images"}.isdisjoint({m["key"] for m in profile["missing"]})
 
     assert client.delete(f"/api/v1/products/{pid}", headers=tenant.headers).status_code == 204
     assert client.get(f"/api/v1/products/{pid}", headers=tenant.headers).status_code == 404
@@ -156,15 +152,11 @@ def test_product_rejects_other_company_images(client, db) -> None:
     foreign = make_asset(db, other.company)
     pdf = make_asset(db, tenant.company, kind="catalog", mime="application/pdf")
     for image_id in (foreign.id, pdf.id):
-        r = client.post(
-            "/api/v1/products", json={"name_en": "X", "images": [str(image_id)]}, headers=tenant.headers
-        )
+        r = client.post("/api/v1/products", json={"name_en": "X", "images": [str(image_id)]}, headers=tenant.headers)
         assert r.status_code == 400
         assert r.json()["error"]["code"] == "invalid_images"
     product = make_product(db, tenant.company)
-    r = client.patch(
-        f"/api/v1/products/{product.id}", json={"images": [str(foreign.id)]}, headers=tenant.headers
-    )
+    r = client.patch(f"/api/v1/products/{product.id}", json={"images": [str(foreign.id)]}, headers=tenant.headers)
     assert r.status_code == 400
 
 
@@ -172,9 +164,7 @@ def test_product_spec_limits(client, db) -> None:
     tenant = make_tenant(db)
     specs = {f"k{i}": "v" for i in range(31)}
     assert (
-        client.post(
-            "/api/v1/products", json={"name_en": "X", "specs": specs}, headers=tenant.headers
-        ).status_code
+        client.post("/api/v1/products", json={"name_en": "X", "specs": specs}, headers=tenant.headers).status_code
         == 422
     )
     product = make_product(db, tenant.company)
@@ -222,9 +212,7 @@ def minimal_pdf(text: str = "Stainless steel ball valve catalog") -> bytes:
     return out.getvalue()
 
 
-def upload(
-    client, tenant, data: bytes, name: str = "photo.png", kind: str = "image", mime: str = "image/png"
-):
+def upload(client, tenant, data: bytes, name: str = "photo.png", kind: str = "image", mime: str = "image/png"):
     return client.post(
         "/api/v1/assets", files={"file": (name, data, mime)}, data={"kind": kind}, headers=tenant.headers
     )
@@ -354,9 +342,9 @@ def test_list_assets_filter(client, db) -> None:
     tenant = make_tenant(db)
     upload(client, tenant, image_bytes())
     upload(client, tenant, minimal_pdf(), name="c.pdf", kind="certificate", mime="application/pdf")
-    assert [
-        a["kind"] for a in client.get("/api/v1/assets?kind=certificate", headers=tenant.headers).json()
-    ] == ["certificate"]
+    assert [a["kind"] for a in client.get("/api/v1/assets?kind=certificate", headers=tenant.headers).json()] == [
+        "certificate"
+    ]
 
 
 @pytest.mark.parametrize(

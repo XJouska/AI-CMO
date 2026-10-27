@@ -55,3 +55,22 @@
 
 - 首版的「流式」是在 LLM 返回完整回答后分段推送（`block.delta`），首字延迟取决于 LLM 响应时间。真正的逐 token 流式需要在函数调用模式下解析流式工具调用，计划 07 性能优化时评估。
 - [ ] 配置真实 LLM 后，人工检查工具选择是否准确、回答是否遵守「不编造」规则
+
+## 计划 04 · 品牌官网生成与托管
+
+| 验收项 | 状态 | 证据 |
+|---|---|---|
+| 生成内容无编造的证书和客户；需确认项被正确标记 | 通过（假数据） | `test_fabricated_facts_are_flagged`、`test_fact_check_unit`、`test_llm_output_is_validated_and_clamped` |
+| 发布后可访问，移动端和桌面端显示正常 | 通过（本机） | `test_publish_writes_static_site_and_switches_atomically`；`scripts/smoke-sites.sh`（aicmo-v2 sites 容器） |
+| 官网提交询盘 → 应用内看到通知和询盘记录 | 通过 | `e2e/site.e2e.ts`；`test_inquiry_flow_creates_record_and_notification`；smoke 脚本经 Nginx 提交 |
+| 询盘接口限流、蜜罐生效；`<script>` 询盘内容在应用和官网中都按文本显示 | 通过 | `test_inquiry_rate_limit`、`test_inquiry_honeypot_pretends_success`、`site.spec.tsx`、`site.e2e.ts` |
+| 版本回滚可用 | 通过 | `test_section_edit_creates_new_version_and_restore`、`site.e2e.ts`「版本回滚」 |
+| 健康检查给出可执行的修复建议 | 通过 | `test_health_rules`、`test_health_check_endpoint` |
+| 「官网」Tab 各状态完成截图检查 | 通过 | `e2e/__screenshots__/site.e2e.ts/*` |
+
+**人工确认项**
+
+- [ ] 用一家真实工厂档案（配置真实 LLM）生成官网，人工审阅英文文案质量与事实准确性
+- [ ] 公网发布：泛域名 DNS（`*.SITES_BASE_DOMAIN`）、泛域名证书、宿主 Nginx 把官网域名流量转发到 `127.0.0.1:9021`（计划 07）
+- [ ] 自定义域名的证书自动签发方案（Caddy on-demand TLS 或 certbot，计划 07 定稿）
+- [ ] 是否启用 Cloudflare Turnstile（需要申请 sitekey / secret）

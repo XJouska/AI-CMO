@@ -5,3 +5,4 @@
 
 from app import models  # noqa: F401
 from app.modules.companies import extraction  # noqa: F401
+from app.modules.sites import service as sites_service  # noqa: F401

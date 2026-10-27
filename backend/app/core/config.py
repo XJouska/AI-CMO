@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     login_lock_minutes: int = 15
     invite_ttl_hours: int = 72
 
+    # 客户官网
+    sites_output_dir: str = "/data/sites"
+    # 平台子域名的根域名，例如 sites.aicmo.site → {slug}.sites.aicmo.site
+    sites_base_domain: str = "sites.localhost"
+    sites_scheme: Literal["http", "https"] = "https"
+    turnstile_secret: SecretStr | None = None
+    pagespeed_api_key: SecretStr | None = None
+
     # 测试模式：外部服务（LLM、抓取、短信等）全部使用假实现。生产环境禁止开启。
     test_mode: bool = False
 

@@ -36,16 +36,12 @@ def make_user(db: Session, *, email: str | None = None, is_staff: bool = False, 
 
 def make_session(db: Session, user: User, *, days: int = 7) -> str:
     token = new_token()
-    db.add(
-        UserSession(user_id=user.id, token_hash=token_hash(token), expires_at=utcnow() + timedelta(days=days))
-    )
+    db.add(UserSession(user_id=user.id, token_hash=token_hash(token), expires_at=utcnow() + timedelta(days=days)))
     db.flush()
     return token
 
 
-def make_company(
-    db: Session, owner: User | None = None, *, name_cn: str | None = None, role: str = "owner"
-) -> Company:
+def make_company(db: Session, owner: User | None = None, *, name_cn: str | None = None, role: str = "owner") -> Company:
     n = next(_seq)
     company = Company(name_cn=name_cn or f"测试工厂{n}", name_en="")
     db.add(company)
@@ -69,9 +65,7 @@ def make_product(db: Session, company: Company, **kwargs: Any) -> Product:
     return product
 
 
-def make_asset(
-    db: Session, company: Company, *, kind: str = "image", mime: str = "image/png", text: str = ""
-) -> Asset:
+def make_asset(db: Session, company: Company, *, kind: str = "image", mime: str = "image/png", text: str = "") -> Asset:
     n = next(_seq)
     asset = Asset(
         company_id=company.id,
@@ -113,3 +107,27 @@ def make_tenant(db: Session, *, role: str = "owner", is_staff: bool = False) -> 
     user = make_user(db, is_staff=is_staff)
     company = make_company(db, user, role=role)
     return Tenant(user=user, company=company, token=make_session(db, user))
+
+
+def complete_profile(db: Session, company: Company, **overrides: Any) -> CompanyProfile:
+    """填充一份完整度 ≥ 60% 的企业档案（官网生成的前置条件）。"""
+    company.name_en = overrides.pop("name_en", "Demo Valve Co., Ltd.")
+    profile = db.get(CompanyProfile, company.id)
+    assert profile is not None
+    values: dict[str, Any] = {
+        "founded_year": 2008,
+        "employees": "120",
+        "factory_area": "15000 m²",
+        "annual_capacity": "500,000 valves",
+        "export_markets": ["Germany", "United States"],
+        "certifications": ["ISO 9001", "CE"],
+        "usp": "In-house casting and 100% pressure testing",
+        "about_en": "Demo Valve manufactures stainless steel ball valves since 2008.",
+        "contacts": {"email": "sales@demo-valve.example", "phone": "+86 574 0000 0000"},
+        "main_customers_public": [],
+    }
+    values.update(overrides)
+    for key, value in values.items():
+        setattr(profile, key, value)
+    db.flush()
+    return profile

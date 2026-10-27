@@ -19,6 +19,16 @@ import {
   OnboardingUrlPage,
 } from '@/pages/onboarding/OnboardingPages'
 import { SitePage } from '@/pages/SitePage'
+import {
+  SiteDomainPage,
+  SiteHealthPage,
+  SiteInquiriesPage,
+  SiteInquiryPage,
+  SitePreviewPage,
+  SiteSectionPage,
+  SiteTemplatePage,
+  SiteVersionsPage,
+} from '@/pages/site/SitePages'
 import { GuestOnly, RequireAuth } from '@/session/guards'
 import { SessionProvider } from '@/session/session'
 import { AppShell } from './AppShell'
@@ -53,6 +63,14 @@ export const routes: RouteObject[] = [
   { path: '/assistant', element: authed(<AssistantPage />) },
   { path: '/leads', element: authed(<LeadsPage />) },
   { path: '/site', element: authed(<SitePage />) },
+  { path: '/site/sections/:section', element: authed(<SiteSectionPage />) },
+  { path: '/site/preview', element: authed(<SitePreviewPage />) },
+  { path: '/site/template', element: authed(<SiteTemplatePage />) },
+  { path: '/site/domain', element: authed(<SiteDomainPage />) },
+  { path: '/site/versions', element: authed(<SiteVersionsPage />) },
+  { path: '/site/inquiries', element: authed(<SiteInquiriesPage />) },
+  { path: '/site/inquiries/:id', element: authed(<SiteInquiryPage />) },
+  { path: '/site/health', element: authed(<SiteHealthPage />) },
   { path: '/me', element: authed(<MePage />) },
   { path: '/me/profile', element: authed(<ProfilePage />) },
   { path: '/me/profile/:section', element: authed(<ProfileSectionPage />) },

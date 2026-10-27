@@ -36,9 +36,7 @@ def test_register_returns_session_and_stores_only_hash(client, db) -> None:
     assert token not in stored.token_hash
     user = db.scalar(select(User).where(User.email == "boss@factory.com"))
     assert user.password_hash.startswith("$argon2")
-    assert (
-        client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()["name"] == "王总"
-    )
+    assert client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()["name"] == "王总"
 
 
 @pytest.mark.parametrize(
@@ -154,10 +152,7 @@ def test_logout_all_devices(client, db) -> None:
     user = make_user(db)
     tokens = [make_session(db, user) for _ in range(3)]
     other = make_session(db, make_user(db))
-    assert (
-        client.post("/api/v1/auth/logout-all", headers={"Authorization": f"Bearer {tokens[0]}"}).status_code
-        == 204
-    )
+    assert client.post("/api/v1/auth/logout-all", headers={"Authorization": f"Bearer {tokens[0]}"}).status_code == 204
     for token in tokens:
         assert client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
     assert client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {other}"}).status_code == 200

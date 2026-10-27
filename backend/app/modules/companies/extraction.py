@@ -243,9 +243,7 @@ class ExtractionOutput(BaseModel):
     def _products(cls, value: Any) -> list[Any]:
         if not isinstance(value, list):
             return []
-        return [item for item in value if isinstance(item, dict) and str(item.get("name_en", "")).strip()][
-            :20
-        ]
+        return [item for item in value if isinstance(item, dict) and str(item.get("name_en", "")).strip()][:20]
 
     @field_validator("contacts", mode="before")
     @classmethod
@@ -287,9 +285,7 @@ async def run_llm_extraction(source: str, material: str) -> ExtractionOutput:
     if not material.strip():
         raise ExtractionFailed("没有读取到可用的内容")
     try:
-        result = await providers.llm().complete(
-            build_messages(source, material), task=JOB_KIND, json_mode=True
-        )
+        result = await providers.llm().complete(build_messages(source, material), task=JOB_KIND, json_mode=True)
         data = parse_json_object(result.content)
         return ExtractionOutput.model_validate(data)
     except (LLMError, ValidationError) as exc:
@@ -357,9 +353,7 @@ def build_changes(db: Session, company: Company, output: ExtractionOutput) -> li
             }
         )
 
-    existing = {
-        name.lower() for name in db.scalars(select(Product.name_en).where(Product.company_id == company.id))
-    }
+    existing = {name.lower() for name in db.scalars(select(Product.name_en).where(Product.company_id == company.id))}
     for index, product in enumerate(output.products):
         if product.name_en.lower() in existing:
             continue
@@ -419,14 +413,8 @@ def create_extraction(
 
 def _material_from_assets(db: Session, extraction: ProfileExtraction) -> str:
     ids = [uuid.UUID(value) for value in extraction.input.get("asset_ids", [])]
-    assets = db.scalars(
-        select(Asset).where(Asset.company_id == extraction.company_id, Asset.id.in_(ids))
-    ).all()
-    parts = [
-        f"# {asset.display_name or asset.kind}\n{asset.text_content}"
-        for asset in assets
-        if asset.text_content
-    ]
+    assets = db.scalars(select(Asset).where(Asset.company_id == extraction.company_id, Asset.id.in_(ids))).all()
+    parts = [f"# {asset.display_name or asset.kind}\n{asset.text_content}" for asset in assets if asset.text_content]
     return "\n\n".join(parts)
 
 
@@ -515,18 +503,14 @@ def apply_changes(
         change = changes[change_id]
         value = overrides.get(change_id, change["value"])
         if change["group"] == "product":
-            product_data = ExtractedProduct.model_validate(
-                value if isinstance(value, dict) else change["value"]
-            )
+            product_data = ExtractedProduct.model_validate(value if isinstance(value, dict) else change["value"])
             product = Product(company_id=company.id, source=extraction.source, **product_data.model_dump())
             db.add(product)
             db.flush()
             created_products.append(str(product.id))
         else:
             fields[change["field"]] = _coerce(change["field"], value)
-    changed = apply_profile_fields(
-        company, profile, fields, source=extraction.source, extraction_id=str(extraction.id)
-    )
+    changed = apply_profile_fields(company, profile, fields, source=extraction.source, extraction_id=str(extraction.id))
     extraction.status = "applied"
     extraction.applied_at = utcnow()
     score, _ = refresh_completeness(db, company)

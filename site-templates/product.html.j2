@@ -1,0 +1,25 @@
+{% extends "base.html.j2" %}
+{% block main %}
+<section class="section">
+  <div class="wrap two-col">
+    <div>
+      {% if product.image %}<img class="product-hero" src="{{ product.image.src }}" srcset="{{ product.image.srcset }}" sizes="(max-width: 700px) 100vw, 50vw" alt="{{ product.name }}" width="960" height="720">{% endif %}
+    </div>
+    <div>
+      <h1>{{ product.name }}</h1>
+      {% if product.summary %}<p class="lead">{{ product.summary }}</p>{% endif %}
+      {% if product.specs %}
+      <table class="specs">
+        <tbody>
+        {% for key, value in product.specs.items() %}<tr><th scope="row">{{ key }}</th><td>{{ value }}</td></tr>{% endfor %}
+        {% if product.moq %}<tr><th scope="row">MOQ</th><td>{{ product.moq }}</td></tr>{% endif %}
+        {% if product.lead_time %}<tr><th scope="row">Lead time</th><td>{{ product.lead_time }}</td></tr>{% endif %}
+        </tbody>
+      </table>
+      {% endif %}
+      {% if product.applications %}<p>Applications: {{ product.applications | join(', ') }}</p>{% endif %}
+      <a class="button" href="{{ root }}index.html#contact">{{ content.hero.cta }}</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

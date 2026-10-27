@@ -27,12 +27,8 @@ class Company(IdMixin, TimestampMixin, Base):
 class CompanyMember(TimestampMixin, Base):
     __tablename__ = "company_members"
 
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True
-    )
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
 
 
@@ -55,9 +51,7 @@ class Invite(IdMixin, TimestampMixin, Base):
 class CompanyProfile(Base):
     __tablename__ = "company_profiles"
 
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True
-    )
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True)
     founded_year: Mapped[int | None] = mapped_column(Integer)
     employees: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     factory_area: Mapped[str] = mapped_column(String(64), nullable=False, default="")

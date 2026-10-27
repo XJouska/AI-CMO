@@ -16,6 +16,11 @@ x-app-env: &app-env
   LLM_API_BASE: ${LLM_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
   LLM_MODEL: ${LLM_MODEL:-qwen-plus}
   STORAGE_DIR: /data/storage
+  SITES_OUTPUT_DIR: /data/sites
+  SITES_BASE_DOMAIN: ${SITES_BASE_DOMAIN:-sites.localhost}
+  SITES_SCHEME: ${SITES_SCHEME:-http}
+  TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
+  SITE_TEMPLATES_DIR: /app/site-templates
 
 services:
   db:
@@ -39,6 +44,8 @@ services:
     build:
       context: ../backend
       dockerfile: ../deploy/api/Dockerfile
+      additional_contexts:
+        templates: ../site-templates
     restart: unless-stopped
     environment: *app-env
     depends_on:
@@ -46,6 +53,7 @@ services:
         condition: service_healthy
     volumes:
       - storage:/data/storage
+      - sites:/data/sites
     networks: [internal]
     read_only: true
     tmpfs: [/tmp]
@@ -57,6 +65,8 @@ services:
     build:
       context: ../backend
       dockerfile: ../deploy/worker/Dockerfile
+      additional_contexts:
+        templates: ../site-templates
     restart: unless-stopped
     environment:
       <<: *app-env
@@ -68,6 +78,7 @@ services:
         condition: service_healthy
     volumes:
       - storage:/data/storage
+      - sites:/data/sites
       - browser_profile:/data/browser-profile
     networks: [internal]
     security_opt: ["no-new-privileges:true"]
@@ -91,10 +102,30 @@ services:
     cap_drop: [ALL]
     mem_limit: 128m
 
+  sites:
+    image: nginxinc/nginx-unprivileged:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./nginx/sites.conf:/etc/nginx/conf.d/default.conf:ro
+      # 发布时的软链接指向 /data/sites/versions/...，与 api / worker 挂载到同一路径
+      - sites:/data/sites:ro
+    ports:
+      - "${SITES_BIND:-127.0.0.1:9021}:8080"
+    networks: [internal]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 64m
+
 networks:
   internal:
 
 volumes:
   pgdata:
   storage:
+  sites:
   browser_profile:

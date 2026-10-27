@@ -334,9 +334,7 @@ async def safe_fetch(
             pins[parsed.host] = str(addresses[0])
             if previous_host is not None and previous_host != parsed.host:
                 # 跨主机跳转时不转发凭据。
-                request_headers = {
-                    k: v for k, v in request_headers.items() if k.lower() not in _SENSITIVE_HEADERS
-                }
+                request_headers = {k: v for k, v in request_headers.items() if k.lower() not in _SENSITIVE_HEADERS}
             previous_host = parsed.host
 
             request = client.build_request(current_method, parsed.url, headers=request_headers, content=body)
@@ -348,9 +346,7 @@ async def safe_fetch(
                         raise SsrfBlockedError("too_many_redirects", str(max_redirects))
                     next_url = urljoin(parsed.url, location)
                     redirects.append(next_url)
-                    if response.status_code == 303 or (
-                        response.status_code in (301, 302) and current_method == "POST"
-                    ):
+                    if response.status_code == 303 or (response.status_code in (301, 302) and current_method == "POST"):
                         current_method, body = "GET", None
                     current_url = next_url
                     continue

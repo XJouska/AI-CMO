@@ -79,8 +79,7 @@ def compute_completeness(
         "certifications": _filled(profile.certifications),
         "usp": _filled(profile.usp),
         "about_en": _filled(profile.about_en),
-        "contacts": _filled((profile.contacts or {}).get("email"))
-        or _filled((profile.contacts or {}).get("phone")),
+        "contacts": _filled((profile.contacts or {}).get("email")) or _filled((profile.contacts or {}).get("phone")),
         "products": bool(products),
         "product_keywords": any(_filled(p.keywords_en) for p in products),
         "product_images": any(_filled(p.images) for p in products),

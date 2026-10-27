@@ -1,0 +1,67 @@
+/* 客户官网样式（B2B，桌面优先 + 响应式）。与应用的 yb-ui 设计系统无关。
+   三套模板通过 body 上的 tpl-* 类切换主题色与分区风格。 */
+:root {
+  --brand: #0b4f8a;
+  --brand-ink: #ffffff;
+  --ink: #1d232b;
+  --muted: #5a6573;
+  --line: #e3e7ec;
+  --bg: #ffffff;
+  --bg-alt: #f5f7fa;
+  --radius: 8px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.tpl-building { --brand: #8a4b0b; --bg-alt: #f8f5f1; }
+.tpl-consumer { --brand: #0b8a6b; --radius: 14px; --bg-alt: #f1f8f6; }
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--bg); line-height: 1.6; }
+img { max-width: 100%; height: auto; display: block; border-radius: var(--radius); }
+a { color: var(--brand); }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+.site-header { border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 10; }
+.header-row { display: flex; align-items: center; justify-content: space-between; min-height: 64px; gap: 16px; }
+.brand { font-weight: 700; font-size: 18px; color: var(--ink); text-decoration: none; }
+.site-nav { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.site-nav a { color: var(--ink); text-decoration: none; font-size: 15px; }
+.site-nav .nav-cta, .button { background: var(--brand); color: var(--brand-ink); padding: 10px 18px; border-radius: var(--radius); text-decoration: none; display: inline-block; border: 0; font: inherit; cursor: pointer; }
+.hero { background: linear-gradient(135deg, var(--brand), #10233a); color: #fff; padding: 96px 0; }
+.hero h1 { font-size: clamp(30px, 4vw, 48px); line-height: 1.15; margin: 0 0 16px; max-width: 820px; }
+.hero .lead { font-size: 19px; max-width: 720px; opacity: .92; }
+.hero .button { background: #fff; color: var(--brand); margin-top: 16px; }
+.section { padding: 72px 0; }
+.section.alt { background: var(--bg-alt); }
+.section h2 { font-size: 30px; margin: 0 0 28px; }
+.lead { font-size: 18px; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px; }
+.card { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+.card h3 { margin: 12px 0 8px; font-size: 18px; }
+.card h3 a { color: var(--ink); text-decoration: none; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+.highlights { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.highlights li { background: var(--bg); border-left: 4px solid var(--brand); padding: 12px 16px; border-radius: 4px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin: 0 0 24px; }
+.stats div { background: var(--bg-alt); padding: 20px; border-radius: var(--radius); }
+.stats dt { color: var(--muted); font-size: 14px; }
+.stats dd { margin: 4px 0 0; font-size: 26px; font-weight: 700; color: var(--brand); }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 24px; }
+.badges { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.badges li { border: 1px solid var(--line); background: var(--bg); padding: 8px 14px; border-radius: 999px; font-weight: 600; }
+details { border-bottom: 1px solid var(--line); padding: 16px 0; }
+summary { cursor: pointer; font-weight: 600; }
+.contact-list { list-style: none; padding: 0; display: grid; gap: 8px; }
+.inquiry { background: var(--bg-alt); padding: 24px; border-radius: var(--radius); display: grid; gap: 12px; }
+.inquiry h3 { margin: 0 0 4px; }
+.inquiry label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+.inquiry input, .inquiry textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+.inquiry .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.specs { border-collapse: collapse; width: 100%; margin: 16px 0; }
+.specs th, .specs td { text-align: left; border-bottom: 1px solid var(--line); padding: 8px 4px; }
+.specs th { color: var(--muted); font-weight: 500; width: 40%; }
+.site-footer { border-top: 1px solid var(--line); padding: 32px 0; color: var(--muted); font-size: 14px; }
+@media (max-width: 760px) {
+  .two-col { grid-template-columns: 1fr; gap: 24px; }
+  .hero { padding: 64px 0; }
+  .section { padding: 48px 0; }
+  .site-nav a:not(.nav-cta) { display: none; }
+}

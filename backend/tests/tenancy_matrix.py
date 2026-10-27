@@ -105,6 +105,32 @@ def _tool_run(db: Session, victim: Tenant) -> dict[str, str]:
     return {"run_id": str(run.id)}
 
 
+def _site(db: Session, victim: Tenant) -> dict[str, str]:
+    from app.modules.sites.content import SiteContent
+    from app.modules.sites.models import Notification, Site, SiteInquiry, SiteVersion
+
+    site = Site(company_id=victim.company.id, subdomain=f"victim-{victim.company.id.hex[:8]}", status="published")
+    db.add(site)
+    db.flush()
+    version = SiteVersion(site_id=site.id, company_id=victim.company.id, content=SiteContent().model_dump(mode="json"))
+    db.add(version)
+    db.flush()
+    site.draft_version_id = version.id
+    inquiry = SiteInquiry(
+        site_id=site.id, company_id=victim.company.id, name="n", email="a@b.com", message="m" * 10, ip_hash="0" * 64
+    )
+    note = Notification(company_id=victim.company.id, kind="x", title="t")
+    db.add_all([inquiry, note])
+    db.flush()
+    return {
+        "version_id": str(version.id),
+        "inquiry_id": str(inquiry.id),
+        "notification_id": str(note.id),
+        "site_id": str(site.id),
+        "section": "hero",
+    }
+
+
 def png_bytes() -> bytes:
     from PIL import Image
 
@@ -162,9 +188,7 @@ ROUTES: list[Route] = [
     Route("DELETE", "/api/v1/assets/{asset_id}", "company", _asset),
     Route("GET", "/api/v1/files/{asset_id}", "public"),  # 依赖签名，见 test_assets
     # AI 建档
-    Route(
-        "POST", "/api/v1/extractions", "company", body={"source": "chat", "text": "我们是做不锈钢阀门的工厂"}
-    ),
+    Route("POST", "/api/v1/extractions", "company", body={"source": "chat", "text": "我们是做不锈钢阀门的工厂"}),
     Route("GET", "/api/v1/extractions/{extraction_id}", "company", _extraction),
     Route("POST", "/api/v1/extractions/{extraction_id}/apply", "company", _extraction, {"accept": ["f:usp"]}),
     # 助手
@@ -180,4 +204,30 @@ ROUTES: list[Route] = [
     Route("GET", "/api/v1/assistant/tool-runs/{run_id}", "company", _tool_run),
     Route("POST", "/api/v1/assistant/tool-runs/{run_id}/confirm", "company", _tool_run),
     Route("POST", "/api/v1/assistant/tool-runs/{run_id}/reject", "company", _tool_run),
+    # 官网（每个企业一个官网：通过 X-Company-Id 确定，「跨企业」用例验证资源 ID 不可见）
+    Route("GET", "/api/v1/site", "company"),
+    Route("PATCH", "/api/v1/site", "company", body={"template": "consumer"}),
+    Route("POST", "/api/v1/site/generate", "company", body={}),
+    Route("GET", "/api/v1/site/draft", "company"),
+    Route("PUT", "/api/v1/site/sections/{section}", "company", _site, {"data": {"headline": "x"}}),
+    Route("POST", "/api/v1/site/sections/{section}/rewrite", "company", _site, {"instruction": "改一下"}),
+    Route("POST", "/api/v1/site/flags/ack", "company", body={"section": "hero", "field": "x", "text": "y"}),
+    Route("GET", "/api/v1/site/versions", "company"),
+    Route("POST", "/api/v1/site/versions/{version_id}/restore", "company", _site),
+    Route("POST", "/api/v1/site/publish", "company"),
+    Route("POST", "/api/v1/site/unpublish", "company"),
+    Route("GET", "/api/v1/site/preview-url", "company"),
+    Route("POST", "/api/v1/site/health-check", "company"),
+    Route("GET", "/api/v1/site/health", "company"),
+    Route("PUT", "/api/v1/site/domain", "company", body={"domain": "victim.example"}),
+    Route("POST", "/api/v1/site/domain/verify", "company"),
+    Route("DELETE", "/api/v1/site/domain", "company"),
+    Route("GET", "/api/v1/site/inquiries", "company"),
+    Route("GET", "/api/v1/site/inquiries/{inquiry_id}", "company", _site),
+    Route("PATCH", "/api/v1/site/inquiries/{inquiry_id}", "company", _site, {"status": "spam"}),
+    Route("GET", "/api/v1/notifications", "company"),
+    Route("POST", "/api/v1/notifications/{notification_id}/read", "company", _site),
+    # 公开：询盘（限流 + 蜜罐，见 test_sites）、预览（签名，见 test_sites）
+    Route("POST", "/api/v1/public/sites/{site_id}/inquiries", "public"),
+    Route("GET", "/api/v1/public/site-preview/{site_id}/{version_id}/{page}", "public"),
 ]

@@ -29,12 +29,13 @@ describe('应用壳与 Tab', () => {
     }
   })
 
-  it('商机页为空态，官网页空态按钮跳转到助手', async () => {
+  it('商机页为空态；官网页在档案不足时引导完善档案', async () => {
+    server.on('GET', '/site', { error: { code: 'site_missing', message: '' } }, 404)
     const { router } = renderRoutes('/leads')
     expect(await screen.findByText('暂无商机')).toBeTruthy()
     await act(() => router.navigate('/site'))
-    fireEvent.click(screen.getByRole('button', { name: '去和助手聊聊' }))
-    expect(router.state.location.pathname).toBe('/assistant')
+    fireEvent.click(await screen.findByRole('button', { name: '先完善企业档案' }))
+    expect(router.state.location.pathname).toBe('/me/profile')
   })
 
   it('Toast 3 秒后自动消失（规范：同一时间只显示一条）', async () => {

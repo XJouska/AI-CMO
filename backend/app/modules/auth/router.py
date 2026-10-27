@@ -76,9 +76,7 @@ def user_out(db: Session, user: User) -> UserOut:
         email=user.email,
         name=user.name,
         is_staff=user.is_staff,
-        companies=[
-            CompanyBrief(id=str(c.id), name_cn=c.name_cn, name_en=c.name_en, role=role) for c, role in rows
-        ],
+        companies=[CompanyBrief(id=str(c.id), name_cn=c.name_cn, name_en=c.name_en, role=role) for c, role in rows],
     )
 
 

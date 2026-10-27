@@ -11,8 +11,9 @@ RUN pip install -r requirements.txt
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
+COPY --from=templates . /app/site-templates
 
-RUN mkdir -p /data/storage && chown -R app:app /data
+RUN mkdir -p /data/sites /data/storage && chown -R app:app /data
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 \

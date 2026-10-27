@@ -146,9 +146,7 @@ class OpenAICompatLLM:
                     await asyncio.sleep(2**attempt)
         raise LLMError(f"LLM 调用失败：{type(last_error).__name__}")
 
-    async def stream(
-        self, messages: list[Message], *, task: str, max_tokens: int = 2048
-    ) -> AsyncIterator[str]:
+    async def stream(self, messages: list[Message], *, task: str, max_tokens: int = 2048) -> AsyncIterator[str]:
         response = await self.client.chat.completions.create(
             model=self.model, messages=messages, temperature=0.3, max_tokens=max_tokens, stream=True
         )

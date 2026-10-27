@@ -1,0 +1,123 @@
+{% extends "base.html.j2" %}
+{% block main %}
+<section class="hero">
+  <div class="wrap">
+    <h1>{{ content.hero.headline or content.company_name }}</h1>
+    {% if content.hero.subheadline %}<p class="lead">{{ content.hero.subheadline }}</p>{% endif %}
+    <a class="button" href="#contact">{{ content.hero.cta }}</a>
+  </div>
+</section>
+
+{% for key in section_order %}
+{% if key == "products" and product_items %}
+<section id="products" class="section">
+  <div class="wrap">
+    <h2>{{ content.products.title }}</h2>
+    <div class="grid">
+      {% for item in product_items %}
+      <article class="card">
+        {% if item.image %}<img src="{{ item.image.src }}" srcset="{{ item.image.srcset }}" sizes="(max-width: 700px) 100vw, 33vw" alt="{{ item.name }}" loading="lazy" width="480" height="360">{% endif %}
+        <h3><a href="{{ root }}products/{{ item.slug }}.html">{{ item.name }}</a></h3>
+        {% if item.summary %}<p>{{ item.summary }}</p>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% elif key == "about" and (content.about.body or content.about.highlights) %}
+<section id="about" class="section alt">
+  <div class="wrap two-col">
+    <div>
+      <h2>{{ content.about.title }}</h2>
+      <div class="rich">{{ about_body }}</div>
+    </div>
+    {% if content.about.highlights %}
+    <ul class="highlights">
+      {% for item in content.about.highlights %}<li>{{ item }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% elif key == "factory" and (content.factory.body or content.factory.stats or factory_images) %}
+<section id="factory" class="section">
+  <div class="wrap">
+    <h2>{{ content.factory.title }}</h2>
+    {% if content.factory.stats %}
+    <dl class="stats">
+      {% for stat in content.factory.stats %}<div><dt>{{ stat.label }}</dt><dd>{{ stat.value }}</dd></div>{% endfor %}
+    </dl>
+    {% endif %}
+    {% if content.factory.body %}<p>{{ content.factory.body }}</p>{% endif %}
+    {% if factory_images %}
+    <div class="gallery">
+      {% for image in factory_images %}<img src="{{ image.src }}" srcset="{{ image.srcset }}" sizes="(max-width: 700px) 100vw, 25vw" alt="{{ content.company_name }} factory" loading="lazy" width="480" height="360">{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% elif key == "certificates" and content.certificates.items %}
+<section id="certificates" class="section alt">
+  <div class="wrap">
+    <h2>{{ content.certificates.title }}</h2>
+    <ul class="badges">{% for item in content.certificates.items %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% if certificate_images %}
+    <div class="gallery">
+      {% for image in certificate_images %}<img src="{{ image.src }}" srcset="{{ image.srcset }}" sizes="25vw" alt="Certificate" loading="lazy" width="480" height="360">{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% elif key == "markets" and content.markets.items %}
+<section id="markets" class="section">
+  <div class="wrap">
+    <h2>{{ content.markets.title }}</h2>
+    <ul class="badges">{% for item in content.markets.items %}<li>{{ item }}</li>{% endfor %}</ul>
+  </div>
+</section>
+{% elif key == "cases" and content.cases.items %}
+<section id="cases" class="section alt">
+  <div class="wrap">
+    <h2>{{ content.cases.title }}</h2>
+    <div class="grid">
+      {% for case in content.cases.items %}<article class="card"><h3>{{ case.title }}</h3><p>{{ case.body }}</p></article>{% endfor %}
+    </div>
+  </div>
+</section>
+{% elif key == "faq" and content.faq.items %}
+<section id="faq" class="section">
+  <div class="wrap">
+    <h2>{{ content.faq.title }}</h2>
+    {% for item in faq_items %}
+    <details><summary>{{ item.q }}</summary><div class="rich">{{ item.a }}</div></details>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endfor %}
+
+<section id="contact" class="section contact">
+  <div class="wrap two-col">
+    <div>
+      <h2>{{ content.contact.title }}</h2>
+      <ul class="contact-list">
+        {% if content.contact.email %}<li>Email: <a href="mailto:{{ content.contact.email }}">{{ content.contact.email }}</a></li>{% endif %}
+        {% if content.contact.phone %}<li>Phone: {{ content.contact.phone }}</li>{% endif %}
+        {% if content.contact.whatsapp %}<li>WhatsApp: {{ content.contact.whatsapp }}</li>{% endif %}
+        {% if content.contact.address %}<li>Address: {{ content.contact.address }}</li>{% endif %}
+      </ul>
+    </div>
+    <form class="inquiry" method="post" action="{{ inquiry_action }}">
+      <h3>Send an Inquiry</h3>
+      <label>Your name<input name="name" required maxlength="100" autocomplete="name"></label>
+      <label>Email<input name="email" type="email" required maxlength="254" autocomplete="email"></label>
+      <label>Company<input name="company_name" maxlength="150" autocomplete="organization"></label>
+      <label>Country<input name="country" maxlength="80" autocomplete="country-name"></label>
+      <label>Product<input name="product_ref" maxlength="200"></label>
+      <label>Message<textarea name="message" required minlength="10" maxlength="3000" rows="5"></textarea></label>
+      <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+      {% if turnstile_sitekey %}<div class="cf-turnstile" data-sitekey="{{ turnstile_sitekey }}"></div>{% endif %}
+      <button class="button" type="submit">Send Inquiry</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

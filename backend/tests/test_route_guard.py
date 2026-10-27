@@ -116,9 +116,7 @@ def test_path_company_routes_reject_non_members(client, db: Session, route: Rout
 STAFF_ROUTES = [r for r in ROUTES if r.level == "staff"]
 
 
-@pytest.mark.parametrize(
-    "route", STAFF_ROUTES or [None], ids=lambda r: f"{r.method} {r.path}" if r else "none"
-)
+@pytest.mark.parametrize("route", STAFF_ROUTES or [None], ids=lambda r: f"{r.method} {r.path}" if r else "none")
 def test_staff_routes_reject_regular_users(client, db: Session, route: Route | None) -> None:
     if route is None:
         pytest.skip("尚无 staff 路由")

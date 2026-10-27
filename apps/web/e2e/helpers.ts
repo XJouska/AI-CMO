@@ -32,10 +32,16 @@ export async function signUp(
   }
   await page.addInitScript(
     ([t, c]) => {
-      if (!window.sessionStorage.getItem('e2e-init')) {
-        window.localStorage.setItem('aicmo.token', t)
-        if (c) window.localStorage.setItem('aicmo.company', c)
-        window.sessionStorage.setItem('e2e-init', '1')
+      // 只在顶层页面写入登录态；沙箱 iframe（官网预览）没有存储权限
+      if (window.top !== window) return
+      try {
+        if (!window.sessionStorage.getItem('e2e-init')) {
+          window.localStorage.setItem('aicmo.token', t)
+          if (c) window.localStorage.setItem('aicmo.company', c)
+          window.sessionStorage.setItem('e2e-init', '1')
+        }
+      } catch {
+        // 无存储权限的上下文
       }
     },
     [token, companyId] as const,

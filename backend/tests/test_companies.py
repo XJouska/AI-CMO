@@ -43,9 +43,7 @@ def test_company_limit(client, db, monkeypatch) -> None:
 
     monkeypatch.setattr(company_router, "MAX_COMPANIES_PER_USER", 1)
     token = make_session(db, make_user(db))
-    assert (
-        client.post("/api/v1/companies", json={"name_cn": "第一家"}, headers=bearer(token)).status_code == 201
-    )
+    assert client.post("/api/v1/companies", json={"name_cn": "第一家"}, headers=bearer(token)).status_code == 201
     r = client.post("/api/v1/companies", json={"name_cn": "第二家"}, headers=bearer(token))
     assert r.status_code == 400
     assert r.json()["error"]["code"] == "company_limit"
@@ -109,9 +107,7 @@ def test_invite_flow(client, db) -> None:
 
 def test_invite_expires(client, db) -> None:
     owner = make_tenant(db)
-    token = client.post(f"/api/v1/companies/{owner.company.id}/invites", json={}, headers=owner.auth).json()[
-        "token"
-    ]
+    token = client.post(f"/api/v1/companies/{owner.company.id}/invites", json={}, headers=owner.auth).json()["token"]
     joiner = bearer(make_session(db, make_user(db), days=30))
     with freeze_time(utcnow() + timedelta(hours=73)):
         r = client.post(f"/api/v1/invites/{token}/accept", headers=joiner)
@@ -121,9 +117,7 @@ def test_invite_expires(client, db) -> None:
 
 def test_invite_existing_member_conflict(client, db) -> None:
     owner = make_tenant(db)
-    token = client.post(f"/api/v1/companies/{owner.company.id}/invites", json={}, headers=owner.auth).json()[
-        "token"
-    ]
+    token = client.post(f"/api/v1/companies/{owner.company.id}/invites", json={}, headers=owner.auth).json()["token"]
     assert client.post(f"/api/v1/invites/{token}/accept", headers=owner.auth).status_code == 409
 
 
@@ -131,17 +125,13 @@ def test_member_cannot_invite(client, db) -> None:
     owner = make_tenant(db)
     member = make_user(db)
     add_member(db, owner.company, member)
-    r = client.post(
-        f"/api/v1/companies/{owner.company.id}/invites", json={}, headers=bearer(make_session(db, member))
-    )
+    r = client.post(f"/api/v1/companies/{owner.company.id}/invites", json={}, headers=bearer(make_session(db, member)))
     assert r.status_code == 403
 
 
 def test_operator_invites_restricted_to_staff(client, db) -> None:
     owner = make_tenant(db)
-    r = client.post(
-        f"/api/v1/companies/{owner.company.id}/invites", json={"role": "operator"}, headers=owner.auth
-    )
+    r = client.post(f"/api/v1/companies/{owner.company.id}/invites", json={"role": "operator"}, headers=owner.auth)
     assert r.status_code == 403
 
     staff_owner = make_tenant(db, is_staff=True)
@@ -168,8 +158,6 @@ def test_remove_member(client, db) -> None:
     assert db.get(CompanyMember, {"company_id": owner.company.id, "user_id": member.id}) is None
     assert client.delete(f"{path}/{member.id}", headers=owner.auth).status_code == 404
     assert (
-        client.get(
-            "/api/v1/profile", headers=member_headers | {"X-Company-Id": str(owner.company.id)}
-        ).status_code
+        client.get("/api/v1/profile", headers=member_headers | {"X-Company-Id": str(owner.company.id)}).status_code
         == 403
     )

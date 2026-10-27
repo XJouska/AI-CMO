@@ -96,9 +96,7 @@ def process_upload(data: bytes, max_bytes: int) -> ProcessedUpload:
     if not data:
         raise AppError("文件为空", code="empty_file")
     if len(data) > max_bytes:
-        raise AppError(
-            f"文件不能超过 {max_bytes // (1024 * 1024)}MB", code="payload_too_large", status_code=413
-        )
+        raise AppError(f"文件不能超过 {max_bytes // (1024 * 1024)}MB", code="payload_too_large", status_code=413)
     mime = sniff_mime(data[:16])
     if mime is None:
         raise UploadRejected("只支持 JPG、PNG、WebP 图片和 PDF 文件")

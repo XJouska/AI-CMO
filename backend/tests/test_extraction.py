@@ -118,18 +118,14 @@ def test_extract_from_text_and_apply(client, db) -> None:
     }
     assert profile["completeness"] == applied.json()["completeness"]
 
-    again = client.post(
-        f"/api/v1/extractions/{r.json()['id']}/apply", json={"accept": []}, headers=tenant.headers
-    )
+    again = client.post(f"/api/v1/extractions/{r.json()['id']}/apply", json={"accept": []}, headers=tenant.headers)
     assert again.status_code == 409
 
 
 def test_apply_creates_products_and_merges_lists(client, db) -> None:
     tenant = make_tenant(db)
     client.patch("/api/v1/profile", json={"certifications": ["ISO 9001"]}, headers=tenant.headers)
-    r = create(
-        client, tenant, source="chat", text="valve factory, certified ISO 14001 and CE, export markets: USA"
-    )
+    r = create(client, tenant, source="chat", text="valve factory, certified ISO 14001 and CE, export markets: USA")
     run_pending(db)
     result = get(client, tenant, r.json()["id"])
     certs = next(c for c in result["changes"] if c["field"] == "certifications")
@@ -163,9 +159,7 @@ def test_apply_rejects_unknown_change_ids(client, db) -> None:
 def test_apply_before_ready_conflicts(client, db) -> None:
     tenant = make_tenant(db)
     r = create(client, tenant, source="chat", text="valve factory founded in 2001")
-    resp = client.post(
-        f"/api/v1/extractions/{r.json()['id']}/apply", json={"accept": []}, headers=tenant.headers
-    )
+    resp = client.post(f"/api/v1/extractions/{r.json()['id']}/apply", json={"accept": []}, headers=tenant.headers)
     assert resp.status_code == 409
 
 
@@ -398,9 +392,7 @@ def test_extraction_records_are_tenant_scoped(db) -> None:
     a, b = make_tenant(db), make_tenant(db)
     db.add(ProfileExtraction(company_id=a.company.id, source="chat"))
     db.flush()
-    assert (
-        db.scalars(select(ProfileExtraction).where(ProfileExtraction.company_id == b.company.id)).all() == []
-    )
+    assert db.scalars(select(ProfileExtraction).where(ProfileExtraction.company_id == b.company.id)).all() == []
 
 
 @pytest.mark.parametrize("url", ["example.com", "https://example.com/path?q=1"])

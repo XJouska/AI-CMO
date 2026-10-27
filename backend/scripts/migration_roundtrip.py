@@ -13,9 +13,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
 BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ADMIN_URL = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+psycopg://aicmo:aicmo_test_only@127.0.0.1:55432/aicmo_test"
-)
+ADMIN_URL = os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://aicmo:aicmo_test_only@127.0.0.1:55432/aicmo_test")
 DB_NAME = "aicmo_migration_check"
 
 
