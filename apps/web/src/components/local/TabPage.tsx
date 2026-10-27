@@ -2,6 +2,7 @@ import { BrandTabBar, type BrandTabInputProps, type BrandTabItem } from '@yb-ext
 import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { t } from '@/i18n'
+import { useLeadBadge } from '@/leads/badge'
 
 // 图标沿用正式 TabBar 的四组图标（节点 5544:*，off / on 两态）。产品专属图标见 docs/ui-gaps.md「GAP-004」。
 export const TABS: readonly (BrandTabItem & { path: string })[] = [
@@ -25,6 +26,8 @@ export function TabPage({ nav, surface, input, children }: TabPageProps) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const current = TABS.find((tab) => pathname.startsWith(tab.path)) ?? TABS[0]
+  const newLeads = useLeadBadge()
+  const items = TABS.map((tab) => (tab.id === 'leads' && newLeads > 0 ? { ...tab, badge: newLeads } : tab))
 
   return (
     <div className="page" data-surface={surface}>
@@ -34,7 +37,7 @@ export function TabPage({ nav, surface, input, children }: TabPageProps) {
         <BrandTabBar
           ariaLabel={t.tabs.ariaLabel}
           input={input}
-          items={TABS}
+          items={items}
           onSelect={(id) => {
             const tab = TABS.find((item) => item.id === id)
             if (tab && tab.id !== current.id) navigate(tab.path)

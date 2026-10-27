@@ -72,3 +72,28 @@ export async function expectNoFallback(page: Page) {
   expect(text).not.toMatch(/\u5143\u5b9d/)
   expect(text).not.toMatch(PLACEHOLDER_TEXT)
 }
+
+/** 通过接口把企业档案补全到可生成官网 / 商机监控的程度，返回带企业头的请求头。 */
+export async function completeProfile(request: APIRequestContext, token: string, companyId: string) {
+  const headers = { Authorization: `Bearer ${token}`, 'X-Company-Id': companyId }
+  await request.patch('/api/v1/profile', {
+    headers,
+    data: {
+      name_en: 'Demo Valve Co., Ltd.',
+      founded_year: 2008,
+      employees: '120',
+      factory_area: '15000 m²',
+      annual_capacity: '500,000 valves',
+      export_markets: ['Germany', 'United States'],
+      certifications: ['ISO 9001', 'CE'],
+      usp: 'In-house casting and 100% pressure testing',
+      about_en: 'Demo Valve manufactures stainless steel ball valves.',
+      contacts: { email: 'sales@demo-valve.example' },
+    },
+  })
+  await request.post('/api/v1/products', {
+    headers,
+    data: { name_en: 'Stainless Steel Ball Valve', keywords_en: ['ball valve'], applications: ['water treatment'] },
+  })
+  return headers
+}

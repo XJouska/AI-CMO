@@ -329,3 +329,65 @@ body,
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ---------- 商机 ---------- */
+
+.leads-tabs {
+  background: var(--yb-color-basic-bg-secondary);
+  padding: 8px 16px 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.leads-list {
+  padding: 0 16px 24px;
+}
+
+.leads-list > .yb-list-section-title {
+  padding-left: 0;
+}
+
+.lead-card {
+  margin-bottom: 12px;
+}
+
+.lead-card .yb-card {
+  text-align: left;
+  width: 100%;
+}
+
+.lead-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lead-card-tags {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lead-card-meta {
+  color: var(--yb-color-basic-text-tertiary);
+}
+
+.lead-card-summary {
+  color: var(--yb-color-basic-text-secondary);
+}
+
+.leads-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 16px;
+}
+
+.lead-detail .lead-card-tags {
+  padding-bottom: 8px;
+}
+
+.watch-editor {
+  padding-bottom: 16px;
+}

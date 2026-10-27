@@ -1,7 +1,7 @@
 """worker 进程入口：python -m app.workers
 
 循环领取任务表中的到期任务（SELECT ... FOR UPDATE SKIP LOCKED，支持多实例）。
-计划 05 起在这里接入 APScheduler 定时调度。
+同时运行 APScheduler 定时调度（见 app/workers/scheduler.py）。
 """
 
 from __future__ import annotations
@@ -44,6 +44,10 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
+    from app.workers.scheduler import build_scheduler
+
+    scheduler = build_scheduler()
+    scheduler.start()
     logger.info("worker started (env=%s, test_mode=%s)", settings.app_env, settings.test_mode)
     last_beat = 0.0
     while not stopping:
@@ -58,6 +62,7 @@ def main() -> None:
             last_beat = now
         if not worked:
             time.sleep(IDLE_SLEEP_SECONDS)
+    scheduler.shutdown(wait=False)
 
 
 if __name__ == "__main__":

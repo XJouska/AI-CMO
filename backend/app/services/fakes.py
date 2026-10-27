@@ -153,7 +153,49 @@ def fake_site_rewrite(messages: list[Message]) -> dict[str, Any]:
     return section
 
 
+def fake_leads_analyze(messages: list[Message]) -> dict[str, Any]:
+    """TEST_MODE：按关键词判断类型，从文本中提取买家域名与截止日期。"""
+    text = _last_user_text(messages)
+    data = text.split("<data>", 1)[-1]
+    lower = data.lower()
+    if re.search(r"encyclopedia|history of|market report|forecast", lower):
+        return {"classification": "irrelevant", "confident": True}
+    if re.search(r"we manufacture|best price|our factory|advertisement", lower):  # 卖家广告
+        return {"classification": "irrelevant", "confident": True}
+    if re.search(r"you won|prize|pay shipping|free samples to win", lower):  # 诈骗
+        return {"classification": "irrelevant", "confident": True, "is_fake": True}
+    kind = (
+        "tender"
+        if re.search(r"tender|invites bids|invites quotations", lower)
+        else "rfq"
+        if re.search(r"rfq|request(s)? (for )?quotation", lower)
+        else "buyer_intent"
+    )
+    domain = m.group(1).rstrip(".") if (m := re.search(r"@([\w.-]+\.example)", data)) else ""
+    host = m.group(1) if (m := re.search(r"https://([\w.-]+)/", data)) else ""
+    country = m.group(1) if (m := re.search(r"\(([A-Z][a-z]+)\)", data)) else ""
+    deadline = m.group(1) if (m := re.search(r"Deadline (\d{4}-\d{2}-\d{2})", data)) else ""
+    buyer = f"Utility {country}".strip() if kind == "tender" else f"Distributor via {host}"
+    return {
+        "classification": kind,
+        "confident": True,
+        "product_match": 85,
+        "products_matched": ["matched product"],
+        "buyer_name": buyer,
+        "buyer_domain": domain,
+        "country": country,
+        "deadline": deadline,
+        "potential": 70 if kind == "tender" else 50,
+        "has_contact": bool(domain),
+        "has_bid_portal": kind == "tender",
+        "summary_cn": "采购需求与贵司产品匹配" if kind != "tender" else "市政水务项目招标，需求与贵司产品匹配",
+        "reasons": ["需求产品与主营产品一致", "目标市场在出口范围内"],
+        "suggested_action": "准备产品目录与资质文件，在截止日期前联系采购方",
+    }
+
+
 DEFAULT_RESPONDERS: dict[str, Responder] = {
+    "leads.analyze": fake_leads_analyze,
     "profile.extract": fake_profile_extract,
     "assistant.chat": fake_assistant_chat,
     "site.generate": fake_site_generate,

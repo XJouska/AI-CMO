@@ -12,7 +12,8 @@ APP_VERSION = "0.1.0"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=None, extra="ignore", case_sensitive=False)
+    # env_ignore_empty：.env 中留空的变量（如 SEARCH_API_KEY=）按未设置处理，使用默认值
+    model_config = SettingsConfigDict(env_file=None, extra="ignore", case_sensitive=False, env_ignore_empty=True)
 
     app_env: Literal["development", "test", "production"] = "development"
     log_level: str = "INFO"
@@ -55,6 +56,18 @@ class Settings(BaseSettings):
     sites_scheme: Literal["http", "https"] = "https"
     turnstile_secret: SecretStr | None = None
     pagespeed_api_key: SecretStr | None = None
+
+    # 商机情报
+    search_api_provider: Literal["bing", "serpapi", "none"] = "none"
+    search_api_key: SecretStr | None = None
+    # 额外的 RSS 数据源（JSON 数组：[{"key": "...", "url": "...", "kind": "tender|news"}]）
+    rss_sources: list[dict[str, str]] = Field(default_factory=list)
+    # 单企业单次监控运行的成本上限
+    leads_max_queries: int = 12
+    leads_max_fetches: int = 40
+    leads_max_llm_calls: int = 30
+    # 高于该分数且置信度高的商机自动通过复核；为空表示全部人工复核（试点期）
+    leads_auto_approve_score: int | None = None
 
     # 测试模式：外部服务（LLM、抓取、短信等）全部使用假实现。生产环境禁止开启。
     test_mode: bool = False

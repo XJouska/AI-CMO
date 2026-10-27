@@ -131,6 +131,16 @@ def _site(db: Session, victim: Tenant) -> dict[str, str]:
     }
 
 
+def _lead(db: Session, victim: Tenant) -> dict[str, str]:
+    from app.modules.leads.models import Lead, Watch
+
+    watch = Watch(company_id=victim.company.id, name="victim")
+    lead = Lead(company_id=victim.company.id, type="tender", title="victim", review_status="approved")
+    db.add_all([watch, lead])
+    db.flush()
+    return {"watch_id": str(watch.id), "lead_id": str(lead.id)}
+
+
 def png_bytes() -> bytes:
     from PIL import Image
 
@@ -230,4 +240,19 @@ ROUTES: list[Route] = [
     # 公开：询盘（限流 + 蜜罐，见 test_sites）、预览（签名，见 test_sites）
     Route("POST", "/api/v1/public/sites/{site_id}/inquiries", "public"),
     Route("GET", "/api/v1/public/site-preview/{site_id}/{version_id}/{page}", "public"),
+    # 商机
+    Route("GET", "/api/v1/watches", "company"),
+    Route("POST", "/api/v1/watches", "company", body={"name": "x"}),
+    Route("POST", "/api/v1/watches/from-profile", "company"),
+    Route("PATCH", "/api/v1/watches/{watch_id}", "company", _lead, {"name": "hacked"}),
+    Route("DELETE", "/api/v1/watches/{watch_id}", "company", _lead),
+    Route("POST", "/api/v1/watches/{watch_id}/run", "company", _lead),
+    Route("GET", "/api/v1/watches/{watch_id}/runs", "company", _lead),
+    Route("GET", "/api/v1/lead-sources", "company"),
+    Route("GET", "/api/v1/leads", "company"),
+    Route("GET", "/api/v1/leads/{lead_id}", "company", _lead),
+    Route("POST", "/api/v1/leads/{lead_id}/feedback", "company", _lead, {"verdict": "useful"}),
+    # 运营
+    Route("GET", "/api/v1/ops/review-queue", "staff"),
+    Route("POST", "/api/v1/ops/leads/{lead_id}/review", "staff", _lead, {"decision": "approved"}),
 ]

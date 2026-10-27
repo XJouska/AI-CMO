@@ -214,3 +214,40 @@ def test_provider_registry_selects_fakes_in_test_mode(monkeypatch, tmp_path) -> 
     assert isinstance(registry.fetcher(), SafeFetcher)
     with pytest.raises(ServiceUnavailableError):
         registry.llm()
+
+
+class _Route:
+    """Playwright Route 的最小替身：记录 continue / abort。"""
+
+    def __init__(self, url: str, resource_type: str = "image") -> None:
+        self.request = type("Req", (), {"url": url, "resource_type": resource_type})()
+        self.outcome = ""
+
+    async def continue_(self) -> None:
+        self.outcome = "continue"
+
+    async def abort(self, reason: str) -> None:
+        self.outcome = f"abort:{reason}"
+
+
+@pytest.mark.parametrize(
+    ("url", "resource_type", "outcome"),
+    [
+        ("http://10.0.0.5/admin", "xhr", "abort:blockedbyclient"),
+        ("http://169.254.169.254/latest/meta-data/", "fetch", "abort:blockedbyclient"),
+        ("http://[::1]:8000/", "document", "abort:blockedbyclient"),
+        ("http://0x7f000001/", "image", "abort:blockedbyclient"),
+        ("file:///etc/passwd", "document", "abort:blockedbyclient"),
+        ("https://www.linkedin.com/company/x", "document", "abort:blockedbyclient"),
+        ("data:text/html,<script>1</script>", "document", "abort:blockedbyclient"),
+        ("data:image/png;base64,AAAA", "image", "continue"),
+        ("blob:https://a.example/123", "media", "continue"),
+        ("https://93.184.216.34/logo.png", "image", "continue"),
+    ],
+)
+async def test_browser_guard_route_blocks_internal_subrequests(url: str, resource_type: str, outcome: str) -> None:
+    from app.services.browser_guard import guard_route
+
+    route = _Route(url, resource_type)
+    await guard_route(route)
+    assert route.outcome == outcome

@@ -29,10 +29,13 @@ describe('应用壳与 Tab', () => {
     }
   })
 
-  it('商机页为空态；官网页在档案不足时引导完善档案', async () => {
-    server.on('GET', '/site', null)
+  it('商机页未开启监控时引导创建；官网页在档案不足时引导完善档案', async () => {
+    server
+      .on('GET', '/site', null)
+      .on('GET', '/watches', [])
+      .on('GET', /^\/leads\?/, { items: [], total: 0, new_count: 0, today_count: 0 })
     const { router } = renderRoutes('/leads')
-    expect(await screen.findByText('暂无商机')).toBeTruthy()
+    expect(await screen.findByText('还没有开启商机监控')).toBeTruthy()
     await act(() => router.navigate('/site'))
     fireEvent.click(await screen.findByRole('button', { name: '先完善企业档案' }))
     expect(router.state.location.pathname).toBe('/me/profile')

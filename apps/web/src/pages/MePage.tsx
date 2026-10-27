@@ -3,6 +3,7 @@ import { ListSectionTitle, NavBar, SettingsFullWidthItem } from '@yb/generated/c
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/endpoints'
+import { leadsApi } from '@/leads/api'
 import { TabPage } from '@/components/local/TabPage'
 import { BRAND } from '@/brand'
 import { ChoiceSheet, ConfirmDialog } from '@/feedback/overlays'
@@ -24,6 +25,7 @@ export function MePage() {
   const [switching, setSwitching] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const profile = useQuery({ queryKey: ['profile', session.company?.id], queryFn: api.profile })
+  const watches = useQuery({ queryKey: ['watches', session.company?.id], queryFn: leadsApi.watches })
 
   const soon = () => toast.show(t.common.comingSoon)
   const companies = session.user?.companies ?? []
@@ -50,7 +52,12 @@ export function MePage() {
     {
       title: t.me.sectionGrowth,
       items: [
-        { id: 'monitoring', label: t.me.monitoring, value: t.me.monitoringValue, onOpen: soon },
+        {
+          id: 'monitoring',
+          label: t.me.monitoring,
+          value: watches.data?.some((w) => w.is_active) ? t.leads.watchDaily : t.me.monitoringValue,
+          onOpen: () => navigate('/me/watches'),
+        },
         { id: 'signature', label: t.me.signature, value: t.me.notSet, onOpen: soon },
       ],
     },

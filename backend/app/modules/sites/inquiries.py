@@ -184,5 +184,8 @@ async def submit(
     db.add(inquiry)
     db.flush()
     if inquiry.status == "new":
+        from app.modules.leads.pipeline import lead_from_inquiry
+
+        lead_from_inquiry(db, inquiry)
         notify_members(db, site, inquiry)
     return inquiry

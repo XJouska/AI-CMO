@@ -39,6 +39,11 @@ class _Providers:
     def fetcher(self) -> Fetcher:
         return self._get("fetcher", SafeFetcher, FakeFetcher)
 
+    def lead_sources(self) -> dict[str, Any]:
+        from app.modules.sources.connectors import build_connectors, build_fake_connectors
+
+        return self._get("lead_sources", build_connectors, build_fake_connectors)
+
     def storage(self) -> Storage:
         return self._get(
             "storage",

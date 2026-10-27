@@ -1,31 +1,7 @@
-import { expect, test, type APIRequestContext } from '@playwright/test'
-import { expectNoFallback, signUp, watchPageErrors } from './helpers'
+import { expect, test } from '@playwright/test'
+import { completeProfile, expectNoFallback, signUp, watchPageErrors } from './helpers'
 
 // 计划 04：官网生成 → 编辑 → 预览 → 发布 → 询盘 → 应用内通知。后端 TEST_MODE（假 LLM），worker 真实处理任务。
-
-async function completeProfile(request: APIRequestContext, token: string, companyId: string) {
-  const headers = { Authorization: `Bearer ${token}`, 'X-Company-Id': companyId }
-  await request.patch('/api/v1/profile', {
-    headers,
-    data: {
-      name_en: 'Demo Valve Co., Ltd.',
-      founded_year: 2008,
-      employees: '120',
-      factory_area: '15000 m²',
-      annual_capacity: '500,000 valves',
-      export_markets: ['Germany', 'United States'],
-      certifications: ['ISO 9001', 'CE'],
-      usp: 'In-house casting and 100% pressure testing',
-      about_en: 'Demo Valve manufactures stainless steel ball valves.',
-      contacts: { email: 'sales@demo-valve.example' },
-    },
-  })
-  await request.post('/api/v1/products', {
-    headers,
-    data: { name_en: 'Stainless Steel Ball Valve', keywords_en: ['ball valve'], applications: ['water treatment'] },
-  })
-  return headers
-}
 
 test('档案不足时引导完善；生成官网 → 编辑 → 预览 → 发布 → 询盘通知', async ({ page, request }) => {
   const errors = watchPageErrors(page)

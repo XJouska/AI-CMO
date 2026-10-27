@@ -1,6 +1,10 @@
-"""Playwright 浏览器抓取（从旧版 browser_service.py 迁移，逻辑暂未改动）。
+"""Playwright 浏览器抓取（从旧版 browser_service.py 迁移，计划 05 加固）。
 
-注意：本模块尚未接入 SSRF 防护，计划 05 加固前不得用于用户提供的网址。
+安全加固：
+- 打开页面前用 validate_url + DNS 解析校验目标地址（与 safe_fetch 相同的规则）
+- 拦截页面发出的所有子请求：非 http/https（file:、data: 文档等）或解析到内网地址的请求一律中止
+- 不再使用 --no-sandbox / bypass_csp；httpx 兜底改为 safe_fetch
+- 不抓取 LinkedIn 等明确禁止爬取的平台
 仅在 worker 镜像中可用（api 镜像不安装 playwright）。
 """
 
@@ -10,11 +14,12 @@ import logging
 import re
 from pathlib import Path
 
-import httpx
 from cachetools import TTLCache
 from playwright.async_api import BrowserContext, async_playwright
 
 from app.core.config import get_settings
+from app.core.security.ssrf import SsrfBlockedError, safe_fetch
+from app.services.browser_guard import check_target, guard_route
 
 logger = logging.getLogger(__name__)
 
@@ -69,14 +74,11 @@ class BrowserService:
                 locale="en-US",
                 timezone_id="America/New_York",
                 proxy=proxy,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-features=IsolateOrigins,site-per-process",
-                    "--no-sandbox",
-                ],
+                args=["--disable-blink-features=AutomationControlled"],
                 ignore_default_args=["--enable-automation"],
                 java_script_enabled=True,
-                bypass_csp=True,
+                accept_downloads=False,
+                service_workers="block",
             )
             self._alive = True
             logger.info("[Browser] Chromium launched")
@@ -135,6 +137,7 @@ class BrowserService:
             ctx = await self._ensure_context()
             self._page_opened()
             page = await ctx.new_page()
+            await page.route("**/*", guard_route)
             try:
                 try:
                     await page.goto(url, timeout=25000, wait_until="networkidle")
@@ -210,16 +213,18 @@ class BrowserService:
         """HTTP fallback when Playwright fails."""
         try:
             logger.info(f"[Fallback] HTTP fetch: {url[:60]}")
-            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-                resp = await client.get(
-                    url,
-                    headers={
-                        "User-Agent": _DEFAULT_UA,
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                        "Accept-Language": "en-US,en;q=0.5",
-                    },
-                )
-                html = resp.text[:80000]
+            # 兜底请求同样经过 SSRF 防护（逐跳校验、固定已校验 IP）
+            resp = await safe_fetch(
+                url,
+                timeout=15,
+                max_bytes=2_000_000,
+                headers={
+                    "User-Agent": _DEFAULT_UA,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.5",
+                },
+            )
+            html = resp.text[:80000]
 
             def extract_meta(html: str, attr: str, value: str) -> str:
                 pattern = f"<meta[^>]*{attr}=[\"']?{re.escape(value)}[\"']?[^>]*content=[\"']([^\"']+)[\"']"
@@ -284,6 +289,10 @@ class BrowserService:
     async def scrape_url(self, url: str) -> dict:
         if url and not url.startswith(("http://", "https://")):
             url = f"https://{url}"
+        try:
+            await check_target(url)
+        except SsrfBlockedError as exc:
+            return {"error": "blocked", "reason": exc.reason, "url": url}
         cache_key = hashlib.md5(url.encode()).hexdigest()
         if cache_key in self._cache:
             logger.info(f"[Browser] Cache hit: {url[:60]}")

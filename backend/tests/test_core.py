@@ -271,3 +271,22 @@ def test_test_mode_forbidden_in_production(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("TEST_MODE", "1")
     with pytest.raises(ValidationError, match="TEST_MODE"):
         Settings()  # type: ignore[call-arg]
+
+
+def test_env_example_values_are_loadable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """按 .env.example 原样复制成 .env 时配置能正常加载（留空的变量回落到默认值）。"""
+    from pathlib import Path
+
+    example = Path(__file__).resolve().parents[2] / ".env.example"
+    for line in example.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key in {"DATABASE_URL", "SECRET_KEY"} and not value:
+            continue
+        monkeypatch.setenv(key.strip(), value)
+    monkeypatch.setenv("TEST_MODE", "1")
+    settings = Settings()  # type: ignore[call-arg]
+    assert settings.search_api_key is None
+    assert settings.leads_auto_approve_score is None
+    assert settings.rss_sources == []

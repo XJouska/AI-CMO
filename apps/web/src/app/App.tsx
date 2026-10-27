@@ -5,6 +5,7 @@ import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 
 import { ApiError } from '@/api/client'
 import { AssistantPage } from '@/pages/AssistantPage'
 import { LeadsPage } from '@/pages/LeadsPage'
+import { LeadDetailPage, WatchSettingsPage } from '@/pages/leads/LeadPages'
 import { LoginPage, RegisterPage } from '@/pages/LoginPage'
 import { MePage } from '@/pages/MePage'
 import { AssetsPage, InviteAcceptPage, MembersPage } from '@/pages/me/AccountPages'
@@ -62,6 +63,8 @@ export const routes: RouteObject[] = [
   { path: '/extractions/:id/review', element: authed(<ExtractionReviewPage />) },
   { path: '/assistant', element: authed(<AssistantPage />) },
   { path: '/leads', element: authed(<LeadsPage />) },
+  { path: '/leads/:id', element: authed(<LeadDetailPage />) },
+  { path: '/me/watches', element: authed(<WatchSettingsPage />) },
   { path: '/site', element: authed(<SitePage />) },
   { path: '/site/sections/:section', element: authed(<SiteSectionPage />) },
   { path: '/site/preview', element: authed(<SitePreviewPage />) },

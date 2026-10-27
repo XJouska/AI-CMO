@@ -74,3 +74,30 @@
 - [ ] 公网发布：泛域名 DNS（`*.SITES_BASE_DOMAIN`）、泛域名证书、宿主 Nginx 把官网域名流量转发到 `127.0.0.1:9021`（计划 07）
 - [ ] 自定义域名的证书自动签发方案（Caddy on-demand TLS 或 certbot，计划 07 定稿）
 - [ ] 是否启用 Cloudflare Turnstile（需要申请 sitekey / secret）
+
+## 计划 05 · 商机情报
+
+| 验收项 | 状态 | 证据 |
+|---|---|---|
+| 每条商机有可访问的来源链接、中文摘要、匹配理由 | 通过（假数据） | `test_run_creates_scored_pending_leads`；`leads.spec.tsx`「商机详情」；`e2e/leads.e2e.ts` 详情截图 |
+| 同一采购需求在多个来源出现时合并为一条商机 | 通过 | `test_same_requirement`、`test_signals_deduplicated_across_runs_and_sources`、`test_buyer_dedupe_and_enrichment` |
+| 官网询盘自动成为 `site_inquiry` 类型商机 | 通过 | `test_site_inquiry_becomes_approved_lead` |
+| 运营复核队列可用，被驳回的商机用户不可见 | 通过 | `test_review_queue_controls_visibility`；`e2e/leads.e2e.ts`（复核前「正在为你寻找商机」，通过 1 条、驳回其余后列表只有 1 条） |
+| SSRF：监控结果、买家网址、浏览器子请求指向内网时被拒绝 | 通过 | `test_run_creates_scored_pending_leads`（`blocked` 计数）、`test_buyer_enrichment_refuses_internal_domains`、`test_robots_txt`、`test_search_api_connectors_use_safe_fetch`、`test_browser_guard_route_blocks_internal_subrequests`（`app/services/browser_guard.py` 纳入 100% 覆盖率门槛） |
+| 单企业单次运行的成本上限生效 | 通过 | `test_plan_queries_and_budget`、`test_cost_budget_limits_run` |
+| 多个 worker / 调度器同时运行不重复领取 | 通过 | `test_extraction.py` SKIP LOCKED 并发用例、`test_scheduler_enqueues_due_watches_once`、`test_enable_then_manual_run_does_not_double_schedule` |
+| 外部内容中的提示词注入不会触发工具 | 通过 | `test_prompt_injection_in_signal_is_wrapped`；商机工具全部只读（`test_lead_tools`、`test_lead_tools_scoped_to_company`） |
+| 评测集指标不得下降 | 通过（合成样本） | `evals/leads.py --check evals/baseline.json`（检查脚本每次执行）：意图准确率 1.0、Top20 有效率 1.0、重复率 0、虚假率 0 |
+| 「商机」Tab 各状态截图检查 | 通过 | `e2e/__screenshots__/leads.e2e.ts/*`（未开启监控、等待首批、列表、详情；402×874 与 1280×800） |
+| 全部新路由登记越权矩阵 | 通过 | `tests/tenancy_matrix.py`、`test_route_guard.py` |
+
+**说明**
+
+- 商机卡片左侧图标按类型取自正式图标库；分类 Tab 在 402 宽度下使用二字标签（全部 / 招标 / 求购 / 买家 / 询盘），避免折行。
+- 启用监控后立即手动运行，会顺延下一次定时运行，调度器不会马上再跑一次。
+
+**人工确认项**
+
+- [ ] 为一家试点工厂创建监控，24 小时内产出 ≥ 20 条经复核的商机（需要真实搜索 API Key：`SEARCH_API_PROVIDER` / `SEARCH_API_KEY`，以及真实 LLM）
+- [ ] 评测集换成真实标注样本（目前为 10 条合成样本），确认指标目标值
+- [ ] 逐个确认数据源的使用条款并记录到 `source_configs`（TED RSS 默认启用；其余需要 API Key 的数据源默认关闭）
