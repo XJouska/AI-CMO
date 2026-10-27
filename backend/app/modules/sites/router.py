@@ -131,9 +131,11 @@ def _require_manager(scope: CompanyScope) -> None:
 # ── 官网 ───────────────────────────────────────────────────────────────
 
 
-@router.get("/site", response_model=SiteOut)
-def get_site(scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)) -> SiteOut:
-    return site_out(db, _site(db, scope))
+@router.get("/site", response_model=SiteOut | None)
+def get_site(scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)) -> SiteOut | None:
+    """还没有官网是正常状态：返回 null（不用 404，避免前端把它当作错误）。"""
+    site = db.scalar(select(Site).where(Site.company_id == scope.company_id))
+    return site_out(db, site) if site else None
 
 
 class GenerateIn(BaseModel):

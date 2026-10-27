@@ -21,6 +21,7 @@ test('生产容器：页面加载无 CSP 违规和脚本错误，四个 Tab 可�
   const nav = page.getByRole('navigation', { name: '主导航' })
   for (const label of ['商机', '官网', '我的', '助手']) {
     await nav.getByRole('button', { name: label }).click()
+    await page.waitForLoadState('networkidle')
   }
   await expect(page.getByText('AI-CMO').first()).toBeVisible()
   expect(problems).toEqual([])

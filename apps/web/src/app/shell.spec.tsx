@@ -30,7 +30,7 @@ describe('应用壳与 Tab', () => {
   })
 
   it('商机页为空态；官网页在档案不足时引导完善档案', async () => {
-    server.on('GET', '/site', { error: { code: 'site_missing', message: '' } }, 404)
+    server.on('GET', '/site', null)
     const { router } = renderRoutes('/leads')
     expect(await screen.findByText('暂无商机')).toBeTruthy()
     await act(() => router.navigate('/site'))

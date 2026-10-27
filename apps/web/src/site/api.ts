@@ -81,7 +81,7 @@ export interface HealthOut {
 }
 
 export const siteApi = {
-  site: () => apiFetch<SiteOut>('/site'),
+  site: () => apiFetch<SiteOut | null>('/site'),
   generate: (template?: TemplateKey) => apiFetch<SiteOut>('/site/generate', { method: 'POST', body: template ? { template } : {} }),
   setTemplate: (template: TemplateKey) => apiFetch<SiteOut>('/site', { method: 'PATCH', body: { template } }),
   draft: () => apiFetch<SiteVersionOut>('/site/draft'),

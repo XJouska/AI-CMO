@@ -49,10 +49,17 @@ export async function signUp(
   return { email, password, token, companyId }
 }
 
-/** 页面不得出现脚本错误与降级渲染。 */
-export function watchPageErrors(page: Page): string[] {
+/** 页面不得出现脚本错误、控制台错误（含失败的网络请求）与降级渲染。 */
+export function watchPageErrors(page: Page, { allowHttpErrors = false } = {}): string[] {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
+  page.on('console', (msg) => {
+    if (msg.type() !== 'error') return
+    if (allowHttpErrors && msg.text().startsWith('Failed to load resource')) return
+    // 测试框架注入到每个 frame 的初始化脚本在沙箱预览 iframe 中被拦截——这正说明沙箱生效，不属于应用错误
+    if (msg.text().startsWith('Blocked script execution') && msg.text().includes('/public/site-preview/')) return
+    errors.push(`console: ${msg.text()}`)
+  })
   return errors
 }
 

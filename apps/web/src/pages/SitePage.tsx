@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, EmptyPage, ListSectionTitle, Loading, Markdown, NavBar, SettingsFullWidthItem, Tag } from '@yb/generated/components'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ApiError } from '@/api/client'
 import { api } from '@/api/endpoints'
 import { PageCenter } from '@/components/local/StackPage'
 import { TabPage } from '@/components/local/TabPage'
@@ -19,14 +18,7 @@ export function useSite() {
   const session = useSession()
   return useQuery({
     queryKey: ['site', session.company?.id],
-    queryFn: async () => {
-      try {
-        return await siteApi.site()
-      } catch (error) {
-        if (error instanceof ApiError && error.code === 'site_missing') return null
-        throw error
-      }
-    },
+    queryFn: siteApi.site,
     refetchInterval: (q) => (q.state.data && isBusy(q.state.data.task) ? 1500 : false),
   })
 }

@@ -67,7 +67,7 @@ beforeEach(() => {
 
 describe('官网 Tab 状态', () => {
   it('未生成且档案不足 60%：引导先完善档案', async () => {
-    server.on('GET', '/site', { error: { code: 'site_missing', message: '' } }, 404)
+    server.on('GET', '/site', null)
     const { router } = renderRoutes('/site')
     expect(await screen.findByText('企业档案完整度需要达到 60%（当前 30%）')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '先完善企业档案' }))
@@ -76,7 +76,7 @@ describe('官网 Tab 状态', () => {
 
   it('未生成且档案足够：点击生成后显示进度', async () => {
     server
-      .on('GET', '/site', { error: { code: 'site_missing', message: '' } }, 404)
+      .on('GET', '/site', null)
       .on('GET', '/profile', demoProfile({ completeness: 80 }))
       .on('POST', '/site/generate', site({ draft_version_id: null, task: { kind: 'generate', status: 'running', error: '', progress: [{ key: 'write', label: 'AI 撰写英文文案', status: 'running' }] } }))
     renderRoutes('/site')

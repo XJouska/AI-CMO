@@ -69,7 +69,8 @@ def test_generation_requires_profile_completeness(client, db) -> None:
     r = client.post("/api/v1/site/generate", json={}, headers=tenant.headers)
     assert r.status_code == 400
     assert r.json()["error"]["code"] == "profile_incomplete"
-    assert client.get("/api/v1/site", headers=tenant.headers).json()["error"]["code"] == "site_missing"
+    r = client.get("/api/v1/site", headers=tenant.headers)
+    assert r.status_code == 200 and r.json() is None
 
 
 def test_generate_creates_draft_from_profile(client, db, llm) -> None:
