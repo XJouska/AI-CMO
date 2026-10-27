@@ -1,131 +1,97 @@
+"""FastAPI 入口。"""
+
+from __future__ import annotations
+
 import logging
-import os
-import time
-from datetime import timezone, timedelta
-from logging.handlers import TimedRotatingFileHandler
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
-from app.config import settings
-from app.database import init_db
-from app.api import auth, chat, credits, open_api, dashboard, ai_chat, feedback, competitors, geo, seo, terminal, content, admin
+from app.core.config import APP_VERSION, get_settings
+from app.core.db import get_engine
+from app.core.errors import install_error_handlers
+from app.core.logging import RequestContextMiddleware, configure_logging
+from app.modules.admin.router import router as admin_router
+from app.modules.assistant.router import router as assistant_router
+from app.modules.auth.router import router as auth_router
+from app.modules.billing.router import router as billing_router
+from app.modules.companies.router import router as companies_router
+from app.modules.leads.router import router as leads_router
+from app.modules.outreach.router import router as outreach_router
+from app.modules.sites.router import router as sites_router
+from app.modules.sources.router import router as sources_router
+
+logger = logging.getLogger(__name__)
+
+API_PREFIX = "/api/v1"
+
+MODULE_ROUTERS = [
+    auth_router,
+    companies_router,
+    assistant_router,
+    sites_router,
+    sources_router,
+    leads_router,
+    outreach_router,
+    billing_router,
+    admin_router,
+]
 
 
-def setup_logging():
-    """Configure logging with daily rotating file handler"""
-    # In Docker: /app/logs (mounted volume); locally: project_root/logs
-    app_dir = Path(__file__).resolve().parent.parent  # /app or /path/to/backend
-    log_dir = app_dir / "logs"
-    if not log_dir.exists():
-        # Try parent (project root for local dev)
-        log_dir = app_dir.parent / "logs"
-    log_dir.mkdir(exist_ok=True)
+def create_app() -> FastAPI:
+    settings = get_settings()
+    configure_logging(settings.log_level)
 
-    log_file = log_dir / "ai-cmo.log"
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        logger.info("api starting (env=%s, version=%s)", settings.app_env, APP_VERSION)
+        yield
 
-    # Root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, settings.log_level.upper(), logging.INFO))
-
-    # Format — force Beijing time (UTC+8)
-    class BeijingFormatter(logging.Formatter):
-        converter = staticmethod(lambda t: time.gmtime(t + 8 * 3600))
-
-    fmt = BeijingFormatter(
-        "%(asctime)s | %(levelname)-8s | %(name)-25s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
+    app = FastAPI(
+        title="AI-CMO API",
+        version=APP_VERSION,
+        lifespan=lifespan,
+        # 生产环境不公开接口文档。
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None,
+        openapi_url=None if settings.is_production else "/openapi.json",
     )
+    install_error_handlers(app)
+    if settings.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_origins,
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
+            allow_headers=["Authorization", "Content-Type", "X-Company-Id", "X-Request-Id"],
+        )
+    app.add_middleware(RequestContextMiddleware)
 
-    # Console handler
-    console = logging.StreamHandler()
-    console.setFormatter(fmt)
-    root_logger.addHandler(console)
+    @app.get("/health", tags=["system"])
+    def health() -> JSONResponse:
+        try:
+            with get_engine().connect() as conn:
+                conn.execute(text("SELECT 1"))
+            db_ok = True
+        except Exception:
+            logger.exception("health: database unreachable")
+            db_ok = False
+        body = {"status": "ok" if db_ok else "degraded", "database": "ok" if db_ok else "error"}
+        return JSONResponse(body, status_code=200 if db_ok else 503)
 
-    # File handler: rotate daily, keep 7 days
-    file_handler = TimedRotatingFileHandler(
-        filename=str(log_file),
-        when="midnight",       # Rotate at midnight
-        interval=1,            # Every 1 day
-        backupCount=1,         # Keep only 1 backup (= delete after 1 day)
-        encoding="utf-8",
-    )
-    file_handler.setFormatter(fmt)
-    file_handler.suffix = "%Y-%m-%d"  # Backup file suffix
-    root_logger.addHandler(file_handler)
+    @app.get(f"{API_PREFIX}/meta", tags=["system"])
+    def meta() -> dict[str, object]:
+        return {
+            "name": "AI-CMO",
+            "version": APP_VERSION,
+            "env": settings.app_env,
+            "features": {"llm": settings.llm_enabled},
+        }
 
-    # Suppress noisy third-party loggers
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("openai").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    for router in MODULE_ROUTERS:
+        app.include_router(router, prefix=API_PREFIX)
 
-    return root_logger
-
-
-logger = setup_logging()
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan: startup and shutdown"""
-    logger.info("🚀 AI-CMO Backend starting...")
-    logger.info(f"   Database: {settings.database_url[:40]}...")
-    logger.info(f"   CORS: {settings.cors_origins}")
-    logger.info(f"   Log level: {settings.log_level}")
-    init_db()
-    logger.info("✅ Database initialized")
-    try:
-        from app.services.scheduler import setup_scheduler
-        setup_scheduler().start()
-        logger.info("✅ Scheduler started")
-    except Exception as e:
-        logger.warning(f"Scheduler not started: {e}")
-    yield
-    logger.info("👋 AI-CMO Backend shutting down...")
-
-
-app = FastAPI(
-    title="AI-CMO API",
-    description="Social Media Promotion Intelligence Platform",
-    version="1.0.0",
-    lifespan=lifespan,
-    redirect_slashes=False,
-)
-
-# CORS
-origins = [o.strip() for o in settings.cors_origins.split(",")]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Routes
-app.include_router(auth.router)
-app.include_router(chat.router)
-app.include_router(credits.router)
-app.include_router(open_api.router)
-app.include_router(dashboard.router)
-app.include_router(ai_chat.router)
-app.include_router(feedback.router)
-app.include_router(competitors.router)
-app.include_router(geo.router)
-app.include_router(seo.router)
-app.include_router(terminal.router)
-app.include_router(content.router)
-app.include_router(admin.router)
-
-
-@app.get("/")
-async def root():
-    return {"message": "AI-CMO API is running", "version": "1.0.0"}
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+    return app

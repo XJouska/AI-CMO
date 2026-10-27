@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "vite/client",
+      "node"
+    ],
+    "noUnusedLocals": true
+  },
+  "include": [
+    "src",
+    "../../packages/yb-ui/extensions",
+    "e2e",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "playwright.smoke.config.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ]
+}

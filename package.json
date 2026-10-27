@@ -1,0 +1,17 @@
+{
+  "name": "ai-cmo",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web",
+    "typecheck": "npm run typecheck -w apps/web",
+    "check:web": "node scripts/check-web.mjs",
+    "vendor:yb-ui": "node scripts/vendor-yb-ui.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

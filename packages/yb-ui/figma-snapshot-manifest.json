@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "fileKey": "iUyH8VSdURxlGrhp646zYJ",
+  "libraryName": "📱 元宝移动端组件库-2026",
+  "libraryKey": "lk-fb4db30eedb5c84d41c9731186ffb8b4d8dc24a2d7e6056bd59de0aa69d4230bad4ed49e0cb2b887c247a475f2f41f75855e396750a54e98445f144a50840e8c",
+  "snapshotDate": "2026-09-13",
+  "inventoryPath": "demo/data/figma-components.json",
+  "assetCount": 394,
+  "variantCount": null,
+  "iconCount": 261,
+  "runtimeContractVersion": 4,
+  "snapshotFingerprint": "sha256:23f0c5e5f44294194ce8989651a3bfa75d2759886540c52208d8ab441da5561c",
+  "lastLiveAuditDate": "2026-09-13",
+  "liveAuditStatus": "inventory-refreshed",
+  "liveRefreshRequired": false,
+  "knownLiveDrift": [],
+  "variantCountStatus": "not-recounted-from-published-inventory",
+  "descriptionFingerprint": "sha256:1dc1d37a3ede5d985aa16f04a04cfd8c854484c020794d66dd166e59a3b933df",
+  "descriptionCoverage": {
+    "status": "partial",
+    "captured": 25,
+    "total": 394,
+    "requiresTaskLiveCheck": true
+  },
+  "rendererStatus": "partial-coverage-requires-selected-asset-check",
+  "publishedComponentCount": 283
+}

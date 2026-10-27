@@ -1,0 +1,42 @@
+/*
+ * 本地扩展：让贴边壳层组件铺满实际画布宽度。
+ *
+ * 原因：正式组件 CSS 把 NavBar、TabBar、AgentInput、通栏列表等宽度写死为 402px（iPhone 设计稿宽度）。
+ * 真机宽度为 360～430px，写死宽度会溢出或留白。设计规范 `edge-chrome-vs-content-inset` 要求贴边壳层铺满画布，
+ * 所以这里只把这些写死的宽度改为 100%，不修改颜色、字号、间距等任何视觉属性。
+ *
+ * 另外：正式 NavBar 内置一条模拟的 iOS 状态栏（显示 9:41 和信号图标），在真实浏览器中会和系统状态栏重复，
+ * 这里把它收起为安全区高度。
+ *
+ * 作用范围限定在 .app-canvas 内。登记位置：docs/ui-gaps.md「GAP-002」「GAP-003」。
+ */
+.app-canvas .yb-navbar,
+.app-canvas .yb-navbar-row,
+.app-canvas .yb-tabbar,
+.app-canvas .yb-tabbar-dock,
+.app-canvas .yb-tabbar-body,
+.app-canvas .yb-agent-input,
+.app-canvas .yb-fullwidth-item,
+.app-canvas .yb-list-section-title,
+.app-canvas .yb-mask,
+.app-canvas .yb-sheet,
+.app-canvas .yb-actionsheet,
+.app-canvas .yb-keyboard {
+  width: 100%;
+}
+
+/* 父元素 .yb-agent-input 已有左右各 16px 内边距，输入框本体只需铺满其内容区 */
+.app-canvas .yb-agent-input-body {
+  width: 100%;
+}
+
+.app-canvas .yb-navbar .yb-status-bar {
+  height: env(safe-area-inset-top, 0px);
+  overflow: hidden;
+  padding: 0;
+  width: 100%;
+}
+
+.app-canvas .yb-navbar .yb-status-bar > * {
+  display: none;
+}

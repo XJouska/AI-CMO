@@ -1,0 +1,4 @@
+# worker 额外依赖：浏览器抓取只在 worker 镜像中安装。
+-r requirements.txt
+playwright==1.51.0
+apscheduler==3.11.0

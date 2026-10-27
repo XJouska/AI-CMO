@@ -1,4 +1,4 @@
-# Environment & Secrets
+# Environment & secrets
 .env
 .env.*
 !.env.example
@@ -6,69 +6,47 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
 *.egg-info/
-dist/
-build/
-*.egg
 .venv/
 venv/
-env/
+.pytest_cache/
+.ruff_cache/
 
 # Node.js
 node_modules/
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Frontend build output
-frontend/dist/
+# Build output
+apps/web/dist/
+sites-output/
+dist/
+build/
 
 # Logs
 logs/
 *.log
-*.log.*
 
-# Local project setup skills (not pushed)
-project-setup-skills/
-
-# IDE & Editor
-.cursor/
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Docker
-*.pid
-
-# Database
-*.db
-*.sqlite3
-project-setup-skills/
+# Design system package zip and font binaries (licensing: see docs/licensing.md)
+*.zip
+packages/yb-ui/assets/fonts/*.otf
+packages/yb-ui/assets/fonts/*.ttf
 
 # Browser profiles (persistent Playwright data)
 browser-profiles/
 
-# Internal docs (not for repo)
-COMPETITOR-ANALYSIS.md
-IMPLEMENTATION-PLAN.md
-OPENCLAW-INTEGRATION.md
-TEST-PLAN.md
-project-setup-skills/
+# IDE & OS
+.cursor/
+.vscode/
+.idea/
+*.swp
+.DS_Store
 
-# Local files
-*.png
-!frontend/public/*.png
-aicmo.py
-keep_alive.py
-skill.zip
+# Local databases
+*.db
+*.sqlite3
 
-# Design system package (vendored separately, not committed)
-yb-mobile-design-GO.zip
+# Test artifacts
+apps/web/test-results/
+apps/web/playwright-report/
+.coverage
+htmlcov/

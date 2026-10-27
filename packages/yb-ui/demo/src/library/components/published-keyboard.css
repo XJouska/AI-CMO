@@ -1,0 +1,17 @@
+.yb-keyboard.yb-system-keyboard { max-width: 100%; --yb-ime-glyph: var(--yb-color-basic-text-primary); }
+.yb-system-keyboard .yb-ime-key,
+.yb-system-keyboard .yb-ime-suggest-hit { cursor: default; letter-spacing: 0; }
+.yb-system-keyboard .yb-ime-suggest-hit { text-align: center; }
+.yb-system-keyboard .yb-ime-row.is-7 > .yb-ime-key { background: var(--yb-color-basic-bg-primary); }
+.yb-numpad {
+  width: 402px; max-width: 100%; height: 310px; box-sizing: border-box;
+  padding: 8px 10px 74px; border-radius: 27px 27px 62.16px 62.16px;
+  background: var(--yb-color-basic-container-secondary);
+  box-shadow: inset 0 0 0 1px var(--yb-color-basic-divider-white);
+  color: var(--yb-color-basic-text-primary);
+}
+.yb-numpad-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(4, 50px); gap: 6px; padding-top: 10px; }
+.yb-numpad-key { display: flex; flex-direction: column; align-items: center; background: var(--yb-color-basic-bg-primary); border-radius: 8.5px; box-shadow: 0 0.5px 0 rgb(0 0 0 / 10%); }
+.yb-numpad-key > span { font: 23px/23px "SF Pro Display", system-ui, sans-serif; padding-top: 6.4px; }
+.yb-numpad-key small { font: 700 10px/12px "SF Pro Text", system-ui, sans-serif; margin-top: 2px; }
+.yb-numpad-delete { background: currentColor; mask: url("/figma-assets/20846-79968.svg") center / 123px 50px no-repeat; }

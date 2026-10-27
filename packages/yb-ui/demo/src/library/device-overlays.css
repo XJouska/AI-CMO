@@ -1,0 +1,92 @@
+[data-canvas] {
+  position: relative;
+  isolation: isolate;
+}
+
+.yb-device-overlays {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.yb-modal-layer,
+.yb-feedback-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.yb-modal-layer {
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+.yb-modal-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.yb-modal-mask .yb-mask {
+  width: 100%;
+  height: 100%;
+}
+
+.yb-modal-panel {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  max-height: 100%;
+  outline: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.is-dialog > .yb-modal-panel {
+  width: min(80%, 400px);
+}
+
+.is-dialog > .yb-modal-panel > .yb-dialog {
+  width: 100%;
+}
+
+.is-sheet {
+  align-items: flex-end;
+}
+
+.is-sheet > .yb-modal-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: calc(100% - var(--yb-statusbar-height, 54px) - 8px);
+  overflow: hidden;
+}
+
+.is-sheet > .yb-modal-panel > .yb-sheet {
+  width: 100%;
+  max-width: 100%;
+  flex-shrink: 1;
+  min-height: 0;
+}
+
+.yb-feedback-layer {
+  z-index: 2;
+  pointer-events: none;
+}
+
+.yb-feedback-layer.is-toast {
+  z-index: 3;
+}
+
+.yb-feedback-content {
+  max-width: min(260px, calc(100% - 32px));
+  pointer-events: auto;
+}
+
+.yb-feedback-content > .yb-toast,
+.yb-feedback-content > .yb-loading {
+  max-width: 100%;
+}

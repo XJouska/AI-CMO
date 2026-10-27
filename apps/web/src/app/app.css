@@ -1,0 +1,116 @@
+/*
+ * 应用布局（不定义任何组件外观，只负责画布、页面分区和内容边距）。
+ * 颜色、尺寸只使用设计包 tokens.css 中的变量。
+ */
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ---------- 画布 ---------- */
+
+.app-stage {
+  align-items: center;
+  background: var(--yb-color-basic-bg-secondary);
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+}
+
+.app-canvas {
+  background: var(--yb-color-basic-bg-primary);
+  box-shadow: 0 0 0 0.5px var(--yb-color-basic-divider-soft);
+  border-radius: var(--yb-round-16px, 16px);
+  height: min(874px, 100%);
+  overflow: hidden;
+  width: 402px;
+}
+
+/* 手机：铺满视口，去掉设备框 */
+@media (max-width: 480px) {
+  .app-canvas {
+    border-radius: 0;
+    box-shadow: none;
+    height: 100%;
+    width: 100%;
+  }
+}
+
+/* ---------- 页面分区：导航固定、内容滚动、TabBar 固定 ---------- */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  width: 100%;
+}
+
+.page[data-surface="primary"] {
+  background: var(--yb-color-basic-bg-primary);
+}
+
+.page[data-surface="secondary"] {
+  background: var(--yb-color-basic-bg-secondary);
+}
+
+.page-nav {
+  flex: none;
+  position: relative;
+  z-index: 2;
+}
+
+.page-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  position: relative;
+}
+
+.page-tabbar {
+  flex: none;
+  position: relative;
+  z-index: 2;
+}
+
+/* 底部安全区：在 TabBar 自带的底部留白之外，补足 Home 指示条的高度 */
+.page-tabbar .yb-tabbar-dock {
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+}
+
+/* ---------- 内容层 ---------- */
+
+/* 空态相对整屏垂直居中（规范 page-empty）：以页面为参照，而不是以内容区为参照 */
+.page-empty {
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  pointer-events: none;
+  position: absolute;
+}
+
+.page:has(.page-empty) .page-body {
+  position: static;
+}
+
+.page-empty > * {
+  pointer-events: auto;
+}
+
+/* 助手欢迎语：内容层留出页面边距，贴边壳层不受影响（规范 edge-chrome-vs-content-inset） */
+.assistant-welcome {
+  margin: 0 auto;
+  max-width: 402px;
+  padding: 24px 24px 32px;
+}
+
+.me-list {
+  padding-bottom: 24px;
+}

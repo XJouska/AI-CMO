@@ -1,0 +1,32 @@
+{
+  "fonts": [
+    {
+      "file": "PingFangSC-Regular.otf",
+      "family": "PingFang SC",
+      "style": "Regular",
+      "bytes": 13226172,
+      "sha256": "adb6f724b84b906b91ceb1baca891bc986d0d70c75a88ca848df7686021ced01"
+    },
+    {
+      "file": "PingFangSC-Medium.otf",
+      "family": "PingFang SC",
+      "style": "Medium",
+      "bytes": 13092328,
+      "sha256": "4dee5d9e07b9018ee16ed1a59478e37463c61d9586a1df2cb563391d8d91206d"
+    },
+    {
+      "file": "PingFangSC-Semibold.otf",
+      "family": "PingFang SC",
+      "style": "Semibold",
+      "bytes": 13045528,
+      "sha256": "51df2eb769dcd1a541b245b3406cbca5851e832608bb234d6f9e3a8f338d0c6f"
+    },
+    {
+      "file": "dinpro_medium.otf",
+      "family": "DIN Pro",
+      "style": "Medium",
+      "bytes": 140816,
+      "sha256": "67f71fdc0019df2b77da656b6eb4fbae4d30dfbdeac0c6c71e87449754fe4caf"
+    }
+  ]
+}

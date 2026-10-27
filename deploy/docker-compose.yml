@@ -1,0 +1,100 @@
+# AI-CMO v2 部署编排。
+# 用法（仓库根目录）：docker compose -f deploy/docker-compose.yml --env-file .env -p aicmo-v2 up -d --build
+# 与旧版容器（ai-cmo-*）完全隔离：独立项目名、网络、数据卷；db / api 不对外暴露端口。
+
+name: aicmo-v2
+
+x-app-env: &app-env
+  APP_ENV: ${APP_ENV:-production}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?POSTGRES_USER 未设置}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 未设置}@db:5432/${POSTGRES_DB:?POSTGRES_DB 未设置}
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY 未设置}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:9020}
+  CORS_ORIGINS: ${CORS_ORIGINS:-[]}
+  SSRF_ALLOW_HOSTS: ${SSRF_ALLOW_HOSTS:-[]}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_API_BASE: ${LLM_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+  LLM_MODEL: ${LLM_MODEL:-qwen-plus}
+  STORAGE_DIR: /data/storage
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER 未设置}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 未设置}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB 未设置}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+    mem_limit: 384m
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/api/Dockerfile
+    restart: unless-stopped
+    environment: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - storage:/data/storage
+    networks: [internal]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 512m
+
+  worker:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      BROWSER_PROFILE_DIR: /data/browser-profile
+      BROWSER_HEADLESS: "true"
+      BROWSER_PROXY: ${BROWSER_PROXY:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - storage:/data/storage
+      - browser_profile:/data/browser-profile
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 768m
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_BIND:-127.0.0.1:9020}:8080"
+    networks: [internal]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 128m
+
+networks:
+  internal:
+
+volumes:
+  pgdata:
+  storage:
+  browser_profile:
