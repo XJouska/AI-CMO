@@ -1,18 +1,19 @@
 // AI 抽取进度页与确认变更页。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, EmptyPage, FormDoubleLine, ListSectionTitle, Markdown, RadioCheckBox, SettingsFullWidthItem } from '@yb/generated/components'
+import { Pencil } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, type ChangeGroup, type Extraction, type ExtractionChange } from '@/api/endpoints'
-import { QueryView } from '@/components/local/QueryView'
-import { PageCenter, StackPage } from '@/components/local/StackPage'
-import { FormSheet } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
+import { QueryView } from '@/components/QueryView'
+import { StepProgress } from '@/components/StepProgress'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { AuthCard } from '@/layout/AuthLayout'
+import { Button, Checkbox, EmptyState, ErrorState, FormModal, SectionTitle, TextArea, useToast } from '@/ui'
 import { describeValue, editableText, parseEdited } from './changes'
 
 const POLL_MS = 1500
+const STEPS = t.onboarding.steps
 
 export function ExtractionProgressPage() {
   const { id = '' } = useParams()
@@ -38,44 +39,26 @@ export function ExtractionProgressPage() {
   }, [status, query.data?.error, toast])
 
   return (
-    <StackPage backTo="/onboarding" surface="primary" title={t.extraction.title}>
+    <AuthCard steps={{ labels: STEPS, current: 1 }} title={t.extraction.title} wide>
       <QueryView query={query}>
         {(extraction) =>
           extraction.status === 'failed' ? (
-            <PageCenter>
-              <EmptyPage
-                buttonLabel={t.extraction.retry}
-                descText={extraction.error}
-                illus="networkError"
-                onAction={(action) => action === 'press' && navigate('/onboarding', { replace: true })}
-              >
-                {t.extraction.failed}
-              </EmptyPage>
-            </PageCenter>
+            <ErrorState actionLabel={t.extraction.retry} description={extraction.error} onRetry={() => navigate('/onboarding', { replace: true })} title={t.extraction.failed} />
           ) : (
-            <div className="content-inset">
-              {/* status 不在生成的类型声明中，按设计包示例（agent.tsx）的写法通过展开传入 */}
-              <Markdown variant="Progress" {...{ status: progressStatus(extraction) }}>
-                {extraction.status === 'succeeded' ? t.extraction.done : t.extraction.running}
-              </Markdown>
-              <Markdown items={extraction.progress.map((step) => `${stepMark(step.status)} ${step.label}`)} variant="UL" />
-            </div>
+            <StepProgress
+              running={!isFinished(extraction)}
+              steps={extraction.progress.map((step, index) => ({ key: `${index}`, label: step.label, status: step.status }))}
+              title={extraction.status === 'succeeded' ? t.extraction.done : t.extraction.running}
+            />
           )
         }
       </QueryView>
-    </StackPage>
+    </AuthCard>
   )
 }
 
-function progressStatus(extraction: Extraction): 'loading' | 'done' {
-  return extraction.status === 'succeeded' || extraction.status === 'applied' ? 'done' : 'loading'
-}
-
-function stepMark(status: string): string {
-  if (status === 'done') return '✓'
-  if (status === 'running') return '…'
-  if (status === 'failed') return '✗'
-  return '·'
+function isFinished(extraction: Extraction): boolean {
+  return extraction.status === 'succeeded' || extraction.status === 'applied'
 }
 
 const GROUP_ORDER: ChangeGroup[] = ['company', 'product', 'certification', 'contact']
@@ -90,9 +73,9 @@ export function ExtractionReviewPage() {
   const { id = '' } = useParams()
   const query = useQuery({ queryKey: ['extraction', id], queryFn: () => api.extraction(id) })
   return (
-    <QueryView query={query}>
-      {(extraction) => <ReviewForm extraction={extraction} />}
-    </QueryView>
+    <AuthCard steps={{ labels: STEPS, current: 2 }} title={t.extraction.reviewTitle} wide>
+      <QueryView query={query}>{(extraction) => <ReviewForm extraction={extraction} />}</QueryView>
+    </AuthCard>
   )
 }
 
@@ -107,10 +90,7 @@ export function ReviewForm({ extraction }: { extraction: Extraction }) {
   const [draft, setDraft] = useState('')
 
   const groups = useMemo(
-    () =>
-      GROUP_ORDER.map((group) => ({ group, items: extraction.changes.filter((change) => change.group === group) })).filter(
-        (entry) => entry.items.length > 0,
-      ),
+    () => GROUP_ORDER.map((group) => ({ group, items: extraction.changes.filter((change) => change.group === group) })).filter((entry) => entry.items.length > 0),
     [extraction.changes],
   )
 
@@ -135,80 +115,50 @@ export function ReviewForm({ extraction }: { extraction: Extraction }) {
   }
 
   if (extraction.status !== 'succeeded' || extraction.changes.length === 0) {
-    return (
-      <StackPage backTo="/me" title={t.extraction.reviewTitle}>
-        <PageCenter>
-          <EmptyPage
-            buttonLabel={t.extraction.back}
-            descText={t.extraction.noChangesDesc}
-            illus="noContent"
-            onAction={(action) => action === 'press' && navigate('/me', { replace: true })}
-          >
-            {t.extraction.noChanges}
-          </EmptyPage>
-        </PageCenter>
-      </StackPage>
-    )
+    return <EmptyState actionLabel={t.extraction.back} description={t.extraction.noChangesDesc} onAction={() => navigate('/me', { replace: true })} title={t.extraction.noChanges} />
   }
 
   const count = accepted.size
   return (
-    <StackPage
-      backTo="/onboarding"
-      footer={
-        <Button
-          onAction={(action) => action === 'press' && count > 0 && !apply.isPending && apply.mutate()}
-          size="L"
-          state={count > 0 && !apply.isPending ? 'Default' : 'Disable'}
-          type="Primary"
-        >
-          {t.extraction.merge(count)}
-        </Button>
-      }
-      title={t.extraction.reviewTitle}
-    >
-      <div className="content-inset">
-        <Markdown variant="Body">
-          <p>{t.extraction.reviewIntro}</p>
-        </Markdown>
-      </div>
+    <>
+      <p className="secondary">{t.extraction.reviewIntro}</p>
       {groups.map(({ group, items }) => (
-        <section key={group}>
-          <ListSectionTitle>{GROUP_LABEL[group]}</ListSectionTitle>
-          {items.map((change) => {
-            const value = change.id in overrides ? overrides[change.id] : change.value
-            const checked = accepted.has(change.id)
-            return (
-              <div className="review-row" data-change-id={change.id} key={change.id}>
-                <span className="review-check">
-                  <RadioCheckBox
-                    onAction={(action) => action === 'toggle' && toggle(change.id)}
+        <section className="review-group" key={group}>
+          <SectionTitle>{GROUP_LABEL[group]}</SectionTitle>
+          <div className="ui-list">
+            {items.map((change) => {
+              const value = change.id in overrides ? overrides[change.id] : change.value
+              const checked = accepted.has(change.id)
+              const showCurrent = !(change.current === null || change.group === 'product')
+              return (
+                <div className={checked ? 'review-row is-checked' : 'review-row'} data-change-id={change.id} key={change.id}>
+                  <Checkbox ariaLabel={change.label} checked={checked} onChange={() => toggle(change.id)} />
+                  <div className="review-row__main">
+                    <div className="review-row__label">{change.label}</div>
+                    <div className="review-row__value">{describeValue(value)}</div>
+                    {showCurrent ? <div className="review-row__current">{t.extraction.current(describeValue(change.current) || t.extraction.empty)}</div> : null}
+                  </div>
+                  <Button
+                    icon={Pencil}
+                    onClick={() => {
+                      setEditing(change)
+                      setDraft(editableText(change, value))
+                    }}
                     size="sm"
-                    state={checked ? 'checked' : 'unchecked'}
-                    type="circled"
-                  />
-                </span>
-                <SettingsFullWidthItem
-                  className="review-item"
-                  onAction={(action) => {
-                    if (action !== 'open') return
-                    setEditing(change)
-                    setDraft(editableText(change, value))
-                  }}
-                  subtitle={describeValue(value)}
-                  subtitle2={t.extraction.current(describeValue(change.current) || t.extraction.empty)}
-                  trailing={t.extraction.editShort}
-                  trailingKind="chevron"
-                  type={change.current === null || change.group === 'product' ? '双行列表-常规' : '三行列表-常规'}
-                >
-                  {change.label}
-                </SettingsFullWidthItem>
-              </div>
-            )
-          })}
+                    variant="ghost"
+                  >
+                    {t.extraction.editShort}
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
         </section>
       ))}
-      <FormSheet
+      <Button block disabled={count === 0} loading={apply.isPending} onClick={() => apply.mutate()} size="lg" variant="primary">
+        {t.extraction.merge(count)}
+      </Button>
+      <FormModal
         onClose={() => setEditing(null)}
         onPrimary={() => {
           if (!editing) return
@@ -221,10 +171,8 @@ export function ReviewForm({ extraction }: { extraction: Extraction }) {
         secondaryLabel={t.common.cancel}
         title={editing ? `${t.extraction.edit}：${editing.label}` : ''}
       >
-        <div className="sheet-form">
-          <FormDoubleLine maxLength={2000} onChange={setDraft} placeholder={editing?.label ?? ''} value={draft} />
-        </div>
-      </FormSheet>
-    </StackPage>
+        <TextArea maxLength={2000} onChange={setDraft} placeholder={editing?.label ?? ''} rows={5} value={draft} />
+      </FormModal>
+    </>
   )
 }

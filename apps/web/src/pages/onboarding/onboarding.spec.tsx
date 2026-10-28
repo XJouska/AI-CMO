@@ -82,7 +82,7 @@ describe('确认变更页', () => {
     expect(document.querySelector('script')).toBeNull()
 
     const row = document.querySelector('[data-change-id="f:usp"]') as HTMLElement
-    fireEvent.click(within(row).getByRole('button', { name: '已选中' }))
+    fireEvent.click(within(row).getByRole('checkbox'))
     expect(screen.getByRole('button', { name: '确认合并（3 项）' })).toBeTruthy()
   })
 
@@ -94,13 +94,13 @@ describe('确认变更页', () => {
     await screen.findByRole('button', { name: '确认合并（4 项）' })
     for (const id of ['f:founded_year', 'f:certifications', 'f:usp', 'p:0']) {
       const row = document.querySelector(`[data-change-id="${id}"]`) as HTMLElement
-      fireEvent.click(within(row).getByRole('button', { name: '已选中' }))
+      fireEvent.click(within(row).getByRole('checkbox'))
     }
     const disabled = screen.getByRole('button', { name: '请至少选择一项' }) as HTMLButtonElement
     expect(disabled.disabled).toBe(true)
 
     const yearRow = document.querySelector('[data-change-id="f:founded_year"]') as HTMLElement
-    fireEvent.click(within(yearRow).getByRole('button', { name: '未选中' }))
+    fireEvent.click(within(yearRow).getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: '确认合并（1 项）' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/me/profile'))
     const apply = server.calls.find((c) => c.path === '/extractions/e1/apply')!

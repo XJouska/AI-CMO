@@ -1,17 +1,16 @@
 // 官网二级页面：分区编辑（含 AI 改写、需确认标记）、预览、模板、域名、版本、询盘、健康检查。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, FormDoubleLine, FormSingleLine, ListSectionTitle, Markdown, SettingsFullWidthItem, Tab, Tag } from '@yb/generated/components'
+import { AlertTriangle, Check, CheckCircle2, Inbox, Mail, Monitor, RefreshCw, ShieldAlert, Smartphone, Wand2 } from 'lucide-react'
 import { useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { QueryView } from '@/components/local/QueryView'
-import { StackPage } from '@/components/local/StackPage'
-import { ConfirmDialog, FormSheet } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
+import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { AppPage } from '@/layout/AppPage'
 import { useSession } from '@/session/session'
 import { siteApi, type SiteContent, type SiteFlag, type SiteSection, type TemplateKey } from '@/site/api'
 import { AI_SECTIONS, EDITABLE, flagsFor, READ_ONLY_SECTIONS, SECTION_ORDER, sectionData, sectionDraft, sectionSummary } from '@/site/model'
+import { BulletList, Button, Card, CardHeader, ConfirmDialog, cx, FormModal, Heading, KeyValue, ListGroup, ListRow, NumberList, Quote, Stat, Tabs, Tag, Text, TextArea, TextField, useToast } from '@/ui'
 import { useDraft, useSite } from '../SitePage'
 
 function useInvalidateSite() {
@@ -31,9 +30,11 @@ export function SiteSectionPage() {
   const draft = useDraft(site.data)
   if (!SECTION_ORDER.includes(section as SiteSection)) return <Navigate replace to="/site" />
   return (
-    <QueryView query={draft}>
-      {(version) => <SectionEditor content={version.content} flags={version.flags} key={version.id} section={section as SiteSection} />}
-    </QueryView>
+    <AppPage back="/site" title={t.site.sections[section as SiteSection]} width="narrow">
+      <QueryView query={draft}>
+        {(version) => <SectionEditor content={version.content} flags={version.flags} key={version.id} section={section as SiteSection} />}
+      </QueryView>
+    </AppPage>
   )
 }
 
@@ -72,111 +73,115 @@ function SectionEditor({ section, content, flags }: { section: SiteSection; cont
 
   const readOnly = READ_ONLY_SECTIONS.includes(section)
   return (
-    <StackPage
-      backTo="/site"
-      footer={
-        <div className="form-actions">
-          {fields ? (
-            <Button onAction={(a) => a === 'press' && dirty && !save.isPending && save.mutate()} size="L" state={dirty && !save.isPending ? 'Default' : 'Disable'} type="Primary">
-              {t.common.save}
-            </Button>
-          ) : null}
+    <div className="stack-lg">
+      {pending.length ? (
+        <Card className="flag-card">
+          <CardHeader description={t.site.flagsDesc} icon={AlertTriangle} title={t.site.needsReview} />
+          <div className="ui-list">
+            {pending.map((flag) => (
+              <ListRow
+                key={`${flag.field}-${flag.text}`}
+                subtitle={flag.reason}
+                title={flag.text}
+                trailing={
+                  <Button icon={Check} onClick={() => ack.mutate(flag)} size="sm" variant="outline">
+                    {t.site.confirmTrue}
+                  </Button>
+                }
+              />
+            ))}
+          </div>
+        </Card>
+      ) : null}
+      <Card padding="lg">
+        {fields ? (
+          <div className="ui-form-stack">
+            {fields.map((field) => {
+              const label = t.site.fields[field.key as keyof typeof t.site.fields] ?? field.key
+              const common = {
+                label,
+                maxLength: field.max,
+                onChange: (value: string) => setDraft((prev) => ({ ...prev, [field.key]: value })),
+                placeholder: label,
+                value: draft[field.key] ?? '',
+              }
+              return field.kind === 'text' ? <TextField key={field.key} {...common} /> : <TextArea key={field.key} rows={field.kind === 'long' ? 6 : 4} {...common} />
+            })}
+          </div>
+        ) : (
+          <div className="stack">
+            <Text>{sectionSummary(content, section) || '—'}</Text>
+            {readOnly ? <Quote tone="accent">{t.site.sectionFromProfile}</Quote> : null}
+          </div>
+        )}
+      </Card>
+      {fields || AI_SECTIONS.includes(section) ? (
+        <div className="ui-form-actions">
           {AI_SECTIONS.includes(section) ? (
-            <Button onAction={(a) => a === 'press' && setRewriteOpen(true)} size="L" type="Secondary">
+            <Button icon={Wand2} onClick={() => setRewriteOpen(true)} variant="outline">
               {t.site.aiRewrite}
             </Button>
           ) : null}
-        </div>
-      }
-      surface="primary"
-      title={t.site.sections[section]}
-    >
-      {pending.length ? (
-        <section>
-          <ListSectionTitle>{t.site.needsReview}</ListSectionTitle>
-          {pending.map((flag) => (
-            <div className="site-flag-row" key={`${flag.field}-${flag.text}`}>
-              <SettingsFullWidthItem subtitle={flag.reason} trailing=" " trailingKind="none" type="双行列表-常规">
-                {flag.text}
-              </SettingsFullWidthItem>
-              <span className="site-flag-action">
-                <Button onAction={(a) => a === 'press' && ack.mutate(flag)} size="S" type="Outline">
-                  {t.site.confirmTrue}
-                </Button>
-              </span>
-            </div>
-          ))}
-        </section>
-      ) : null}
-      {fields ? (
-        <div className="form-stack">
-          {fields.map((field) => {
-            const label = t.site.fields[field.key as keyof typeof t.site.fields] ?? field.key
-            const props = {
-              label,
-              maxLength: field.max,
-              onChange: (value: string) => setDraft((prev) => ({ ...prev, [field.key]: value })),
-              placeholder: label,
-              value: draft[field.key] ?? '',
-            }
-            return field.kind === 'text' ? <FormSingleLine align="left" key={field.key} {...props} /> : <FormDoubleLine key={field.key} {...props} />
-          })}
-        </div>
-      ) : (
-        <div className="content-inset">
-          <Markdown variant="Body">
-            <p>{sectionSummary(content, section) || '—'}</p>
-          </Markdown>
-          {readOnly ? (
-            <Markdown variant="Quote" quoteText={<p>{t.site.sectionFromProfile}</p>} />
+          {fields ? (
+            <Button disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()} variant="primary">
+              {t.common.save}
+            </Button>
           ) : null}
         </div>
-      )}
-      <FormSheet
+      ) : null}
+      <FormModal
+        loading={rewrite.isPending}
         onClose={() => setRewriteOpen(false)}
         onPrimary={() => {
-          if (instruction.trim().length < 2 || rewrite.isPending) return
+          if (instruction.trim().length < 2) return
           setRewriteOpen(false)
           rewrite.mutate()
         }}
         open={rewriteOpen}
+        primaryDisabled={instruction.trim().length < 2}
         primaryLabel={t.common.confirm}
         secondaryLabel={t.common.cancel}
         title={t.site.aiRewrite}
       >
-        <div className="sheet-form">
-          <FormDoubleLine maxLength={500} onChange={setInstruction} placeholder={t.site.aiRewritePlaceholder} value={instruction} />
-        </div>
-      </FormSheet>
-    </StackPage>
+        <TextArea maxLength={500} onChange={setInstruction} placeholder={t.site.aiRewritePlaceholder} value={instruction} />
+      </FormModal>
+    </div>
   )
 }
 
 // ── 预览 ───────────────────────────────────────────────────────────────
 
 export function SitePreviewPage() {
-  const [mode, setMode] = useState<'desktop' | 'mobile'>('mobile')
+  const [mode, setMode] = useState<'desktop' | 'mobile'>('desktop')
   const preview = useQuery({ queryKey: ['site-preview'], queryFn: siteApi.previewUrl, staleTime: 10 * 60_000 })
   return (
-    <StackPage backTo="/site" surface="primary" title={t.site.preview}>
-      <div className="site-preview-tabs">
-        <Tab
-          items={[t.site.previewMobile, t.site.previewDesktop]}
-          onAction={(action) => {
-            if (action === 'tab:0') setMode('mobile')
-            if (action === 'tab:1') setMode('desktop')
-          }}
+    <AppPage
+      back="/site"
+      title={t.site.preview}
+      toolbar={
+        <Tabs
+          items={[
+            { value: 'desktop', label: <span className="row"><Monitor aria-hidden size={14} />{t.site.previewDesktop}</span> },
+            { value: 'mobile', label: <span className="row"><Smartphone aria-hidden size={14} />{t.site.previewMobile}</span> },
+          ]}
+          label={t.site.preview}
+          onChange={setMode}
+          value={mode}
         />
-      </div>
+      }
+      width="full"
+    >
       <QueryView query={preview}>
         {(data) => (
-          <div className="site-preview" data-mode={mode}>
-            {/* 沙箱：不允许脚本、表单提交与顶层跳转；预览接口本身也返回 CSP sandbox */}
-            <iframe referrerPolicy="no-referrer" sandbox="" src={data.url} title={t.site.preview} />
+          <div className={cx('site-preview', `is-${mode}`)} data-mode={mode}>
+            <div className="site-preview__frame">
+              {/* 沙箱：不允许脚本、表单提交与顶层跳转；预览接口本身也返回 CSP sandbox */}
+              <iframe referrerPolicy="no-referrer" sandbox="" src={data.url} title={t.site.preview} />
+            </div>
           </div>
         )}
       </QueryView>
-    </StackPage>
+    </AppPage>
   )
 }
 
@@ -196,19 +201,33 @@ export function SiteTemplatePage() {
     onError: showError,
   })
   return (
-    <StackPage backTo="/site" title={t.site.template}>
-      {(['industrial', 'building', 'consumer'] as TemplateKey[]).map((key) => (
-        <SettingsFullWidthItem
-          key={key}
-          onAction={(a) => a === 'open' && site.data?.template_key !== key && save.mutate(key)}
-          trailing={site.data?.template_key === key ? t.assistant.current : ' '}
-          trailingKind="chevron"
-          type="单行列表-常规"
-        >
-          {t.site.templates[key]}
-        </SettingsFullWidthItem>
-      ))}
-    </StackPage>
+    <AppPage back="/site" title={t.site.template}>
+      <div className="grid-3 template-grid">
+        {(['industrial', 'building', 'consumer'] as TemplateKey[]).map((key) => {
+          const current = site.data?.template_key === key
+          return (
+            <button
+              aria-pressed={current}
+              className={cx('template-card', current && 'is-current')}
+              disabled={save.isPending}
+              key={key}
+              onClick={() => !current && save.mutate(key)}
+              type="button"
+            >
+              <span aria-hidden className={`template-card__thumb template-card__thumb--${key}`}>
+                <span />
+                <span />
+                <span />
+              </span>
+              <span className="template-card__name">
+                {t.site.templates[key]}
+                {current ? <Tag tone="accent">{t.assistant.current}</Tag> : null}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </AppPage>
   )
 }
 
@@ -232,63 +251,63 @@ export function SiteDomainPage() {
     onError: showError,
   })
   const remove = useMutation({ mutationFn: siteApi.removeDomain, onSuccess: invalidate, onError: showError })
+  const submitDomain = () => {
+    if (!domain.trim()) return
+    const value = domain.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0]
+    if (!DOMAIN_RE.test(value)) return toast.show(t.site.domainInvalid)
+    save.mutate(value)
+    setDomain('')
+  }
   return (
-    <StackPage backTo="/site" surface="primary" title={t.site.domainTitle}>
+    <AppPage back="/site" title={t.site.domainTitle} width="narrow">
       <QueryView query={site}>
         {(data) =>
           data ? (
-            <>
-              <ListSectionTitle>{t.site.subdomain}</ListSectionTitle>
-              <SettingsFullWidthItem trailing=" " trailingKind="none" type="单行列表-常规">
-                {data.subdomain_host}
-              </SettingsFullWidthItem>
-              <ListSectionTitle>{t.site.domainStep1}</ListSectionTitle>
-              <div className="form-stack">
-                <FormSingleLine align="left" maxLength={253} onChange={setDomain} placeholder={data.custom_domain ?? t.site.domainPlaceholder} value={domain} />
-                <Button
-                  onAction={(a) => {
-                    if (a !== 'press' || !domain.trim()) return
-                    const value = domain.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0]
-                    if (!DOMAIN_RE.test(value)) return toast.show(t.site.domainInvalid)
-                    save.mutate(value)
-                    setDomain('')
-                  }}
-                  size="M"
-                  state={domain.trim() && !save.isPending ? 'Default' : 'Disable'}
-                  type="Secondary"
-                >
-                  {t.site.domainSave}
-                </Button>
-              </div>
+            <div className="stack-lg">
+              <Card>
+                <KeyValue items={[{ label: t.site.subdomain, value: <span className="mono">{data.subdomain_host}</span> }]} />
+              </Card>
+              <Card>
+                <CardHeader title={t.site.domainStep1} />
+                <div className="row domain-row">
+                  <TextField fieldClassName="grow" maxLength={253} onChange={setDomain} onSubmit={submitDomain} placeholder={data.custom_domain ?? t.site.domainPlaceholder} value={domain} />
+                  <Button disabled={!domain.trim()} loading={save.isPending} onClick={submitDomain} variant="secondary">
+                    {t.site.domainSave}
+                  </Button>
+                </div>
+              </Card>
               {data.custom_domain ? (
                 <>
-                  <ListSectionTitle>{t.site.domainStep2}</ListSectionTitle>
-                  <div className="content-inset">
-                    <Markdown items={[t.site.domainCname(data.subdomain_host), t.site.domainTxt(data.custom_domain, data.domain_token)]} variant="OL" />
-                  </div>
-                  <ListSectionTitle>{t.site.domainStep3}</ListSectionTitle>
-                  <SettingsFullWidthItem trailing={data.domain_verified ? t.site.statusPublished : t.site.statusDraft} trailingKind="none" type="单行列表-常规">
-                    {data.custom_domain}
-                  </SettingsFullWidthItem>
-                  <div className="form-actions content-inset">
-                    {!data.domain_verified ? (
-                      <Button onAction={(a) => a === 'press' && !verify.isPending && verify.mutate()} size="L" state={verify.isPending ? 'Disable' : 'Default'} type="Primary">
-                        {verify.isPending ? t.site.domainVerifying : t.site.domainVerify}
+                  <Card>
+                    <CardHeader title={t.site.domainStep2} />
+                    <NumberList items={[t.site.domainCname(data.subdomain_host), t.site.domainTxt(data.custom_domain, data.domain_token)]} />
+                  </Card>
+                  <Card>
+                    <CardHeader
+                      actions={<Tag tone={data.domain_verified ? 'success' : 'warning'}>{data.domain_verified ? t.site.statusPublished : t.site.statusDraft}</Tag>}
+                      description={data.custom_domain}
+                      title={t.site.domainStep3}
+                    />
+                    <div className="ui-form-actions ui-form-actions--start">
+                      {!data.domain_verified ? (
+                        <Button loading={verify.isPending} onClick={() => verify.mutate()} variant="primary">
+                          {verify.isPending ? t.site.domainVerifying : t.site.domainVerify}
+                        </Button>
+                      ) : null}
+                      <Button onClick={() => remove.mutate()} variant="danger-ghost">
+                        {t.site.domainRemove}
                       </Button>
-                    ) : null}
-                    <Button onAction={(a) => a === 'press' && remove.mutate()} size="M" type="Text">
-                      {t.site.domainRemove}
-                    </Button>
-                  </div>
+                    </div>
+                  </Card>
                 </>
               ) : null}
-            </>
+            </div>
           ) : (
             <Navigate replace to="/site" />
           )
         }
       </QueryView>
-    </StackPage>
+    </AppPage>
   )
 }
 
@@ -309,21 +328,28 @@ export function SiteVersionsPage() {
     onError: showError,
   })
   return (
-    <StackPage backTo="/site" title={t.site.versionsTitle}>
+    <AppPage back="/site" title={t.site.versionsTitle} width="narrow">
       <QueryView query={versions}>
         {(items) => (
-          <div className="list-block">
+          <div className="ui-list">
             {items.map((v) => (
-              <SettingsFullWidthItem
+              <ListRow
                 key={v.id}
-                onAction={(a) => a === 'open' && !v.is_draft && setTarget(v.id)}
                 subtitle={v.created_at.slice(0, 16).replace('T', ' ')}
-                trailing={v.is_draft ? t.site.versionCurrent : v.is_published ? t.site.versionPublished : t.site.restore}
-                trailingKind={v.is_draft ? 'none' : 'chevron'}
-                type="双行列表-常规"
-              >
-                {v.note || '—'}
-              </SettingsFullWidthItem>
+                title={v.note || '—'}
+                trailing={
+                  v.is_draft ? (
+                    <Tag tone="accent">{t.site.versionCurrent}</Tag>
+                  ) : (
+                    <>
+                      {v.is_published ? <Tag tone="success">{t.site.versionPublished}</Tag> : null}
+                      <Button icon={RefreshCw} onClick={() => setTarget(v.id)} size="sm" variant="ghost">
+                        {t.site.restore}
+                      </Button>
+                    </>
+                  )
+                }
+              />
             ))}
           </div>
         )}
@@ -340,7 +366,7 @@ export function SiteVersionsPage() {
         open={target !== null}
         title={t.site.restoreConfirm}
       />
-    </StackPage>
+    </AppPage>
   )
 }
 
@@ -351,28 +377,24 @@ export function SiteInquiriesPage() {
   const session = useSession()
   const list = useQuery({ queryKey: ['site-inquiries', session.company?.id, 'all'], queryFn: () => siteApi.inquiries(100) })
   return (
-    <StackPage backTo="/site" title={t.site.inquiriesTitle}>
-      <QueryView empty={{ title: t.site.noInquiries, desc: t.site.generateDesc }} isEmpty={(items) => items.length === 0} query={list}>
+    <AppPage back="/site" title={t.site.inquiriesTitle}>
+      <QueryView empty={{ title: t.site.noInquiries, desc: t.site.generateDesc, icon: Inbox }} isEmpty={(items) => items.length === 0} query={list}>
         {(items) => (
-          <div className="list-block">
+          <div className="ui-list">
             {items.map((item) => (
-              <SettingsFullWidthItem
+              <ListRow
+                dot={item.status === 'new'}
                 key={item.id}
-                onAction={(a) => a === 'open' && navigate(`/site/inquiries/${item.id}`)}
-                showDot={item.status === 'new'}
+                meta={item.created_at.slice(0, 10)}
+                onClick={() => navigate(`/site/inquiries/${item.id}`)}
                 subtitle={item.product_ref || item.message}
-                subtitle2={item.created_at.slice(0, 10)}
-                trailingKind="chevron"
-                trailing=" "
-                type="三行列表-常规"
-              >
-                {t.site.inquiryFrom(item.company_name || item.name, item.country)}
-              </SettingsFullWidthItem>
+                title={t.site.inquiryFrom(item.company_name || item.name, item.country)}
+              />
             ))}
           </div>
         )}
       </QueryView>
-    </StackPage>
+    </AppPage>
   )
 }
 
@@ -393,28 +415,32 @@ export function SiteInquiryPage() {
     onError: showError,
   })
   return (
-    <StackPage backTo="/site/inquiries" surface="primary" title={t.site.inquiryTitle}>
+    <AppPage back="/site/inquiries" title={t.site.inquiryTitle} width="narrow">
       <QueryView query={inquiry}>
         {(item) => (
-          <div className="content-inset">
-            <Markdown variant="Others+H3">{t.site.inquiryFrom(item.company_name || item.name, item.country)}</Markdown>
-            <Markdown items={[item.name, item.email, item.product_ref, item.created_at.slice(0, 16).replace('T', ' ')].filter(Boolean)} variant="UL" />
-            {/* 询盘内容来自公网，按纯文本显示 */}
-            <Markdown variant="Quote" quoteText={<p className="pre-wrap">{item.message}</p>} />
-            <div className="form-actions">
-              <Button onAction={(a) => a === 'press' && window.open(`mailto:${encodeURIComponent(item.email)}`, '_self')} size="L" type="Primary">
-                {t.site.replyByEmail}
-              </Button>
-              {item.status !== 'spam' ? (
-                <Button onAction={(a) => a === 'press' && mark.mutate()} size="M" type="Text">
-                  {t.site.markSpam}
+          <Card padding="lg">
+            <div className="stack">
+              <Heading level={3}>{t.site.inquiryFrom(item.company_name || item.name, item.country)}</Heading>
+              <BulletList items={[item.name, item.email, item.product_ref, item.created_at.slice(0, 16).replace('T', ' ')].filter(Boolean)} />
+              {/* 询盘内容来自公网，按纯文本显示 */}
+              <Quote>
+                <span className="pre-wrap">{item.message}</span>
+              </Quote>
+              <div className="ui-form-actions ui-form-actions--start">
+                <Button icon={Mail} onClick={() => window.open(`mailto:${encodeURIComponent(item.email)}`, '_self')} variant="primary">
+                  {t.site.replyByEmail}
                 </Button>
-              ) : null}
+                {item.status !== 'spam' ? (
+                  <Button icon={ShieldAlert} loading={mark.isPending} onClick={() => mark.mutate()} variant="ghost">
+                    {t.site.markSpam}
+                  </Button>
+                ) : null}
+              </div>
             </div>
-          </div>
+          </Card>
         )}
       </QueryView>
-    </StackPage>
+    </AppPage>
   )
 }
 
@@ -435,46 +461,40 @@ export function SiteHealthPage() {
   })
   const data = run.data ?? health.data
   return (
-    <StackPage
-      backTo="/site"
-      footer={
-        <Button onAction={(a) => a === 'press' && !run.isPending && run.mutate()} size="L" state={run.isPending ? 'Disable' : 'Default'} type="Primary">
+    <AppPage
+      actions={
+        <Button icon={RefreshCw} loading={run.isPending} onClick={() => run.mutate()} variant="primary">
           {t.site.healthRun}
         </Button>
       }
+      back="/site"
       title={t.site.healthTitle}
+      width="narrow"
     >
       {data ? (
-        <>
-          <ListSectionTitle>{t.site.health(data.score)}</ListSectionTitle>
-          {data.issues.map((issue) => (
-            <div className="site-issue" key={issue.key}>
-              <SettingsFullWidthItem
-                onAction={(a) => {
-                  if (a !== 'open') return
-                  if (issue.section === 'domain') navigate('/site/domain')
-                  else if (['certificates', 'contact', 'markets'].includes(issue.section)) navigate('/me/profile')
-                  else if (issue.section === 'factory' || issue.section === 'products') navigate('/me/products')
-                  else navigate(`/site/sections/${issue.section}`)
-                }}
-                subtitle={issue.fix}
-                trailing=" "
-                trailingKind="chevron"
-                type="双行列表-常规"
-              >
-                {issue.title}
-              </SettingsFullWidthItem>
-              {issue.severity === 'high' ? (
-                <span className="site-flag-tag">
-                  <Tag showIcon={false} type="Badge">
-                    !
-                  </Tag>
-                </span>
-              ) : null}
-            </div>
-          ))}
-        </>
+        <div className="stack-lg">
+          <Stat icon={CheckCircle2} label={t.site.healthTitle} tone={data.score >= 80 ? 'success' : 'warning'} value={t.site.health(data.score)} />
+          {data.issues.length ? (
+            <ListGroup title={t.site.healthIssues}>
+              {data.issues.map((issue) => (
+                <ListRow
+                  className="site-issue"
+                  key={issue.key}
+                  onClick={() => {
+                    if (issue.section === 'domain') navigate('/site/domain')
+                    else if (['certificates', 'contact', 'markets'].includes(issue.section)) navigate('/me/profile')
+                    else if (issue.section === 'factory' || issue.section === 'products') navigate('/me/products')
+                    else navigate(`/site/sections/${issue.section}`)
+                  }}
+                  subtitle={issue.fix}
+                  title={issue.title}
+                  trailing={issue.severity === 'high' ? <Tag tone="danger">{t.site.severityHigh}</Tag> : undefined}
+                />
+              ))}
+            </ListGroup>
+          ) : null}
+        </div>
       ) : null}
-    </StackPage>
+    </AppPage>
   )
 }

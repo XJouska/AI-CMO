@@ -76,7 +76,7 @@ describe('「商机」Tab', () => {
     expect(await screen.findByText('正在为你寻找商机')).toBeTruthy()
   })
 
-  it('列表：卡片、概览、TabBar 未读数、分类 Tab、分页、进入详情', async () => {
+  it('列表：卡片、概览、侧边栏未读数、分类标签、分页、进入详情', async () => {
     const page1 = { items: [lead(), lead({ id: 'l2', type: 'rfq', title: 'RFQ: valves', is_new: false })], total: 3, new_count: 1, today_count: 2 }
     server
       .on('GET', '/watches', [activeWatch])
@@ -89,7 +89,7 @@ describe('「商机」Tab', () => {
     expect(screen.getByText('今日新增 2 条 · 共 3 条')).toBeTruthy()
     expect(within(document.querySelector('[data-lead-id="l1"]') as HTMLElement).getByText('86 分')).toBeTruthy()
     const nav = screen.getByRole('navigation', { name: '主导航' })
-    await waitFor(() => expect(within(nav).getByRole('button', { name: /商机/ }).textContent).toContain('1'))
+    await waitFor(() => expect(within(nav).getByRole('link', { name: /商机/ }).textContent).toContain('1'))
 
     fireEvent.click(screen.getByRole('button', { name: '加载更多' }))
     expect(await screen.findByText('Third lead')).toBeTruthy()
@@ -132,7 +132,7 @@ describe('商机详情', () => {
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
 
     fireEvent.click(screen.getByRole('button', { name: '反馈' }))
-    fireEvent.pointerDown(await screen.findByRole('button', { name: '不相关' }))
+    fireEvent.click(await screen.findByRole('button', { name: '不相关' }))
     expect(await screen.findByText('感谢反馈，我们会据此优化推荐')).toBeTruthy()
     expect(server.calls.find((c) => c.method === 'POST')!.body).toEqual({ verdict: 'irrelevant' })
   })

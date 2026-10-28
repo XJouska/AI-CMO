@@ -1,18 +1,19 @@
-// 商机详情、监控设置。
+// 商机详情（两栏：左侧内容，右侧操作与跟进）、监控设置。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, FormDoubleLine, ListSectionTitle, Markdown, SettingsFullWidthItem, Tag } from '@yb/generated/components'
+import { ExternalLink, Mail, MessageSquareWarning, Play, Radar } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { QueryView } from '@/components/local/QueryView'
-import { StackPage } from '@/components/local/StackPage'
-import { ChoiceSheet, ConfirmDialog } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
+import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { AppPage } from '@/layout/AppPage'
+import { SettingsPage } from '@/layout/SettingsPage'
 import { leadsApi, type LeadOut, type WatchOut } from '@/leads/api'
-import { FollowUpSection } from '@/outreach/FollowUpSection'
+import { LEAD_TYPE_ICON, scoreTone } from '@/leads/LeadCard'
 import { joinList, splitList } from '@/lib/validation'
+import { FollowUpSection } from '@/outreach/FollowUpSection'
 import { useSession } from '@/session/session'
+import { Button, Card, CardHeader, ChoiceMenu, ConfirmDialog, Heading, KeyValue, ListGroup, ListRow, NumberList, Progress, Quote, SectionTitle, Select, Switch, Tag, Text, TextArea, useToast } from '@/ui'
 
 const FEEDBACK: ('useful' | 'irrelevant' | 'duplicate' | 'fake')[] = ['useful', 'irrelevant', 'duplicate', 'fake']
 
@@ -30,9 +31,9 @@ export function LeadDetailPage() {
   const { id = '' } = useParams()
   const lead = useQuery({ queryKey: ['lead', id], queryFn: () => leadsApi.get(id) })
   return (
-    <StackPage backTo="/leads" surface="primary" title={t.leads.detailTitle}>
+    <AppPage back="/leads" title={t.leads.detailTitle}>
       <QueryView query={lead}>{(data) => <LeadDetail lead={data} />}</QueryView>
-    </StackPage>
+    </AppPage>
   )
 }
 
@@ -52,95 +53,90 @@ function LeadDetail({ lead }: { lead: LeadOut }) {
   void queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'none' })
   const source = safeExternal(lead.source_url)
   const contacts = lead.buyer?.public_contacts
+  const TypeIcon = LEAD_TYPE_ICON[lead.type]
+
   return (
-    <>
-      <div className="content-inset lead-detail">
-        <div className="lead-card-tags">
-          <Tag showIcon={false} type="Default">
-            {t.leads.types[lead.type]}
-          </Tag>
-          <Tag showIcon={false} type="Badge">
-            {t.leads.score(lead.score)}
-          </Tag>
-          {lead.deadline ? (
-            <Tag showIcon={false} type="Default">
-              {t.leads.deadline(lead.deadline)}
-            </Tag>
-          ) : null}
-        </div>
-        <Markdown variant="Others+H3">{lead.title}</Markdown>
-        {lead.reasons.length ? (
-          <>
-            <Markdown variant="Others+H4">{t.leads.whyTitle}</Markdown>
-            <Markdown items={lead.reasons} variant="OL" />
-          </>
-        ) : null}
-        <Markdown variant="Others+H4">{t.leads.summaryTitle}</Markdown>
-        <Markdown variant="Body">
-          <p className="pre-wrap">{lead.summary_cn}</p>
-        </Markdown>
-        {lead.suggested_action ? (
-          <Markdown variant="Quote" quoteText={<p>{`${t.leads.suggestedTitle}：${lead.suggested_action}`}</p>} />
-        ) : null}
-      </div>
+    <div className="split lead-detail">
+      <div className="stack-lg">
+        <Card padding="lg">
+          <div className="stack">
+            <div className="row">
+              <Tag icon={TypeIcon}>{t.leads.types[lead.type]}</Tag>
+              <Tag tone={scoreTone(lead.score)}>{t.leads.score(lead.score)}</Tag>
+              {lead.deadline ? <Tag tone="warning">{t.leads.deadline(lead.deadline)}</Tag> : null}
+              {lead.market ? <Tag>{lead.market}</Tag> : null}
+            </div>
+            <Heading level={2}>{lead.title}</Heading>
+            {lead.reasons.length ? (
+              <section className="stack">
+                <Heading level={4}>{t.leads.whyTitle}</Heading>
+                <NumberList items={lead.reasons} />
+              </section>
+            ) : null}
+            <section className="stack">
+              <Heading level={4}>{t.leads.summaryTitle}</Heading>
+              <Text className="pre-wrap">{lead.summary_cn}</Text>
+            </section>
+            {lead.suggested_action ? <Quote tone="accent">{`${t.leads.suggestedTitle}：${lead.suggested_action}`}</Quote> : null}
+          </div>
+        </Card>
 
-      {lead.buyer ? (
+        {lead.buyer ? (
+          <ListGroup title={t.leads.buyerTitle}>
+            <ListRow subtitle={[lead.buyer.country, lead.buyer.industry, lead.buyer.domain].filter(Boolean).join(' · ') || undefined} title={lead.buyer.name} />
+            {contacts?.emails?.map((email) => <ListRow icon={Mail} key={email} title={email} />)}
+            {contacts?.phones?.map((phone) => <ListRow key={phone} title={phone} />)}
+          </ListGroup>
+        ) : null}
+
         <section>
-          <ListSectionTitle>{t.leads.buyerTitle}</ListSectionTitle>
-          <SettingsFullWidthItem subtitle={[lead.buyer.country, lead.buyer.industry, lead.buyer.domain].filter(Boolean).join(' · ') || ' '} trailing=" " trailingKind="none" type="双行列表-常规">
-            {lead.buyer.name}
-          </SettingsFullWidthItem>
-          {contacts?.emails?.map((email) => (
-            <SettingsFullWidthItem key={email} trailing=" " trailingKind="none" type="单行列表-常规">
-              {email}
-            </SettingsFullWidthItem>
-          ))}
-          {contacts?.phones?.map((phone) => (
-            <SettingsFullWidthItem key={phone} trailing=" " trailingKind="none" type="单行列表-常规">
-              {phone}
-            </SettingsFullWidthItem>
-          ))}
+          <SectionTitle>{t.leads.scoreTitle}</SectionTitle>
+          <Card>
+            <div className="score-list">
+              {lead.score_detail.map((d) => (
+                <div className="score-item" key={d.key}>
+                  <div className="row-between">
+                    <span>{`${d.label}（${Math.round(d.weight * 100)}%）`}</span>
+                    <strong>{d.score}</strong>
+                  </div>
+                  <Progress label={d.label} value={d.score} />
+                </div>
+              ))}
+            </div>
+          </Card>
         </section>
-      ) : null}
-
-      <ListSectionTitle>{t.leads.scoreTitle}</ListSectionTitle>
-      {lead.score_detail.map((d) => (
-        <SettingsFullWidthItem key={d.key} trailing={`${d.score}`} trailingKind="none" type="单行列表-常规">
-          {`${d.label}（${Math.round(d.weight * 100)}%）`}
-        </SettingsFullWidthItem>
-      ))}
-
-      {source ? (
-        <>
-          <ListSectionTitle>{t.leads.sourceTitle}</ListSectionTitle>
-          <SettingsFullWidthItem onAction={(a) => a === 'open' && setExternal(source)} trailing=" " trailingKind="chevron" type="单行列表-常规">
-            {t.leads.openSource(lead.source_domain)}
-          </SettingsFullWidthItem>
-        </>
-      ) : null}
-
-      <FollowUpSection leadId={lead.id} />
-
-      <div className="form-actions content-inset">
-        <Button onAction={(a) => a === 'press' && navigate(`/leads/${lead.id}/draft`)} size="L" type="Primary">
-          {t.leads.writeEmail}
-        </Button>
-        <Button onAction={(a) => a === 'press' && setFeedbackOpen(true)} size="M" type="Text">
-          {t.leads.feedback}
-        </Button>
       </div>
 
-      <ChoiceSheet
+      <aside className="split__side">
+        <Card>
+          <CardHeader title={t.leads.actionsTitle} />
+          <div className="stack">
+            <Button block icon={Mail} onClick={() => navigate(`/leads/${lead.id}/draft`)} size="lg" variant="primary">
+              {t.leads.writeEmail}
+            </Button>
+            {source ? (
+              <Button block icon={ExternalLink} onClick={() => setExternal(source)} variant="outline">
+                {t.leads.openSource(lead.source_domain)}
+              </Button>
+            ) : null}
+            <Button block icon={MessageSquareWarning} onClick={() => setFeedbackOpen(true)} variant="ghost">
+              {t.leads.feedback}
+            </Button>
+          </div>
+        </Card>
+        <FollowUpSection leadId={lead.id} />
+      </aside>
+
+      <ChoiceMenu
         cancelLabel={t.common.cancel}
-        description={t.leads.feedback}
-        items={[...t.leads.feedbackItems]}
-        label={t.leads.feedback}
+        items={t.leads.feedbackItems.map((label) => ({ label }))}
         onCancel={() => setFeedbackOpen(false)}
         onSelect={(index) => {
           setFeedbackOpen(false)
           feedback.mutate(FEEDBACK[index])
         }}
         open={feedbackOpen}
+        title={t.leads.feedback}
       />
       <ConfirmDialog
         body={external ? t.leads.openSourceDesc(external) : ''}
@@ -154,7 +150,7 @@ function LeadDetail({ lead }: { lead: LeadOut }) {
         open={external !== null}
         title={t.leads.openSourceConfirm}
       />
-    </>
+    </div>
   )
 }
 
@@ -164,17 +160,17 @@ export function WatchSettingsPage() {
   const session = useSession()
   const watches = useQuery({ queryKey: ['watches', session.company?.id], queryFn: leadsApi.watches })
   return (
-    <StackPage backTo="/me" title={t.leads.watchTitle}>
-      <QueryView empty={{ title: t.leads.watchEmpty, desc: t.leads.noWatchDesc }} isEmpty={(items) => items.length === 0} query={watches}>
+    <SettingsPage title={t.leads.watchTitle}>
+      <QueryView empty={{ title: t.leads.watchEmpty, desc: t.leads.noWatchDesc, icon: Radar }} isEmpty={(items) => items.length === 0} query={watches}>
         {(items) => (
-          <>
+          <div className="stack-lg">
             {items.map((watch) => (
               <WatchEditor key={watch.id} watch={watch} />
             ))}
-          </>
+          </div>
         )}
       </QueryView>
-    </StackPage>
+    </SettingsPage>
   )
 }
 
@@ -203,52 +199,51 @@ function WatchEditor({ watch }: { watch: WatchOut }) {
     onError: showError,
   })
   return (
-    <section className="watch-editor" data-watch-id={watch.id}>
-      <ListSectionTitle>{watch.name}</ListSectionTitle>
-      <SettingsFullWidthItem
-        onAction={(a) => a === 'open' && update.mutate({ is_active: !watch.is_active })}
-        subtitle={t.leads.watchLastRun(watch.last_run_at?.slice(0, 16).replace('T', ' ') ?? null)}
-        trailing={watch.is_active ? t.site.statusPublished : t.me.notSet}
-        trailingKind="chevron"
-        type="双行列表-常规"
-      >
-        {t.leads.watchActive}
-      </SettingsFullWidthItem>
-      {watch.last_run ? (
-        <SettingsFullWidthItem trailing=" " trailingKind="none" type="单行列表-常规">
-          {t.leads.runStats(watch.last_run.stats)}
-        </SettingsFullWidthItem>
-      ) : null}
-      <SettingsFullWidthItem
-        onAction={(a) => a === 'open' && update.mutate({ frequency: watch.frequency === 'daily' ? 'weekly' : 'daily' })}
-        trailing={watch.frequency === 'daily' ? t.leads.watchDaily : t.leads.watchWeekly}
-        trailingKind="chevron"
-        type="单行列表-常规"
-      >
-        {t.leads.watchFrequency}
-      </SettingsFullWidthItem>
-      <div className="form-stack">
-        <FormDoubleLine label={t.leads.watchKeywords} maxLength={1200} onChange={(v) => setDraft((d) => ({ ...d, keywords: v }))} placeholder="ball valve" value={draft.keywords} />
-        <FormDoubleLine label={t.leads.watchMarkets} maxLength={1200} onChange={(v) => setDraft((d) => ({ ...d, markets: v }))} placeholder="Germany, Poland" value={draft.markets} />
-        <FormDoubleLine label={t.leads.watchNegative} maxLength={1200} onChange={(v) => setDraft((d) => ({ ...d, negative: v }))} placeholder="used, second-hand" value={draft.negative} />
-        <div className="form-actions">
+    <Card data-watch-id={watch.id} padding="lg">
+      <CardHeader
+        actions={<Switch checked={watch.is_active} label={t.leads.watchActive} onChange={(on) => update.mutate({ is_active: on })} showLabel />}
+        description={t.leads.watchLastRun(watch.last_run_at?.slice(0, 16).replace('T', ' ') ?? null)}
+        icon={Radar}
+        title={watch.name}
+      />
+      <div className="stack">
+        {watch.last_run ? <Quote>{t.leads.runStats(watch.last_run.stats)}</Quote> : null}
+        <KeyValue
+          items={[
+            {
+              label: t.leads.watchFrequency,
+              value: (
+                <Select
+                  onChange={(frequency) => update.mutate({ frequency })}
+                  options={[
+                    { value: 'daily', label: t.leads.watchDaily },
+                    { value: 'weekly', label: t.leads.watchWeekly },
+                  ]}
+                  value={watch.frequency === 'weekly' ? 'weekly' : 'daily'}
+                />
+              ),
+            },
+          ]}
+        />
+        <TextArea label={t.leads.watchKeywords} maxLength={1200} onChange={(v) => setDraft((d) => ({ ...d, keywords: v }))} placeholder="ball valve" rows={2} value={draft.keywords} />
+        <div className="grid-2">
+          <TextArea label={t.leads.watchMarkets} maxLength={1200} onChange={(v) => setDraft((d) => ({ ...d, markets: v }))} placeholder="Germany, Poland" rows={2} value={draft.markets} />
+          <TextArea label={t.leads.watchNegative} maxLength={1200} onChange={(v) => setDraft((d) => ({ ...d, negative: v }))} placeholder="used, second-hand" rows={2} value={draft.negative} />
+        </div>
+        <div className="ui-form-actions">
+          <Button disabled={!watch.is_active} icon={Play} loading={run.isPending} onClick={() => run.mutate()} variant="outline">
+            {t.leads.watchRunNow}
+          </Button>
           <Button
-            onAction={(a) =>
-              a === 'press' &&
-              dirty &&
-              update.mutate({ keywords_en: splitList(draft.keywords), markets: splitList(draft.markets), negative_keywords: splitList(draft.negative) })
-            }
-            size="L"
-            state={dirty && !update.isPending ? 'Default' : 'Disable'}
-            type="Primary"
+            disabled={!dirty}
+            loading={update.isPending}
+            onClick={() => update.mutate({ keywords_en: splitList(draft.keywords), markets: splitList(draft.markets), negative_keywords: splitList(draft.negative) })}
+            variant="primary"
           >
             {t.common.save}
           </Button>
-          <Button onAction={(a) => a === 'press' && !run.isPending && run.mutate()} size="M" state={watch.is_active && !run.isPending ? 'Default' : 'Disable'} type="Secondary">
-            {t.leads.watchRunNow}
-          </Button>
         </div>
       </div>
-    </section>
+    </Card>
   )
 }

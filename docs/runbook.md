@@ -119,7 +119,13 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml --
 - **联系人删除请求**：公开页面 `/data-request` 提交，运营在「运营工作台 → 联系人删除请求」核实后执行；会从所有企业的买家联系方式、未发送的开发信中移除，并加入各企业屏蔽名单
 - **审计日志**：运营工作台「审计日志」，包含权限变更、数据导出、代客操作、发布官网、发送邮件、套餐开通、支付、删除等
 
-## 10. 当前生产部署（2026-10-28 已切换）
+## 10. 当前生产部署
+
+> **2026-10-28 19:04 已回滚到旧版。** 新版界面要重做成网页形态（不再用手机 App 外壳）。目前线上的 `www.aicmo.site` 是旧版：
+> 宿主 Nginx 指向 9010 / 9011，旧容器由 `/home/ai-cmo-legacy/docker-compose.yml` 管理（`docker compose up -d --no-deps frontend backend`）。
+> 新版容器 `aicmo-v2-*` 仍在运行，只监听 127.0.0.1，公网访问不到。新版 Nginx 配置保存在 `/var/backups/aicmo-legacy/nginx-ai-cmo.conf.v2`，
+> 重新切到新版时：`cp /var/backups/aicmo-legacy/nginx-ai-cmo.conf.v2 /www/server/panel/vhost/nginx/ai-cmo.conf && nginx -t && nginx -s reload`，
+> 再停掉旧前后端容器。下面是切换到新版时的记录。
 
 本服务器的 80 / 443 由宝塔面板管理的宿主 Nginx 占用（同机还托管 vidsnap、wordscene 等站点），因此**没有启用** `docker-compose.prod.yml` 中的 Caddy，而是由宿主 Nginx 反代到新版容器：
 
@@ -140,7 +146,8 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml --
 
 ```bash
 cp /var/backups/aicmo-legacy/nginx-ai-cmo.conf.bak /www/server/panel/vhost/nginx/ai-cmo.conf
-docker start ai-cmo-backend-1 ai-cmo-frontend-1
+# 旧前端的静态文件在 /home/ai-cmo-legacy，必须用这里的 compose 重建，直接 docker start 会因挂载路径不存在而失败
+cd /home/ai-cmo-legacy && docker compose up -d --no-deps frontend backend
 nginx -t && nginx -s reload
 ```
 

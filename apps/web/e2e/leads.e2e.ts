@@ -4,7 +4,7 @@ import { completeProfile, expectNoFallback, signUp, staffHeaders, waitForPending
 // 计划 05：一键创建监控 → 手动运行（假搜索源，worker 真实跑流水线）→ 运营复核通过 → 用户看到商机 → 详情 / 反馈。
 // 运营账号由 backend/scripts/e2e_seed.py 预置。
 
-test('一键创建监控 → 运行 → 复核通过 → 用户看到商机 → 详情与反馈', async ({ page, request }) => {
+test('一键创建监控 → 运行 → 复核通过 → 用户看到商机 → 详情与反馈', async ({ page, request }, info) => {
   const errors = watchPageErrors(page)
   const account = await signUp(page, request)
   await completeProfile(request, account.token, account.companyId!)
@@ -37,7 +37,7 @@ test('一键创建监控 → 运行 → 复核通过 → 用户看到商机 → 
   const card = page.locator(`[data-lead-id="${approved.lead.id}"]`)
   await expect(card).toBeVisible()
   expect(await page.locator('[data-lead-id]').count()).toBe(1)
-  await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: /商机/ })).toContainText('1')
+  if (info.project.name === 'desktop') await expect(page.locator('.app-sidebar').getByRole('link', { name: /商机/ })).toContainText('1')
   await expectNoFallback(page)
   await expect(page).toHaveScreenshot('leads-list.png', { mask: [page.getByText(/今日新增/)] })
 

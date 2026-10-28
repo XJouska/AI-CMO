@@ -8,8 +8,7 @@
 
 | 目录 | 内容 |
 |---|---|
-| `apps/web` | 移动端 H5 应用（React 19 + Vite + TypeScript），界面基于 yb-mobile-design |
-| `packages/yb-ui` | vendored 设计系统（不要直接修改，扩展放在 `extensions/`），见 `VENDOR.md` |
+| `apps/web` | 网站前端（React 19 + Vite + TypeScript）：营销首页、登录与建档、带侧边栏的工作台；组件自研，图标使用 lucide |
 | `backend` | FastAPI + SQLAlchemy 2 + Alembic；`app/core` 为配置、数据库、日志、错误、安全 |
 | `deploy` | Docker Compose（项目名 `aicmo-v2`）、Dockerfile、Nginx 配置 |
 | `docs` | UI 缺口登记、授权说明、验收记录等 |

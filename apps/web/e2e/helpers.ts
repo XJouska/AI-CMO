@@ -1,4 +1,3 @@
-import { appendFileSync } from 'node:fs'
 import { expect, type APIRequestContext, type Page } from '@playwright/test'
 
 let counter = 0
@@ -53,7 +52,6 @@ export async function signUp(
 /** 页面不得出现脚本错误、控制台错误（含失败的网络请求）与降级渲染。 */
 export function watchPageErrors(page: Page, { allowHttpErrors = false } = {}): string[] {
   const errors: string[] = []
-  recordAssets(page)
   page.on('pageerror', (error) => errors.push(error.message))
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return
@@ -65,11 +63,12 @@ export function watchPageErrors(page: Page, { allowHttpErrors = false } = {}): s
   return errors
 }
 
-// 正式组件在缺少内容时显示的设计稿占位文案；出现即说明页面漏传了内容。
-const PLACEHOLDER_TEXT = /描述文本|列表标题|标题下描述文本|其他文本内容|这里是标题|主要按钮|次要按钮|Description|^Title$/m
+// 页面漏传内容时可能出现的占位文案
+const PLACEHOLDER_TEXT = /undefined|\[object Object\]|NaN%/
 
+/** 页面没有品牌字样、没有占位文案、没有引用设计包的 DOM。 */
 export async function expectNoFallback(page: Page) {
-  expect(await page.locator('.yb-fallback').count()).toBe(0)
+  expect(await page.locator('[class*="yb-"]').count()).toBe(0)
   const text = await page.locator('body').innerText()
   expect(text).not.toMatch(/\u5143\u5b9d/)
   expect(text).not.toMatch(PLACEHOLDER_TEXT)
@@ -121,14 +120,4 @@ export async function waitForPendingLeads(request: APIRequestContext, headers: R
     )
     .toBeGreaterThan(0)
   return items
-}
-
-/** 记录页面实际请求的设计包静态资源（images / loading 目录），E2E 结束后汇总为生产包保留清单。 */
-const ASSET_LOG = process.env.E2E_ASSET_LOG
-function recordAssets(page: Page) {
-  if (!ASSET_LOG) return
-  page.on('request', (request) => {
-    const match = /^https?:\/\/[^/]+\/((?:images|loading)\/[^?#]+)/.exec(request.url())
-    if (match) appendFileSync(ASSET_LOG, `${match[1]}\n`)
-  })
 }

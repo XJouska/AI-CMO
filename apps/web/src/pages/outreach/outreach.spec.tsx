@@ -125,13 +125,13 @@ describe('跟进阶段与记录', () => {
     renderRoutes('/leads/l1')
     expect(await screen.findByText('新商机 → 已查看')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '推进' }))
-    fireEvent.pointerDown(await screen.findByRole('button', { name: '已联系' }))
+    fireEvent.click(await screen.findByRole('button', { name: '已联系' }))
     expect(await screen.findByText('已更新为「已联系」')).toBeTruthy()
     expect(server.calls.find((c) => c.path === '/leads/l1/stage')!.body).toEqual({ stage: 'contacted' })
 
     fireEvent.click(screen.getByRole('button', { name: '推进' }))
-    fireEvent.pointerDown(await screen.findByRole('button', { name: '已放弃' }))
-    fireEvent.pointerDown(await screen.findByRole('button', { name: '价格没有竞争力' }))
+    fireEvent.click(await screen.findByRole('button', { name: '已放弃' }))
+    fireEvent.click(await screen.findByRole('button', { name: '价格没有竞争力' }))
     await waitFor(() => expect(server.calls.filter((c) => c.path === '/leads/l1/stage').at(-1)!.body).toEqual({ stage: 'lost', lost_reason: 'price' }))
   })
 
@@ -153,7 +153,7 @@ describe('跟进阶段与记录', () => {
     })
 
     fireEvent.click(screen.getByText('添加记录'))
-    fireEvent.pointerDown(await screen.findByRole('button', { name: '对方回复' }))
+    fireEvent.click(await screen.findByRole('button', { name: '对方回复' }))
     const sheet = await screen.findByRole('dialog')
     fireEvent.change(within(sheet).getByLabelText('内容'), { target: { value: 'Please send catalogue' } })
     fireEvent.click(within(sheet).getByRole('button', { name: '保存' }))

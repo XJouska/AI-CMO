@@ -1,14 +1,12 @@
-// 助手卡片注册表：card_type → 组件。卡片只用正式组件组合（Card Output + Button + Markdown）。
-// 未知 card_type 降级为纯文本说明，不渲染空白。
+// 助手卡片注册表：card_type → 组件。未知 card_type 降级为纯文本说明，不渲染空白。
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Button, Card, Markdown } from '@yb/generated/components'
-import { Icon } from '@yb/library/Icon'
+import { AlertTriangle, ChevronRight, ClipboardList, PackagePlus, type LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/endpoints'
-import { useToast } from '@/feedback/toast'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { Button, Tag, Text, useToast } from '@/ui'
 import { assistantApi } from '../api'
 
 export interface CardProps {
@@ -18,31 +16,29 @@ export interface CardProps {
 const str = (value: unknown) => (typeof value === 'string' ? value : value === undefined || value === null ? '' : String(value))
 const list = (value: unknown) => (Array.isArray(value) ? value.map(str) : [])
 
-// 图标按设计包节点 ID 引用（按名称推导的文件名不存在）
-const CARD_ICON = {
-  profile: { name: 'Icon/Library', nodeId: '19817:55233' },
-  draft: { name: 'Icon/Edit', nodeId: '19817:55337' },
-  confirm: { name: 'Icon/Warning', nodeId: '19817:55281' },
-} as const
-
-function ResultCard({ title, lines, icon, onOpen }: { title: string; lines: string[]; icon: keyof typeof CARD_ICON; onOpen?: () => void }) {
-  return (
-    <div className="assistant-card">
-      <Card
-        card="Output"
-        leftSlot={<Icon decorative {...CARD_ICON[icon]} size={20} />}
-        content={
-          <span className="assistant-card-lines">
-            {lines.filter(Boolean).map((line, index) => (
-              <span key={index}>{line}</span>
-            ))}
+function ResultCard({ title, lines, icon: Icon, onOpen }: { title: string; lines: string[]; icon: LucideIcon; onOpen?: () => void }) {
+  const body = (
+    <>
+      <span aria-hidden className="chat-card__icon">
+        <Icon size={18} />
+      </span>
+      <span className="chat-card__main">
+        <span className="chat-card__title">{title}</span>
+        {lines.filter(Boolean).map((line, index) => (
+          <span className="chat-card__line" key={index}>
+            {line}
           </span>
-        }
-        onAction={onOpen ? (action) => action === 'press-end' && onOpen() : undefined}
-      >
-        {title}
-      </Card>
-    </div>
+        ))}
+      </span>
+      {onOpen ? <ChevronRight aria-hidden className="chat-card__chevron" size={16} /> : null}
+    </>
+  )
+  return onOpen ? (
+    <button className="chat-card chat-card--link" onClick={onOpen} type="button">
+      {body}
+    </button>
+  ) : (
+    <div className="chat-card">{body}</div>
   )
 }
 
@@ -68,30 +64,30 @@ export function ConfirmCard({ payload }: CardProps) {
     failed: t.assistant.confirmFailed,
     expired: t.assistant.confirmExpired,
   }
+  const tone = state === 'succeeded' ? 'success' : state === 'failed' ? 'danger' : 'neutral'
   return (
-    <div className="assistant-card assistant-confirm" data-state={state}>
-      <Card card="Output" content={<span>{str(payload.summary)}</span>} leftSlot={<Icon decorative {...CARD_ICON.confirm} size={20} />}>
-        {str(payload.title) || t.assistant.confirmTitle}
-      </Card>
-      {pending ? (
-        <div className="assistant-card-actions">
-          <Button onAction={(a) => a === 'press' && !decide.isPending && decide.mutate(false)} size="M" state={decide.isPending ? 'Disable' : 'Default'} type="Secondary">
-            {t.common.cancel}
-          </Button>
-          <Button
-            onAction={(a) => a === 'press' && !decide.isPending && decide.mutate(true)}
-            size="M"
-            state={decide.isPending ? 'Disable' : 'Default'}
-            type={payload.danger ? 'Alert' : 'Primary'}
-          >
-            {str(payload.confirm_label) || t.common.confirm}
-          </Button>
-        </div>
-      ) : (
-        <Markdown variant="Body">
-          <p>{stateLabel[state] ?? ''}</p>
-        </Markdown>
-      )}
+    <div className="chat-card chat-card--confirm assistant-confirm" data-state={state}>
+      <span aria-hidden className="chat-card__icon chat-card__icon--warning">
+        <AlertTriangle size={18} />
+      </span>
+      <div className="chat-card__main">
+        <span className="chat-card__title">{str(payload.title) || t.assistant.confirmTitle}</span>
+        <span className="chat-card__line">{str(payload.summary)}</span>
+        {pending ? (
+          <div className="chat-card__actions">
+            <Button disabled={decide.isPending} onClick={() => decide.mutate(false)} size="sm" variant="outline">
+              {t.common.cancel}
+            </Button>
+            <Button loading={decide.isPending} onClick={() => decide.mutate(true)} size="sm" variant={payload.danger ? 'danger' : 'primary'}>
+              {str(payload.confirm_label) || t.common.confirm}
+            </Button>
+          </div>
+        ) : (
+          <div className="chat-card__actions">
+            <Tag tone={tone}>{stateLabel[state] ?? ''}</Tag>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -118,8 +114,8 @@ export function ProfileDiffCard({ payload }: CardProps) {
           : [pending && payload.url ? t.assistant.diffReading(str(payload.url)) : t.extraction.running]
   return (
     <ResultCard
+      icon={ClipboardList}
       lines={lines}
-      icon="profile"
       onOpen={() => navigate(status === 'succeeded' ? `/extractions/${id}/review` : `/extractions/${id}`)}
       title={t.assistant.diffTitle}
     />
@@ -131,8 +127,8 @@ export function ProductDraftCard({ payload }: CardProps) {
   const id = str(payload.extraction_id)
   return (
     <ResultCard
+      icon={PackagePlus}
       lines={[[str(payload.name_cn), str(payload.category)].filter(Boolean).join(' · '), list(payload.keywords_en).join(', '), t.assistant.draftHint]}
-      icon="draft"
       onOpen={() => navigate(`/extractions/${id}/review`)}
       title={`${t.assistant.draftTitle}：${str(payload.name_en)}`}
     />
@@ -144,8 +140,8 @@ export function CompletenessCard({ payload }: CardProps) {
   const missing = list(payload.missing)
   return (
     <ResultCard
+      icon={ClipboardList}
       lines={[t.profile.completeness(Number(payload.completeness ?? 0)), missing.length ? `${t.profile.missingTitle}：${missing.join('、')}` : '']}
-      icon="profile"
       onOpen={() => navigate('/me/profile')}
       title={t.profile.title}
     />
@@ -153,11 +149,7 @@ export function CompletenessCard({ payload }: CardProps) {
 }
 
 export function UnknownCard({ payload }: CardProps) {
-  return (
-    <Markdown variant="Body">
-      <p>{str(payload.fallback_text) || t.assistant.unknownCard}</p>
-    </Markdown>
-  )
+  return <Text tone="secondary">{str(payload.fallback_text) || t.assistant.unknownCard}</Text>
 }
 
 export const CARD_REGISTRY: Record<string, ComponentType<CardProps>> = {

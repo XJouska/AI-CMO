@@ -1,11 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-// 设计系统样式顺序：tokens → 基础重置 → 组件样式（随 App 中的组件导入）→ 本地扩展 → 应用布局
-import '@yb/tokens.css'
-import '@yb/index.css'
-import { App } from './app/App'
-import '@yb-ext/canvas-fit.css'
+// 样式顺序：设计变量 → 基础样式 → 组件 → 布局 → 页面
+import './ui/tokens.css'
+import './ui/base.css'
+import './ui/ui.css'
 import './app/app.css'
+import './pages/home.css'
+import './pages/pages.css'
+import { App } from './app/App'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('缺少 #root 节点')

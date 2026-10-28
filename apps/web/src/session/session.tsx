@@ -1,6 +1,6 @@
 // 登录态：token 与当前企业 ID 存在 localStorage；用户信息通过 /auth/me 获取（TanStack Query 缓存）。
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import { configureApi } from '@/api/client'
 import { api, type CompanyBrief, type SessionOut, type User } from '@/api/endpoints'
 
@@ -53,7 +53,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     queryClient.clear()
   }, [queryClient])
 
-  useEffect(() => {
+  // 用 layout effect：父组件的 layout effect 先于子组件的数据请求（passive effect）执行，
+  // 保证首次请求就带上 token 与当前企业头。
+  useLayoutEffect(() => {
     configureApi({
       getToken: () => read(TOKEN_KEY),
       getCompanyId: () => read(COMPANY_KEY),
@@ -72,7 +74,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return user.companies.find((c) => c.id === companyId) ?? user.companies[0] ?? null
   }, [user, companyId])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (company && company.id !== read(COMPANY_KEY)) {
       write(COMPANY_KEY, company.id)
       setCompanyId(company.id)

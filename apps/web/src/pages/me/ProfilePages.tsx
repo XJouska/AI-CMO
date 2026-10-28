@@ -1,16 +1,16 @@
 // 企业档案：完整度与缺失项、分区列表、分区编辑。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, FormDoubleLine, FormSingleLine, ListSectionTitle, SettingsFullWidthItem } from '@yb/generated/components'
+import { Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { api, type Profile, type ProfilePatch, type ProfileSection } from '@/api/endpoints'
-import { QueryView } from '@/components/local/QueryView'
-import { StackPage } from '@/components/local/StackPage'
-import { useToast } from '@/feedback/toast'
+import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { SettingsPage } from '@/layout/SettingsPage'
 import { joinList, parseYear, splitList } from '@/lib/validation'
 import { useSession } from '@/session/session'
+import { Button, Card, ListGroup, ListRow, Progress, TextArea, TextField, useToast } from '@/ui'
 
 type FieldKind = 'text' | 'long' | 'list' | 'year'
 
@@ -98,49 +98,48 @@ export function ProfilePage() {
   const navigate = useNavigate()
   const query = useProfile()
   return (
-    <StackPage backTo="/me" title={t.profile.title}>
+    <SettingsPage
+      actions={
+        <Button icon={Sparkles} onClick={() => navigate('/onboarding')} variant="outline">
+          {t.profile.aiFill}
+        </Button>
+      }
+      title={t.profile.title}
+    >
       <QueryView query={query}>
         {(profile) => (
-          <>
-            <ListSectionTitle>{t.profile.completeness(profile.completeness)}</ListSectionTitle>
+          <div className="stack-lg">
+            <Card>
+              <div className="row-between">
+                <strong>{t.profile.completeness(profile.completeness)}</strong>
+                <span className="muted">{t.profile.completenessHint}</span>
+              </div>
+              <div className="mt-3">
+                <Progress label={t.profile.completeness(profile.completeness)} value={profile.completeness} />
+              </div>
+            </Card>
             {profile.missing.length ? (
-              <section>
-                <ListSectionTitle>{t.profile.missingTitle}</ListSectionTitle>
+              <ListGroup title={t.profile.missingTitle}>
                 {profile.missing.map((item) => (
-                  <SettingsFullWidthItem
+                  <ListRow
                     key={item.key}
-                    onAction={(action) => action === 'open' && navigate(item.section === 'products' ? '/me/products' : `/me/profile/${item.section}`)}
-                    trailing={`+${item.weight}%`}
-                    trailingKind="chevron"
-                    type="单行列表-常规"
-                  >
-                    {item.label}
-                  </SettingsFullWidthItem>
+                    onClick={() => navigate(item.section === 'products' ? '/me/products' : `/me/profile/${item.section}`)}
+                    title={item.label}
+                    value={`+${item.weight}%`}
+                  />
                 ))}
-                <SettingsFullWidthItem onAction={(action) => action === 'press' && navigate('/onboarding')} type="居中按钮">
-                  {t.profile.aiFill}
-                </SettingsFullWidthItem>
-              </section>
+              </ListGroup>
             ) : null}
-            <ListSectionTitle>{t.profile.sections}</ListSectionTitle>
-            {(Object.keys(SECTIONS) as ProfileSection[]).map((key) => {
-              const filled = SECTIONS[key].fields.filter((field) => fieldText(profile, field.key).trim()).length
-              return (
-                <SettingsFullWidthItem
-                  key={key}
-                  onAction={(action) => action === 'open' && navigate(`/me/profile/${key}`)}
-                  trailing={`${filled}/${SECTIONS[key].fields.length}`}
-                  trailingKind="chevron"
-                  type="单行列表-常规"
-                >
-                  {SECTIONS[key].title}
-                </SettingsFullWidthItem>
-              )
-            })}
-          </>
+            <ListGroup title={t.profile.sections}>
+              {(Object.keys(SECTIONS) as ProfileSection[]).map((key) => {
+                const filled = SECTIONS[key].fields.filter((field) => fieldText(profile, field.key).trim()).length
+                return <ListRow key={key} onClick={() => navigate(`/me/profile/${key}`)} title={SECTIONS[key].title} value={`${filled}/${SECTIONS[key].fields.length}`} />
+              })}
+            </ListGroup>
+          </div>
         )}
       </QueryView>
-    </StackPage>
+    </SettingsPage>
   )
 }
 
@@ -150,21 +149,19 @@ export function ProfileSectionPage() {
   if (!(section in SECTIONS)) return <Navigate replace to="/me/profile" />
   const def = SECTIONS[section as ProfileSection]
   return (
-    <QueryView query={query}>
-      {(profile) => <SectionForm fields={def.fields} key={profile.company_id} profile={profile} title={def.title} />}
-    </QueryView>
+    <SettingsPage back="/me/profile" title={def.title}>
+      <QueryView query={query}>{(profile) => <SectionForm fields={def.fields} key={profile.company_id} profile={profile} />}</QueryView>
+    </SettingsPage>
   )
 }
 
-function SectionForm({ profile, title, fields }: { profile: Profile; title: string; fields: FieldDef[] }) {
+function SectionForm({ profile, fields }: { profile: Profile; fields: FieldDef[] }) {
   const navigate = useNavigate()
   const toast = useToast()
   const showError = useErrorToast()
   const queryClient = useQueryClient()
   const session = useSession()
-  const [draft, setDraft] = useState<Record<string, string>>(() =>
-    Object.fromEntries(fields.map((field) => [field.key, fieldText(profile, field.key)])),
-  )
+  const [draft, setDraft] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((field) => [field.key, fieldText(profile, field.key)])))
   const dirty = fields.some((field) => draft[field.key] !== fieldText(profile, field.key))
   const save = useMutation({
     mutationFn: (patch: ProfilePatch) => api.patchProfile(patch),
@@ -184,32 +181,38 @@ function SectionForm({ profile, title, fields }: { profile: Profile; title: stri
   }
 
   return (
-    <StackPage
-      backTo="/me/profile"
-      footer={
-        <Button onAction={(a) => a === 'press' && submit()} size="L" state={dirty && !save.isPending ? 'Default' : 'Disable'} type="Primary">
-          {t.common.save}
-        </Button>
-      }
-      surface="primary"
-      title={title}
-    >
-      <div className="form-stack">
+    <Card padding="lg">
+      <form
+        className="ui-form-stack"
+        onSubmit={(event) => {
+          event.preventDefault()
+          submit()
+        }}
+      >
         {fields.map((field) => {
           const common = {
-            label: field.kind === 'list' ? `${field.label}（${t.common.listHint}）` : field.label,
+            label: field.label,
+            hint: field.kind === 'list' ? t.common.listHint : undefined,
             maxLength: field.max,
             onChange: (value: string) => setDraft((prev) => ({ ...prev, [field.key]: value })),
             placeholder: field.placeholder ?? field.label,
             value: draft[field.key] ?? '',
           }
           return field.kind === 'long' || field.kind === 'list' ? (
-            <FormDoubleLine key={field.key} {...common} />
+            <TextArea key={field.key} rows={field.kind === 'long' ? 6 : 3} {...common} />
           ) : (
-            <FormSingleLine align="left" key={field.key} {...common} />
+            <TextField inputMode={field.kind === 'year' ? 'numeric' : undefined} key={field.key} {...common} />
           )
         })}
-      </div>
-    </StackPage>
+        <div className="ui-form-actions">
+          <Button onClick={() => navigate('/me/profile')} variant="ghost">
+            {t.common.cancel}
+          </Button>
+          <Button disabled={!dirty} loading={save.isPending} type="submit" variant="primary">
+            {t.common.save}
+          </Button>
+        </div>
+      </form>
+    </Card>
   )
 }

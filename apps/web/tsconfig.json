@@ -25,18 +25,11 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "@yb/*": [
-        "../../packages/yb-ui/demo/src/*"
-      ],
-      "@yb-ext/*": [
-        "../../packages/yb-ui/extensions/*"
       ]
     }
   },
   "include": [
-    "src",
-    "../../packages/yb-ui/extensions"
+    "src"
   ],
   "exclude": [
     "src/**/*.test.ts",

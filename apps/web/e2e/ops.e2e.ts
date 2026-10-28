@@ -20,7 +20,7 @@ test('套餐与用量、通知设置、数据与隐私', async ({ page, request 
   await signUp(page, request)
   await page.goto('/me')
   await expect(page.getByText('试用版')).toBeVisible()
-  await page.getByText('套餐与用量').click()
+  await page.getByRole('main').getByRole('button', { name: /套餐与用量/ }).click()
   await expect(page).toHaveURL(/\/me\/billing$/)
   await expect(page.getByText('本月商机')).toBeVisible()
   await expect(page.getByText('获客版', { exact: false }).first()).toBeVisible()
@@ -53,7 +53,7 @@ test('公开页面：隐私政策与联系人删除请求（无需登录）', as
   await page.goto('/privacy')
   await expect(page.getByText('我们收集的信息')).toBeVisible()
   await expect(page).toHaveScreenshot('privacy-policy.png')
-  await page.getByText('删除我的联系方式').click()
+  await page.getByRole('main').getByRole('link', { name: '删除我的联系方式' }).click()
   await expect(page).toHaveURL(/\/data-request$/)
   await page.getByLabel('你的邮箱').fill(`jane-${Date.now()}@buyer.example`)
   await page.getByRole('button', { name: '提交请求' }).click()
@@ -80,10 +80,10 @@ test('运营工作台：代客操作、手工开通、复核、审计', async ({
   await staffLogin(fresh, staff.Authorization.replace('Bearer ', ''))
   // 预置运营账号在不同用例间共享（可能已以运营身份加入过其他企业），直接进入运营工作台
   await fresh.goto('/ops')
-  await expect(fresh.getByText('客户列表')).toBeVisible()
+  await expect(fresh.getByRole('button', { name: '客户列表' })).toBeVisible()
   await expectNoFallback(fresh)
-  await expect(fresh).toHaveScreenshot('ops-home.png', { mask: [fresh.locator('.page-nav')] })
-  await fresh.getByText('客户列表').click()
+  await expect(fresh).toHaveScreenshot('ops-home.png', { mask: [fresh.locator('.sidebar__company, .sidebar__user')] })
+  await fresh.getByRole('button', { name: '客户列表' }).click()
   await fresh.getByLabel('搜索企业').fill('运营演示工厂')
   const row = fresh.locator(`[data-company-id="${customer.companyId}"]`)
   await expect(row).toBeVisible()
@@ -108,7 +108,8 @@ test('运营工作台：代客操作、手工开通、复核、审计', async ({
   // 复核队列：键盘快捷键通过
   await fresh.goto('/ops/review')
   await expect(fresh.locator('.ops-review')).toBeVisible({ timeout: 20_000 })
-  await expect(fresh).toHaveScreenshot('ops-review.png', { mask: [fresh.locator('.ops-review')] })
+  // 复核队列内容与其他用例共享数据（条数、企业名会变化），只比较页面框架
+  await expect(fresh).toHaveScreenshot('ops-review.png', { mask: [fresh.locator('.ops-review, .review-board__list, .sidebar__company, .sidebar__user')] })
   await fresh.keyboard.press('a')
   await expect(fresh.getByText('已通过')).toBeVisible()
 
@@ -128,8 +129,8 @@ test.describe('Dark 主题截图基线', () => {
   test('关键页面 Dark', async ({ page, request }) => {
     const errors = watchPageErrors(page)
     await page.goto('/login')
-    await expect(page.getByRole('button', { name: '登录' })).toBeVisible()
-    await expect(page.locator('.app-stage')).toHaveAttribute('data-theme', 'dark')
+    await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await expect(page).toHaveScreenshot('dark-login.png')
     await signUp(page, request)
     for (const path of ['/assistant', '/leads', '/site', '/me', '/me/billing', '/me/notifications/settings']) {

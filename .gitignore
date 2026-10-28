@@ -26,10 +26,8 @@ build/
 logs/
 *.log
 
-# Design system package zip and font binaries (licensing: see docs/licensing.md)
+# 设计参考压缩包不入库
 *.zip
-packages/yb-ui/assets/fonts/*.otf
-packages/yb-ui/assets/fonts/*.ttf
 
 # Browser profiles (persistent Playwright data)
 browser-profiles/

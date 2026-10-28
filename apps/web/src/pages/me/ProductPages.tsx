@@ -1,17 +1,16 @@
 // 产品管理：列表、新增 / 编辑（含图片上传）、删除。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, FormDoubleLine, FormSingleLine, ListSectionTitle, SettingsFullWidthItem } from '@yb/generated/components'
+import { ImagePlus, Package, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, type Product, type ProductInput } from '@/api/endpoints'
-import { QueryView } from '@/components/local/QueryView'
-import { StackPage } from '@/components/local/StackPage'
-import { ConfirmDialog } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
+import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { SettingsPage } from '@/layout/SettingsPage'
 import { joinList, splitList } from '@/lib/validation'
 import { useSession } from '@/session/session'
+import { Button, Card, CardHeader, ConfirmDialog, ListRow, TextArea, TextField, useToast } from '@/ui'
 import { useFilePicker } from '../onboarding/OnboardingPages'
 
 export function ProductsPage() {
@@ -20,40 +19,33 @@ export function ProductsPage() {
   const query = useQuery({ queryKey: ['products', session.company?.id], queryFn: api.products })
   const add = () => navigate('/me/products/new')
   return (
-    <StackPage
-      backTo="/me"
-      footer={
+    <SettingsPage
+      actions={
         query.data?.length ? (
-          <Button onAction={(a) => a === 'press' && add()} size="L" type="Primary">
+          <Button icon={Plus} onClick={add} variant="primary">
             {t.products.add}
           </Button>
-        ) : undefined
+        ) : null
       }
       title={t.products.title}
     >
-      <QueryView
-        empty={{ title: t.products.emptyTitle, desc: t.products.emptyDesc, action: t.products.add, onAction: add }}
-        isEmpty={(items) => items.length === 0}
-        query={query}
-      >
+      <QueryView empty={{ title: t.products.emptyTitle, desc: t.products.emptyDesc, action: t.products.add, onAction: add, icon: Package }} isEmpty={(items) => items.length === 0} query={query}>
         {(items) => (
-          <div className="list-block">
+          <div className="ui-list">
             {items.map((product) => (
-              <SettingsFullWidthItem
+              <ListRow
+                icon={Package}
                 key={product.id}
-                onAction={(action) => action === 'open' && navigate(`/me/products/${product.id}`)}
-                subtitle={[product.name_cn, product.category, joinList(product.keywords_en)].filter(Boolean).join(' · ') || ' '}
-                trailing={t.products.imageCount(product.images.length)}
-                trailingKind="chevron"
-                type="双行列表-常规"
-              >
-                {product.name_en}
-              </SettingsFullWidthItem>
+                onClick={() => navigate(`/me/products/${product.id}`)}
+                subtitle={[product.name_cn, product.category, joinList(product.keywords_en)].filter(Boolean).join(' · ') || undefined}
+                title={product.name_en}
+                value={t.products.imageCount(product.images.length)}
+              />
             ))}
           </div>
         )}
       </QueryView>
-    </StackPage>
+    </SettingsPage>
   )
 }
 
@@ -101,8 +93,11 @@ export function ProductEditPage() {
   const { id } = useParams()
   const isNew = !id || id === 'new'
   const query = useQuery({ queryKey: ['product', id], queryFn: () => api.product(id ?? ''), enabled: !isNew })
-  if (isNew) return <ProductForm />
-  return <QueryView query={query}>{(product) => <ProductForm key={product.id} product={product} />}</QueryView>
+  return (
+    <SettingsPage back="/me/products" title={isNew ? t.products.newTitle : t.products.editTitle}>
+      {isNew ? <ProductForm /> : <QueryView query={query}>{(product) => <ProductForm key={product.id} product={product} />}</QueryView>}
+    </SettingsPage>
+  )
 }
 
 function ProductForm({ product }: { product?: Product }) {
@@ -140,43 +135,56 @@ function ProductForm({ product }: { product?: Product }) {
   }
 
   return (
-    <StackPage
-      backTo="/me/products"
-      footer={
-        <div className="form-actions">
-          <Button onAction={(a) => a === 'press' && submit()} size="L" state={dirty && !save.isPending ? 'Default' : 'Disable'} type="Primary">
+    <div className="stack-lg">
+      {picker.element}
+      <Card padding="lg">
+        <form
+          className="ui-form-stack"
+          onSubmit={(event) => {
+            event.preventDefault()
+            submit()
+          }}
+        >
+          <div className="ui-form-grid">
+            <TextField label={t.products.nameEn} maxLength={200} onChange={set('name_en')} placeholder="Stainless Steel Ball Valve" value={draft.name_en} />
+            <TextField label={t.products.nameCn} maxLength={100} onChange={set('name_cn')} placeholder={t.products.nameCn} value={draft.name_cn} />
+            <TextField label={t.products.category} maxLength={100} onChange={set('category')} placeholder={t.products.category} value={draft.category} />
+            <TextField label={t.products.hsCodes} maxLength={200} onChange={set('hs_codes')} placeholder="848180" value={draft.hs_codes} />
+            <TextField label={t.products.moq} maxLength={100} onChange={set('moq')} placeholder="100 pcs" value={draft.moq} />
+            <TextField label={t.products.leadTime} maxLength={100} onChange={set('lead_time')} placeholder="25 days" value={draft.lead_time} />
+          </div>
+          <TextArea hint={t.common.listHint} label={t.products.keywords} maxLength={2000} onChange={set('keywords_en')} placeholder="ball valve, industrial valve" rows={2} value={draft.keywords_en} />
+          <TextArea hint={t.common.listHint} label={t.products.applications} maxLength={2000} onChange={set('applications')} placeholder={t.products.applications} rows={2} value={draft.applications} />
+        </form>
+      </Card>
+      <Card>
+        <CardHeader
+          actions={
+            <Button icon={ImagePlus} loading={picker.uploading} onClick={picker.open} size="sm" variant="outline">
+              {t.products.addImage}
+            </Button>
+          }
+          description={t.products.imageCount(draft.images.length)}
+          title={t.products.images}
+        />
+      </Card>
+      <div className="row-between">
+        {product ? (
+          <Button icon={Trash2} onClick={() => setConfirmDelete(true)} variant="danger-ghost">
+            {t.common.delete}
+          </Button>
+        ) : (
+          <span />
+        )}
+        <div className="row">
+          <Button onClick={() => navigate('/me/products')} variant="ghost">
+            {t.common.cancel}
+          </Button>
+          <Button disabled={!dirty} loading={save.isPending} onClick={submit} variant="primary">
             {t.common.save}
           </Button>
-          {product ? (
-            <Button onAction={(a) => a === 'press' && setConfirmDelete(true)} size="M" type="Text">
-              {t.common.delete}
-            </Button>
-          ) : null}
         </div>
-      }
-      surface="primary"
-      title={product ? t.products.editTitle : t.products.newTitle}
-    >
-      {picker.element}
-      <div className="form-stack">
-        <FormSingleLine align="left" label={t.products.nameEn} maxLength={200} onChange={set('name_en')} placeholder="Stainless Steel Ball Valve" value={draft.name_en} />
-        <FormSingleLine align="left" label={t.products.nameCn} maxLength={100} onChange={set('name_cn')} placeholder={t.products.nameCn} value={draft.name_cn} />
-        <FormSingleLine align="left" label={t.products.category} maxLength={100} onChange={set('category')} placeholder={t.products.category} value={draft.category} />
-        <FormDoubleLine label={`${t.products.keywords}（${t.common.listHint}）`} maxLength={2000} onChange={set('keywords_en')} placeholder="ball valve, industrial valve" value={draft.keywords_en} />
-        <FormDoubleLine label={`${t.products.applications}（${t.common.listHint}）`} maxLength={2000} onChange={set('applications')} placeholder={t.products.applications} value={draft.applications} />
-        <FormSingleLine align="left" label={t.products.hsCodes} maxLength={200} onChange={set('hs_codes')} placeholder="848180" value={draft.hs_codes} />
-        <FormSingleLine align="left" label={t.products.moq} maxLength={100} onChange={set('moq')} placeholder="100 pcs" value={draft.moq} />
-        <FormSingleLine align="left" label={t.products.leadTime} maxLength={100} onChange={set('lead_time')} placeholder="25 days" value={draft.lead_time} />
       </div>
-      <ListSectionTitle>{t.products.images}</ListSectionTitle>
-      <SettingsFullWidthItem
-        onAction={(action) => action === 'open' && !picker.uploading && picker.open()}
-        trailing={picker.uploading ? t.onboarding.uploading : t.products.imageCount(draft.images.length)}
-        trailingKind="chevron"
-        type="单行列表-常规"
-      >
-        {t.products.addImage}
-      </SettingsFullWidthItem>
       <ConfirmDialog
         body={t.products.deleteDesc}
         cancelLabel={t.common.cancel}
@@ -190,6 +198,6 @@ function ProductForm({ product }: { product?: Product }) {
         open={confirmDelete}
         title={t.products.deleteConfirm}
       />
-    </StackPage>
+    </div>
   )
 }

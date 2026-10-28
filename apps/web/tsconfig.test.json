@@ -9,7 +9,6 @@
   },
   "include": [
     "src",
-    "../../packages/yb-ui/extensions",
     "e2e",
     "vitest.config.ts",
     "playwright.config.ts",

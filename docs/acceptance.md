@@ -20,7 +20,7 @@
 
 **人工确认项**
 
-- [ ] 设计系统（yb-mobile-design）与字体的商业使用授权（见 `docs/licensing.md`）
+- [x] 界面改为自有实现，不再使用设计包的组件、图标与字体（见 `docs/licensing.md`）
 - [ ] 正式域名切换：目前 `aicmo.site` 仍指向旧版容器（9010/9011），新版只在 `127.0.0.1:9020` 运行
 
 ## 计划 02 · 账号、企业与企业档案
@@ -190,3 +190,20 @@
 - [ ] 系统发信邮箱（`SYSTEM_SMTP_*`）：目前未配置，邮件通知跳过，站内通知正常
 - [ ] 搜索 API（Bing / SerpApi）：未配置时商机只来自 TED 欧盟招标；配置后可覆盖求购信息与美国等非欧盟市场
 - [ ] 线上测试企业「宁波测试阀门有限公司」与账号 `smoke-*@aicmo.site` 可在运营工作台确认后删除
+
+
+## 网页化重构（2026-10-28）
+
+按用户反馈，前端从「手机 App 画布」改为正式网站形态，只借鉴设计规范的基础视觉风格。
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 未登录先看到营销首页（首屏、能力、流程、适用企业、常见问题、行动按钮） | 通过 | `src/pages/HomePage.tsx`；`e2e/shell.e2e.ts` 首页用例与 `home-*.png` |
+| 登录 / 注册 / 邀请 / 建档使用左右分栏页面，建档带步骤条 | 通过 | `src/layout/AuthLayout.tsx`；`shell-login-*.png`、`onboarding-choose-*.png` |
+| 工作台：桌面左侧边栏（可折叠）+ 顶栏；手机侧边栏收进抽屉菜单 | 通过 | `src/layout/AppLayout.tsx`；`shell.spec.tsx`、`shell.e2e.ts`（1440×900 与 390×844） |
+| 不使用设计包组件、类名、图标、TabBar；图标统一为 lucide | 通过 | `packages/yb-ui` 已删除；`check:web` 新增「引用设计包」规则；E2E 断言页面没有 `yb-` 类名 |
+| 助手：桌面历史会话常驻左栏，窄屏用抽屉；自适应输入框 | 通过 | `assistant.spec.tsx`、`assistant.e2e.ts` |
+| 商机卡片网格 + 指标卡；详情页两栏（内容 / 操作与跟进） | 通过 | `leads.spec.tsx`、`leads.e2e.ts` |
+| 设置中心左侧分组菜单；运营后台表格 + 两栏复核 | 通过 | `me.spec.tsx`、`ops.spec.tsx`、`ops.e2e.ts` |
+| 深浅色主题：默认跟随系统，可手动切换并记住 | 通过 | `shell.spec.tsx`；`dark-*.png` |
+| 测试 | 通过 | 组件测试 89 项；E2E 48 项（两种宽度）；`check:web` 通过；本机新版容器冒烟通过 |

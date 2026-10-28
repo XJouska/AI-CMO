@@ -9,6 +9,6 @@ export default defineConfig({
   use: {
     baseURL: process.env.SMOKE_BASE_URL ?? 'http://127.0.0.1:9020',
     ...devices['Desktop Chrome'],
-    viewport: { width: 402, height: 874 },
+    viewport: { width: 1440, height: 900 },
   },
 })

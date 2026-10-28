@@ -1,16 +1,15 @@
-// 开发信编辑页：语气 Tab、收件人 / 主题 / 正文、事实校验提示、让 AI 修改、复制 / 用邮箱打开 / 确认发送。
+// 开发信编辑页（两栏）：左侧收件人 / 主题 / 正文；右侧语气、事实校验提示、让 AI 修改、发送方式。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, EmptyPage, FormDoubleLine, FormSingleLine, ListSectionTitle, Loading, Markdown, SettingsFullWidthItem, Tab, Tag } from '@yb/generated/components'
+import { Copy, ExternalLink, MailCheck, RefreshCw, Send, Sparkles, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { PageCenter, StackPage } from '@/components/local/StackPage'
-import { ConfirmDialog } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { AppPage } from '@/layout/AppPage'
 import { outreachApi, type DraftOut, type Tone } from '@/outreach/api'
+import { Button, Card, CardHeader, Centered, ConfirmDialog, EmptyState, ErrorState, Quote, Spinner, Tabs, Tag, TextArea, TextField, useToast } from '@/ui'
 
-// Tab 顺序即语气顺序；正式 Tab 默认选中第一项，因此「专业」放在第一位作为默认语气
+// 默认语气「专业」放在第一位
 const TAB_TONES: Tone[] = ['professional', 'concise', 'warm']
 const TONE_LABEL: Record<Tone, string> = { concise: t.outreach.tones[0], professional: t.outreach.tones[1], warm: t.outreach.tones[2] }
 
@@ -38,46 +37,39 @@ export function DraftPage() {
   let body
   if (drafts.isError) {
     body = (
-      <PageCenter>
-        <EmptyPage buttonLabel={t.common.retry} descText={t.common.networkErrorDesc} illus="networkError" onAction={(a) => a === 'press' && void drafts.refetch()}>
-          {t.common.networkErrorTitle}
-        </EmptyPage>
-      </PageCenter>
+      <Centered>
+        <ErrorState actionLabel={t.common.retry} description={t.common.networkErrorDesc} onRetry={() => void drafts.refetch()} title={t.common.networkErrorTitle} />
+      </Centered>
     )
   } else if (drafts.isPending || create.isPending || (empty && !create.isError)) {
     body = (
-      <PageCenter>
-        <Loading>{t.outreach.generating}</Loading>
-      </PageCenter>
+      <Centered>
+        <Spinner label={t.outreach.generating} />
+      </Centered>
     )
   } else if (!current) {
     body = (
-      <PageCenter>
-        <EmptyPage buttonLabel={t.outreach.toneGenerate} descText={t.outreach.toneEmptyDesc} illus="noContent" onAction={(a) => a === 'press' && regenerate()}>
-          {t.outreach.toneEmptyTitle(TONE_LABEL[tone])}
-        </EmptyPage>
-      </PageCenter>
+      <Centered>
+        <EmptyState actionLabel={t.outreach.toneGenerate} description={t.outreach.toneEmptyDesc} icon={Sparkles} onAction={regenerate} title={t.outreach.toneEmptyTitle(TONE_LABEL[tone])} />
+      </Centered>
     )
   } else {
     body = <DraftEditor draft={current} key={current.id} leadId={id} />
   }
 
   return (
-    <StackPage
-      backTo={`/leads/${id}`}
-      right={
-        <Button onAction={(a) => a === 'press' && regenerate()} size="S" state={create.isPending ? 'Disable' : 'Default'} type="Text">
+    <AppPage
+      actions={
+        <Button disabled={create.isPending} icon={RefreshCw} onClick={regenerate} variant="outline">
           {t.outreach.regenerate}
         </Button>
       }
-      surface="primary"
+      back={`/leads/${id}`}
       title={t.outreach.draftTitle}
+      toolbar={<Tabs items={TAB_TONES.map((v) => ({ value: v, label: TONE_LABEL[v] }))} label={t.outreach.toneLabel} onChange={setTone} value={tone} />}
     >
-      <div className="leads-tabs" data-surface="primary">
-        <Tab items={TAB_TONES.map((v) => TONE_LABEL[v])} onAction={(a) => a.startsWith('tab:') && setTone(TAB_TONES[Number(a.slice(4))])} />
-      </div>
       {body}
-    </StackPage>
+    </AppPage>
   )
 }
 
@@ -150,74 +142,65 @@ function DraftEditor({ draft, leadId }: { draft: DraftOut; leadId: string }) {
   }
 
   return (
-    <div className="draft-editor" data-draft-id={draft.id}>
-      <div className="content-inset lead-card-tags">
-        <Tag showIcon={false} type="Default">
-          {`v${draft.version}`}
-        </Tag>
-        <Tag showIcon={false} type="Default">
-          {t.outreach.words(draft.word_count)}
-        </Tag>
-        {sent ? (
-          <Tag showIcon={false} type="Badge">
-            {t.outreach.sentStatus}
-          </Tag>
-        ) : null}
-      </div>
-      {draft.flags.length ? (
-        <div className="content-inset">
-          <Markdown quoteText={<p>{`${t.outreach.flagsTitle}：${draft.flags.map((f) => `${f.text}（${f.reason}）`).join('；')}`}</p>} variant="Quote" />
-        </div>
-      ) : null}
-      <div className="form-stack">
-        <FormSingleLine align="left" label={t.outreach.to} maxLength={254} onChange={setTo} placeholder={t.outreach.toPlaceholder} value={to} />
-        <FormSingleLine align="left" label={t.outreach.subject} maxLength={200} onChange={setSubject} placeholder={t.outreach.subject} value={subject} />
-        <div className="draft-body">
-          <FormDoubleLine label={t.outreach.body} maxLength={6000} onChange={setText} placeholder={t.outreach.body} value={text} />
-        </div>
-        {dirty && !sent ? (
-          <div className="form-actions">
-            <Button onAction={(a) => a === 'press' && !save.isPending && save.mutate(undefined, { onSuccess: () => toast.show(t.outreach.saved) })} size="M" state={save.isPending ? 'Disable' : 'Default'} type="Secondary">
-              {t.outreach.save}
-            </Button>
+    <div className="split draft-editor" data-draft-id={draft.id}>
+      <Card padding="lg">
+        <div className="stack">
+          <div className="row">
+            <Tag>{`v${draft.version}`}</Tag>
+            <Tag>{t.outreach.words(draft.word_count)}</Tag>
+            {sent ? <Tag tone="success">{`${t.outreach.sentStatus} · ${draft.sent_at?.slice(0, 16).replace('T', ' ') ?? ''}`}</Tag> : null}
           </div>
-        ) : null}
-      </div>
-
-      {!sent ? (
-        <>
-          <ListSectionTitle>{t.outreach.reviseLabel}</ListSectionTitle>
-          <div className="form-stack">
-            <FormSingleLine align="left" label={t.outreach.reviseLabel} maxLength={300} onChange={setInstruction} placeholder={t.outreach.revisePlaceholder} value={instruction} />
-            <div className="form-actions">
-              <Button onAction={(a) => a === 'press' && instruction.trim() && !revise.isPending && revise.mutate()} size="M" state={instruction.trim() && !revise.isPending ? 'Default' : 'Disable'} type="Secondary">
-                {revise.isPending ? t.outreach.revising : t.outreach.revise}
+          <TextField disabled={sent} inputMode="email" label={t.outreach.to} maxLength={254} onChange={setTo} placeholder={t.outreach.toPlaceholder} value={to} />
+          <TextField disabled={sent} label={t.outreach.subject} maxLength={200} onChange={setSubject} placeholder={t.outreach.subject} value={subject} />
+          <TextArea className="draft-body" disabled={sent} label={t.outreach.body} maxLength={6000} onChange={setText} placeholder={t.outreach.body} rows={16} value={text} />
+          {dirty && !sent ? (
+            <div className="ui-form-actions">
+              <Button loading={save.isPending} onClick={() => save.mutate(undefined, { onSuccess: () => toast.show(t.outreach.saved) })} variant="secondary">
+                {t.outreach.save}
               </Button>
             </div>
-          </div>
+          ) : null}
+        </div>
+      </Card>
 
-          <div className="form-actions content-inset">
-            {account ? (
-              <Button onAction={(a) => a === 'press' && (to.trim() ? setConfirming(true) : toast.show(t.outreach.needRecipient))} size="L" state={send.isPending ? 'Disable' : 'Default'} type="Primary">
-                {t.outreach.send}
-              </Button>
-            ) : null}
-            <Button onAction={(a) => a === 'press' && void copy()} size="L" type={account ? 'Secondary' : 'Primary'}>
-              {t.outreach.copyAll}
-            </Button>
-            <Button onAction={(a) => a === 'press' && (to.trim() ? void openMail() : toast.show(t.outreach.needRecipient))} size="L" type="Secondary">
-              {t.outreach.openMail}
-            </Button>
-            <Button onAction={(a) => a === 'press' && !markSent.isPending && markSent.mutate('copy')} size="M" type="Text">
-              {t.outreach.markSent}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <SettingsFullWidthItem trailing={draft.sent_at?.slice(0, 16).replace('T', ' ') ?? ' '} trailingKind="none" type="单行列表-常规">
-          {t.outreach.sentStatus}
-        </SettingsFullWidthItem>
-      )}
+      <aside className="split__side">
+        {draft.flags.length ? (
+          <Quote tone="warning">{`${t.outreach.flagsTitle}：${draft.flags.map((f) => `${f.text}（${f.reason}）`).join('；')}`}</Quote>
+        ) : null}
+        {!sent ? (
+          <>
+            <Card>
+              <CardHeader icon={Wand2} title={t.outreach.reviseLabel} />
+              <div className="stack">
+                <TextField label={t.outreach.reviseLabel} maxLength={300} onChange={setInstruction} onSubmit={() => instruction.trim() && revise.mutate()} placeholder={t.outreach.revisePlaceholder} value={instruction} />
+                <Button disabled={!instruction.trim()} loading={revise.isPending} onClick={() => revise.mutate()} variant="secondary">
+                  {revise.isPending ? t.outreach.revising : t.outreach.revise}
+                </Button>
+              </div>
+            </Card>
+            <Card>
+              <CardHeader icon={Send} title={t.outreach.sendWays} />
+              <div className="stack">
+                {account ? (
+                  <Button block icon={Send} loading={send.isPending} onClick={() => (to.trim() ? setConfirming(true) : toast.show(t.outreach.needRecipient))} size="lg" variant="primary">
+                    {t.outreach.send}
+                  </Button>
+                ) : null}
+                <Button block icon={Copy} onClick={() => void copy()} size={account ? 'md' : 'lg'} variant={account ? 'outline' : 'primary'}>
+                  {t.outreach.copyAll}
+                </Button>
+                <Button block icon={ExternalLink} onClick={() => (to.trim() ? void openMail() : toast.show(t.outreach.needRecipient))} variant="outline">
+                  {t.outreach.openMail}
+                </Button>
+                <Button block icon={MailCheck} loading={markSent.isPending} onClick={() => markSent.mutate('copy')} variant="ghost">
+                  {t.outreach.markSent}
+                </Button>
+                {!account ? <p className="muted small">{t.outreach.noAccountHint}</p> : null}
+              </div>
+            </Card>
+          </>
+        ) : null}
+      </aside>
 
       <ConfirmDialog
         body={account ? t.outreach.sendBody(account.from_address, to.trim(), subject.trim()) : ''}

@@ -1,16 +1,14 @@
-// 登录 / 注册。规范 form-validation-timing：信息不完整时主按钮置灰；格式错误与服务端错误只走 Toast。
+// 登录 / 注册。信息不完整时主按钮置灰；格式错误与服务端错误走 Toast。
 import { useMutation } from '@tanstack/react-query'
-import { Button, FormSingleLine } from '@yb/generated/components'
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { api, type SessionOut } from '@/api/endpoints'
-import { SecureTextField } from '@/components/local/SecureTextField'
-import { StackPage } from '@/components/local/StackPage'
-import { useToast } from '@/feedback/toast'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { AuthCard } from '@/layout/AuthLayout'
 import { isEmail, passwordProblem } from '@/lib/validation'
 import { useSession } from '@/session/session'
+import { Button, PasswordField, TextField, useToast } from '@/ui'
 
 type Mode = 'login' | 'register'
 
@@ -34,9 +32,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
 
   const mutation = useMutation({
     mutationFn: () =>
-      mode === 'login'
-        ? api.login({ email: email.trim(), password })
-        : api.register({ email: email.trim(), password, name: name.trim() }),
+      mode === 'login' ? api.login({ email: email.trim(), password }) : api.register({ email: email.trim(), password, name: name.trim() }),
     onSuccess: (result) => {
       session.signIn(result)
       navigate(nextPathAfterAuth(result, from), { replace: true })
@@ -57,51 +53,38 @@ export function AuthPage({ mode }: { mode: Mode }) {
 
   const isLogin = mode === 'login'
   return (
-    <StackPage
+    <AuthCard
+      description={isLogin ? t.auth.loginDesc : t.auth.registerDesc}
       footer={
-        <div className="form-actions">
-          <Button
-            onAction={(action) => action === 'press' && submit()}
-            size="L"
-            state={complete && !mutation.isPending ? 'Default' : 'Disable'}
-            type="Primary"
-          >
-            {isLogin ? t.auth.login : t.auth.register}
-          </Button>
-          <Button
-            onAction={(action) => action === 'press' && navigate(isLogin ? '/register' : '/login', { replace: true, state: location.state })}
-            size="M"
-            type="Text"
-          >
-            {isLogin ? t.auth.toRegister : t.auth.toLogin}
-          </Button>
-        </div>
+        <Link replace state={location.state} to={isLogin ? '/register' : '/login'}>
+          {isLogin ? t.auth.toRegister : t.auth.toLogin}
+        </Link>
       }
-      noBack
-      surface="primary"
       title={isLogin ? t.auth.loginTitle : t.auth.registerTitle}
     >
       <form
-        className="form-stack"
+        className="ui-form-stack"
         onSubmit={(event) => {
           event.preventDefault()
           submit()
         }}
       >
-        {isLogin ? null : (
-          <FormSingleLine align="left" label={t.auth.name} maxLength={64} onChange={setName} placeholder={t.auth.namePlaceholder} value={name} />
-        )}
-        <FormSingleLine align="left" label={t.auth.email} maxLength={254} onChange={setEmail} placeholder={t.auth.emailPlaceholder} value={email} />
-        <SecureTextField
+        {isLogin ? null : <TextField autoComplete="name" label={t.auth.name} maxLength={64} onChange={setName} placeholder={t.auth.namePlaceholder} value={name} />}
+        <TextField autoComplete="email" inputMode="email" label={t.auth.email} maxLength={254} onChange={setEmail} placeholder={t.auth.emailPlaceholder} value={email} />
+        <PasswordField
           autoComplete={isLogin ? 'current-password' : 'new-password'}
           label={t.auth.password}
+          maxLength={128}
           onChange={setPassword}
           onSubmit={submit}
           placeholder={isLogin ? t.auth.passwordPlaceholder : t.auth.newPasswordPlaceholder}
           value={password}
         />
+        <Button block disabled={!complete} loading={mutation.isPending} size="lg" type="submit" variant="primary">
+          {isLogin ? t.auth.login : t.auth.register}
+        </Button>
       </form>
-    </StackPage>
+    </AuthCard>
   )
 }
 

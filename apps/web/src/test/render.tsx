@@ -4,7 +4,7 @@ import type { ReactElement } from 'react'
 import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router-dom'
 import { AppProviders, createQueryClient, routes as appRoutes } from '@/app/App'
 
-/** 用与生产相同的外壳（严格渲染策略 + 会话 + HostCanvas + Toast）渲染组件。 */
+/** 用与生产相同的外壳（主题 + 查询 + 会话 + Toast）渲染组件。 */
 export function renderWithShell(ui: ReactElement, options?: RenderOptions & { client?: QueryClient }) {
   const client = options?.client ?? createQueryClient()
   client.setDefaultOptions({ queries: { retry: false, staleTime: 0 }, mutations: { retry: false } })

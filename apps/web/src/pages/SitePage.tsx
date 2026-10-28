@@ -1,18 +1,17 @@
-// 「官网」Tab：未生成 / 生成中 / 草稿或已发布 三类状态。
+// 官网概览：未生成 / 生成中 / 草稿或已发布。已有官网时显示状态指标、页面内容分区、最近询盘与设置。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, EmptyPage, ListSectionTitle, Loading, Markdown, NavBar, SettingsFullWidthItem, Tag } from '@yb/generated/components'
+import { Activity, ExternalLink, Eye, FileClock, Globe, Inbox, LayoutTemplate, Link2, Search, Sparkles, UploadCloud } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/endpoints'
-import { PageCenter } from '@/components/local/StackPage'
-import { TabPage } from '@/components/local/TabPage'
-import { ConfirmDialog } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
+import { StepProgress } from '@/components/StepProgress'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { AppPage } from '@/layout/AppPage'
 import { useSession } from '@/session/session'
 import { siteApi, type SiteOut } from '@/site/api'
 import { isBusy, SECTION_ORDER, sectionSummary } from '@/site/model'
+import { Button, Card, CardHeader, Centered, ConfirmDialog, EmptyState, ErrorState, ListGroup, ListRow, Quote, Spinner, Stat, Tag, useToast } from '@/ui'
 
 export function useSite() {
   const session = useSession()
@@ -32,49 +31,44 @@ export function useDraft(site: SiteOut | null | undefined) {
 }
 
 const STATUS_LABEL = { draft: t.site.statusDraft, published: t.site.statusPublished, suspended: t.site.statusSuspended }
+const STATUS_TONE = { draft: 'warning', published: 'success', suspended: 'danger' } as const
 
 export function SitePage() {
   const site = useSite()
   const navigate = useNavigate()
-  const nav = (
-    <NavBar
-      barType="Fixed Color Bg"
-      divider={false}
-      leftButton={false}
-      rightButton={Boolean(site.data?.draft_version_id)}
-      rightSlot={
-        site.data?.draft_version_id ? (
-          <Button onAction={(a) => a === 'press' && navigate('/site/preview')} size="S" type="Text">
-            {t.site.preview}
-          </Button>
-        ) : undefined
-      }
-      themeBg={false}
-    >
-      {t.site.title}
-    </NavBar>
-  )
+  const hasDraft = Boolean(site.data?.draft_version_id)
 
   return (
-    <TabPage nav={nav} surface="secondary">
+    <AppPage
+      actions={
+        hasDraft ? (
+          <Button icon={Eye} onClick={() => navigate('/site/preview')} variant="outline">
+            {t.site.preview}
+          </Button>
+        ) : null
+      }
+      title={t.site.title}
+    >
       {site.isPending ? (
-        <PageCenter>
-          <Loading>{t.common.loading}</Loading>
-        </PageCenter>
+        <Centered>
+          <Spinner label={t.common.loading} />
+        </Centered>
       ) : site.isError ? (
-        <PageCenter>
-          <EmptyPage buttonLabel={t.common.retry} descText={t.common.networkErrorDesc} illus="networkError" onAction={(a) => a === 'press' && void site.refetch()}>
-            {t.common.networkErrorTitle}
-          </EmptyPage>
-        </PageCenter>
+        <Centered>
+          <ErrorState actionLabel={t.common.retry} description={t.common.networkErrorDesc} onRetry={() => void site.refetch()} title={t.common.networkErrorTitle} />
+        </Centered>
       ) : !site.data || (!site.data.draft_version_id && site.data.task.status !== 'running') ? (
         <NoSite failed={site.data?.task.status === 'failed' ? site.data.task.error : ''} />
       ) : !site.data.draft_version_id ? (
-        <TaskProgress site={site.data} />
+        <Centered>
+          <Card className="site-progress-card" padding="lg">
+            <TaskProgress site={site.data} />
+          </Card>
+        </Centered>
       ) : (
         <SiteDashboard site={site.data} />
       )}
-    </TabPage>
+    </AppPage>
   )
 }
 
@@ -93,39 +87,31 @@ function NoSite({ failed }: { failed: string }) {
   })
   if (profile.isPending) {
     return (
-      <PageCenter>
-        <Loading>{t.common.loading}</Loading>
-      </PageCenter>
+      <Centered>
+        <Spinner label={t.common.loading} />
+      </Centered>
     )
   }
   return (
-    <PageCenter>
-      <EmptyPage
-        buttonLabel={ready ? (failed ? t.site.retry : t.site.generate) : t.site.needProfileAction}
-        descText={failed || (ready ? t.site.generateDesc : t.site.needProfile(score))}
-        illus={failed ? 'networkError' : 'placeholder'}
-        onAction={(action) => {
-          if (action !== 'press') return
+    <Centered>
+      <EmptyState
+        actionLabel={ready ? (failed ? t.site.retry : t.site.generate) : t.site.needProfileAction}
+        actionLoading={generate.isPending}
+        description={failed || (ready ? t.site.generateDesc : t.site.needProfile(score))}
+        icon={failed ? Activity : Globe}
+        onAction={() => {
           if (!ready) navigate('/me/profile')
-          else if (!generate.isPending) generate.mutate()
+          else generate.mutate()
         }}
-      >
-        {failed ? t.site.taskFailed : t.site.emptyTitle}
-      </EmptyPage>
-    </PageCenter>
+        title={failed ? t.site.taskFailed : t.site.emptyTitle}
+      />
+    </Centered>
   )
 }
 
 function TaskProgress({ site }: { site: SiteOut }) {
   const label = site.task.kind === 'rewrite' ? t.site.rewriting : site.task.kind === 'publish' ? t.site.publishingTask : t.site.generating
-  return (
-    <div className="content-inset site-progress">
-      <Markdown variant="Progress" {...{ status: 'loading' }}>
-        {label}
-      </Markdown>
-      <Markdown items={site.task.progress.map((s) => `${s.status === 'done' ? '✓' : s.status === 'running' ? '…' : s.status === 'failed' ? '✗' : '·'} ${s.label}`)} variant="UL" />
-    </div>
-  )
+  return <StepProgress running steps={site.task.progress.map((s) => ({ key: s.key, label: s.label, status: s.status }))} title={label} />
 }
 
 function SiteDashboard({ site }: { site: SiteOut }) {
@@ -157,106 +143,106 @@ function SiteDashboard({ site }: { site: SiteOut }) {
   })
 
   return (
-    <>
-      <div className="site-dashboard">
-        <section className="site-status">
-          <SettingsFullWidthItem
-            showDot={site.has_unpublished_changes}
-            subtitle={site.url}
-            trailing={STATUS_LABEL[site.status]}
-            trailingKind="none"
-            type="双行列表-常规"
-          >
-            {t.site.address}
-          </SettingsFullWidthItem>
-          <SettingsFullWidthItem
-            onAction={(a) => a === 'open' && navigate('/site/health')}
-            trailing={t.site.health(site.health_score)}
-            trailingKind="chevron"
-            type="单行列表-常规"
-          >
-            {t.site.healthTitle}
-          </SettingsFullWidthItem>
-          {busy ? <TaskProgress site={site} /> : null}
-          {site.task.status === 'failed' && site.task.error ? (
-            <div className="content-inset">
-              <Markdown variant="Body">
-                <p>{site.task.error}</p>
-              </Markdown>
+    <div className="site-dashboard stack-lg">
+      <Card className="site-hero" padding="lg">
+        <div className="site-hero__main">
+          <span aria-hidden className="site-hero__icon">
+            <Globe size={22} />
+          </span>
+          <div className="site-hero__text">
+            <div className="row">
+              <span className="site-hero__label">{t.site.address}</span>
+              <Tag tone={STATUS_TONE[site.status]}>{STATUS_LABEL[site.status]}</Tag>
+              {site.has_unpublished_changes ? <Tag tone="accent">{t.site.unpublished}</Tag> : null}
             </div>
-          ) : null}
-        </section>
-
-        <ListSectionTitle>{t.site.sectionPages}</ListSectionTitle>
-        {draft.data
-          ? SECTION_ORDER.map((section) => {
-              const flags = draft.data.flags.filter((f) => f.section === section && !f.ack).length
-              return (
-                <div className="site-section-row" key={section}>
-                  <SettingsFullWidthItem
-                    onAction={(a) => a === 'open' && navigate(`/site/sections/${section}`)}
-                    subtitle={sectionSummary(draft.data.content, section) || ' '}
-                    trailing={flags ? t.site.flagged(flags) : ' '}
-                    trailingKind="chevron"
-                    type="双行列表-常规"
-                  >
-                    {t.site.sections[section]}
-                  </SettingsFullWidthItem>
-                  {flags ? (
-                    <span className="site-flag-tag">
-                      <Tag showIcon={false} type="Badge">
-                        {t.site.needsReview}
-                      </Tag>
-                    </span>
-                  ) : null}
-                </div>
-              )
-            })
-          : null}
-
-        <ListSectionTitle>{t.site.sectionInquiries}</ListSectionTitle>
-        {inquiries.data?.length ? (
-          inquiries.data.map((item) => (
-            <SettingsFullWidthItem
-              key={item.id}
-              onAction={(a) => a === 'open' && navigate(`/site/inquiries/${item.id}`)}
-              showDot={item.status === 'new'}
-              subtitle={item.message}
-              trailing={item.created_at.slice(5, 10)}
-              trailingKind="chevron"
-              type="双行列表-常规"
-            >
-              {t.site.inquiryFrom(item.company_name || item.name, item.country)}
-            </SettingsFullWidthItem>
-          ))
-        ) : (
-          <SettingsFullWidthItem trailing=" " trailingKind="none" type="单行列表-常规">
-            {t.site.noInquiries}
-          </SettingsFullWidthItem>
-        )}
-        <SettingsFullWidthItem onAction={(a) => a === 'open' && navigate('/site/inquiries')} trailing={t.site.inquiriesCount(site.inquiry_count, site.new_inquiry_count)} trailingKind="chevron" type="单行列表-常规">
-          {t.site.viewAllInquiries}
-        </SettingsFullWidthItem>
-
-        <ListSectionTitle>{t.site.sectionSettings}</ListSectionTitle>
-        <SettingsFullWidthItem onAction={(a) => a === 'open' && navigate('/site/template')} trailing={t.site.templates[site.template_key]} trailingKind="chevron" type="单行列表-常规">
-          {t.site.template}
-        </SettingsFullWidthItem>
-        <SettingsFullWidthItem onAction={(a) => a === 'open' && navigate('/site/domain')} trailing={site.custom_domain ?? t.me.notSet} trailingKind="chevron" type="单行列表-常规">
-          {t.site.domain}
-        </SettingsFullWidthItem>
-        <SettingsFullWidthItem onAction={(a) => a === 'open' && navigate('/site/sections/seo')} trailing={t.me.manage} trailingKind="chevron" type="单行列表-常规">
-          {t.site.seo}
-        </SettingsFullWidthItem>
-        <SettingsFullWidthItem onAction={(a) => a === 'open' && navigate('/site/versions')} trailing={t.me.manage} trailingKind="chevron" type="单行列表-常规">
-          {t.site.versions}
-        </SettingsFullWidthItem>
-      </div>
-      <div className="site-publish-bar">
-        <Button onAction={(a) => a === 'press' && canPublish && setConfirming(true)} size="L" state={canPublish && !publish.isPending ? 'Default' : 'Disable'} type="Primary">
+            <a className="site-hero__url" href={site.url} rel="noopener noreferrer" target="_blank">
+              <span>{site.url}</span>
+              <ExternalLink aria-hidden size={14} />
+            </a>
+          </div>
+        </div>
+        <Button disabled={!canPublish} icon={UploadCloud} loading={publish.isPending} onClick={() => setConfirming(true)} size="lg" variant="primary">
           {site.has_unpublished_changes ? t.site.publish : t.site.published}
         </Button>
+      </Card>
+
+      {busy ? (
+        <Card>
+          <TaskProgress site={site} />
+        </Card>
+      ) : null}
+      {site.task.status === 'failed' && site.task.error ? <Quote tone="warning">{site.task.error}</Quote> : null}
+
+      <div className="grid-3 keep-2">
+        <button className="stat-link" onClick={() => navigate('/site/health')} type="button">
+          <Stat icon={Activity} label={t.site.healthTitle} value={t.site.health(site.health_score)} />
+        </button>
+        <button className="stat-link" onClick={() => navigate('/site/inquiries')} type="button">
+          <Stat hint={site.new_inquiry_count ? t.site.newInquiries(site.new_inquiry_count) : undefined} icon={Inbox} label={t.site.sectionInquiries} value={site.inquiry_count} />
+        </button>
+        <Stat icon={Sparkles} label={t.site.flagsLabel} tone={site.unresolved_flags ? 'warning' : undefined} value={site.unresolved_flags} />
       </div>
+
+      <div className="split">
+        <ListGroup title={t.site.sectionPages}>
+          {draft.data
+            ? SECTION_ORDER.map((section) => {
+                const flags = draft.data.flags.filter((f) => f.section === section && !f.ack).length
+                return (
+                  <ListRow
+                    className="site-section-row"
+                    key={section}
+                    onClick={() => navigate(`/site/sections/${section}`)}
+                    subtitle={sectionSummary(draft.data.content, section) || undefined}
+                    title={t.site.sections[section]}
+                    trailing={flags ? <Tag tone="warning">{t.site.flagged(flags)}</Tag> : undefined}
+                  />
+                )
+              })
+            : <ListRow title={t.common.loading} />}
+        </ListGroup>
+
+        <div className="split__side">
+          <Card padding="none">
+            <div className="card-pad">
+              <CardHeader
+                actions={
+                  <Button onClick={() => navigate('/site/inquiries')} size="sm" variant="ghost">
+                    {t.site.viewAll}
+                  </Button>
+                }
+                description={t.site.inquiriesCount(site.inquiry_count, site.new_inquiry_count)}
+                icon={Inbox}
+                title={t.site.sectionInquiries}
+              />
+            </div>
+            <div className="card-list">
+              {inquiries.data?.length ? (
+                inquiries.data.map((item) => (
+                  <ListRow
+                    dot={item.status === 'new'}
+                    key={item.id}
+                    onClick={() => navigate(`/site/inquiries/${item.id}`)}
+                    subtitle={item.message}
+                    title={t.site.inquiryFrom(item.company_name || item.name, item.country)}
+                    value={item.created_at.slice(5, 10)}
+                  />
+                ))
+              ) : (
+                <ListRow title={t.site.noInquiries} />
+              )}
+            </div>
+          </Card>
+
+          <ListGroup title={t.site.sectionSettings}>
+            <ListRow icon={LayoutTemplate} onClick={() => navigate('/site/template')} title={t.site.template} value={t.site.templates[site.template_key]} />
+            <ListRow icon={Link2} onClick={() => navigate('/site/domain')} title={t.site.domain} value={site.custom_domain ?? t.me.notSet} />
+            <ListRow icon={Search} onClick={() => navigate('/site/sections/seo')} title={t.site.seo} />
+            <ListRow icon={FileClock} onClick={() => navigate('/site/versions')} title={t.site.versions} />
+          </ListGroup>
+        </div>
+      </div>
+
       <ConfirmDialog
         body={[t.site.publishDesc(site.url), site.unresolved_flags ? t.site.publishFlags(site.unresolved_flags) : ''].filter(Boolean).join('\n')}
         cancelLabel={t.common.cancel}
@@ -269,7 +255,6 @@ function SiteDashboard({ site }: { site: SiteOut }) {
         open={confirming}
         title={t.site.publishConfirm}
       />
-    </>
+    </div>
   )
 }
-

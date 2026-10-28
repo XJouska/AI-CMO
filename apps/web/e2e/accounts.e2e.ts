@@ -7,14 +7,14 @@ import { expectNoFallback, signUp, watchPageErrors } from './helpers'
 test('注册并创建企业后进入建档引导', async ({ page }) => {
   const errors = watchPageErrors(page)
   await page.goto('/register')
-  const register = page.getByRole('button', { name: '注册' })
+  const register = page.getByRole('button', { name: '注册', exact: true })
   await expect(register).toBeDisabled()
   await page.getByLabel('称呼').fill('王总')
   await page.getByLabel('邮箱').fill(`reg-${Date.now()}@example.com`)
-  await page.getByLabel('密码').fill('abcdefgh')
+  await page.getByLabel('密码', { exact: true }).fill('abcdefgh')
   await register.click()
   await expect(page.getByText('密码需同时包含字母和数字')).toBeVisible()
-  await page.getByLabel('密码').fill('Factory123')
+  await page.getByLabel('密码', { exact: true }).fill('Factory123')
   await register.click()
 
   await expect(page).toHaveURL(/\/onboarding\/company$/)
@@ -50,7 +50,7 @@ test('从网址建档：进度 → 确认变更 → 合并后完整度更新', a
   await merge.click()
   await expect(page).toHaveURL(/\/me\/profile$/)
   await expect(page.getByText(/已更新档案，完整度 \d+%/)).toBeVisible()
-  await expect(page.getByText(/^完整度 [1-9]\d*%$/)).toBeVisible()
+  await expect(page.getByText(/^完整度 [1-9]\d*%$/).first()).toBeVisible()
 
   await page.goto('/me/products')
   await expect(page.getByText('Stainless Steel Ball Valve', { exact: true }).first()).toBeVisible()
@@ -64,7 +64,7 @@ test('口述建档：取消部分条目后只合并勾选项', async ({ page, re
   await expect(page).toHaveURL(/\/review$/, { timeout: 20_000 })
 
   const employees = page.locator('.review-row', { hasText: '员工人数' })
-  await employees.getByRole('button', { name: '已选中' }).click()
+  await employees.getByRole('checkbox').uncheck()
   await page.getByRole('button', { name: /确认合并/ }).click()
   await expect(page).toHaveURL(/\/me\/profile$/)
 
@@ -80,18 +80,18 @@ test('口述建档：取消部分条目后只合并勾选项', async ({ page, re
 test('档案分区编辑与产品管理', async ({ page, request }) => {
   await signUp(page, request)
   await page.goto('/me')
-  await expect(page.getByText('完整度 0%')).toBeVisible()
+  await expect(page.getByText('完整度 0%').first()).toBeVisible()
   await expectNoFallback(page)
   await page.goto('/me/profile')
-  await expect(page.getByText('完整度 0%')).toBeVisible()
+  await expect(page.getByText('完整度 0%', { exact: true }).first()).toBeVisible()
   await expectNoFallback(page)
   await expect(page).toHaveScreenshot('profile-empty.png')
-  await page.getByText('核心优势').click()
+  await page.getByRole('button', { name: /核心优势/ }).click()
   await expect(page).toHaveURL(/\/me\/profile\/story$/)
   await page.getByLabel('核心优势').fill('In-house casting and 100% pressure testing')
   await page.getByRole('button', { name: '保存' }).click()
   await expect(page).toHaveURL(/\/me\/profile$/)
-  await expect(page.getByText('完整度 8%')).toBeVisible()
+  await expect(page.getByText('完整度 8%', { exact: true }).first()).toBeVisible()
 
   await page.goto('/me/products')
   await expect(page.getByText('还没有产品')).toBeVisible()
@@ -107,7 +107,7 @@ test('档案分区编辑与产品管理', async ({ page, request }) => {
 test('退出登录需要确认，退出后回到登录页', async ({ page, request }) => {
   await signUp(page, request)
   await page.goto('/me')
-  await page.getByRole('button', { name: '退出登录' }).click()
+  await page.getByRole('main').getByRole('button', { name: '退出登录' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText('确定退出登录？')
   await expect(page).toHaveScreenshot('logout-dialog.png')
@@ -117,7 +117,7 @@ test('退出登录需要确认，退出后回到登录页', async ({ page, reque
   await expect(page).toHaveURL(/\/login$/)
 })
 
-test('网络错误状态：接口失败时显示 EmptyPage 并可重试', async ({ page, request }) => {
+test('网络错误状态：接口失败时显示错误空态并可重试', async ({ page, request }) => {
   await signUp(page, request)
   let fail = true
   await page.route('**/api/v1/profile', (route) => (fail ? route.fulfill({ status: 502, body: '' }) : route.fallback()))
@@ -126,5 +126,5 @@ test('网络错误状态：接口失败时显示 EmptyPage 并可重试', async 
   await expect(page).toHaveScreenshot('profile-network-error.png')
   fail = false
   await page.getByRole('button', { name: '重新加载' }).click()
-  await expect(page.getByText('完整度 0%')).toBeVisible()
+  await expect(page.getByText('完整度 0%', { exact: true }).first()).toBeVisible()
 })

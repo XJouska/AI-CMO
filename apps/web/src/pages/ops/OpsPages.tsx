@@ -1,46 +1,77 @@
-// 运营工作台（staff）：客户列表 / 详情（代客操作、手工开通）、复核队列（键盘快捷键）、审计日志、数据源、成本、评测、联系人删除请求。
-// 与其他页面一样使用 402 宽画布单栏布局（桌面双栏见 docs/ui-gaps.md GAP-016）。
+// 运营工作台（staff）：客户列表 / 详情（代客操作、手工开通）、复核队列（两栏 + 键盘快捷键）、审计日志、数据源、成本、评测、联系人删除请求。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, FormDoubleLine, FormSingleLine, ListSectionTitle, Markdown, SettingsFullWidthItem, Tag } from '@yb/generated/components'
-import { useEffect, useState } from 'react'
+import { Check, ClipboardCheck, Coins, Database, FlaskConical, History, Play, Search, Users, UserX, X } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { QueryView } from '@/components/local/QueryView'
-import { StackPage } from '@/components/local/StackPage'
-import { useToast } from '@/feedback/toast'
+import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { SubNav } from '@/layout/AppLayout'
+import { AppPage, type AppPageProps } from '@/layout/AppPage'
 import { opsApi, pct, usageText, yuan, type ReviewItem } from '@/ops/api'
 import { shortTime } from '@/outreach/api'
 import { useSession } from '@/session/session'
+import { Button, Card, CardHeader, cx, Heading, KeyValue, ListGroup, ListRow, Quote, Stat, Switch, Tag, TextArea, TextField, useToast } from '@/ui'
 
-function StaffOnly({ children }: { children: React.ReactNode }) {
+const OPS_NAV = [
+  {
+    items: [
+      { path: '/ops', label: t.ops.overview, icon: ClipboardCheck, end: true },
+      { path: '/ops/customers', label: t.ops.customers, icon: Users },
+      { path: '/ops/review', label: t.ops.review, icon: Check },
+      { path: '/ops/audit', label: t.ops.audit, icon: History },
+      { path: '/ops/sources', label: t.ops.sources, icon: Database },
+      { path: '/ops/costs', label: t.ops.costs, icon: Coins },
+      { path: '/ops/evals', label: t.ops.evals, icon: FlaskConical },
+      { path: '/ops/data-requests', label: t.ops.dataRequests, icon: UserX },
+    ],
+  },
+]
+
+function OpsPage({ children, ...props }: Omit<AppPageProps, 'aside'> & { children: ReactNode }) {
   const session = useSession()
   if (!session.user?.is_staff) return <Navigate replace to="/me" />
-  return <>{children}</>
+  return (
+    <AppPage {...props} aside={<SubNav groups={OPS_NAV} label={t.ops.section} />}>
+      {children}
+    </AppPage>
+  )
+}
+
+/** 简单数据表：窄屏横向滚动。 */
+function DataTable({ head, children, className }: { head: ReactNode[]; children: ReactNode; className?: string }) {
+  return (
+    <div className={cx('table-wrap', className)}>
+      <table className="table">
+        <thead>
+          <tr>
+            {head.map((h, i) => (
+              <th key={i}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  )
 }
 
 export function OpsHomePage() {
   const navigate = useNavigate()
-  const session = useSession()
-  const items: [string, string][] = [
-    [t.ops.customers, '/ops/customers'],
-    [t.ops.review, '/ops/review'],
-    [t.ops.audit, '/ops/audit'],
-    [t.ops.sources, '/ops/sources'],
-    [t.ops.costs, '/ops/costs'],
-    [t.ops.evals, '/ops/evals'],
-    [t.ops.dataRequests, '/ops/data-requests'],
-  ]
+  const items = OPS_NAV[0].items.slice(1)
   return (
-    <StaffOnly>
-      <StackPage backTo="/me" noBack={!session.company} title={t.ops.section}>
-        {items.map(([label, path]) => (
-          <SettingsFullWidthItem key={path} onAction={(a) => a === 'open' && navigate(path)} trailing=" " trailingKind="chevron" type="单行列表-常规">
-            {label}
-          </SettingsFullWidthItem>
+    <OpsPage title={t.ops.section}>
+      <div className="grid-3 ops-home">
+        {items.map((item) => (
+          <button className="ops-tile" key={item.path} onClick={() => navigate(item.path)} type="button">
+            <span aria-hidden className="ops-tile__icon">
+              <item.icon size={20} />
+            </span>
+            <span className="ops-tile__label">{item.label}</span>
+          </button>
         ))}
-      </StackPage>
-    </StaffOnly>
+      </div>
+    </OpsPage>
   )
 }
 
@@ -56,33 +87,27 @@ export function OpsCustomersPage() {
     return () => clearTimeout(timer)
   }, [q])
   return (
-    <StaffOnly>
-      <StackPage backTo="/ops" title={t.ops.customers}>
-        <div className="form-stack">
-          <FormSingleLine align="left" label={t.ops.search} maxLength={60} onChange={setQ} placeholder={t.ops.search} value={q} />
-        </div>
-        <QueryView empty={{ title: t.ops.customers, desc: t.common.networkErrorDesc }} isEmpty={(rows) => rows.length === 0} query={customers}>
-          {(rows) => (
-            <div className="ops-grid">
-              {rows.map((c) => (
-                <div data-company-id={c.id} key={c.id}>
-                  <SettingsFullWidthItem
-                    onAction={(a) => a === 'open' && navigate(`/ops/customers/${c.id}`)}
-                    showDot={c.pending_review > 0}
-                    subtitle={t.ops.customerMeta(c)}
-                    trailing={c.plan_status === 'expired' ? '已到期' : c.last_active_at ? shortTime(c.last_active_at) : ' '}
-                    trailingKind="chevron"
-                    type="双行列表-常规"
-                  >
-                    {c.name_cn}
-                  </SettingsFullWidthItem>
-                </div>
-              ))}
-            </div>
-          )}
-        </QueryView>
-      </StackPage>
-    </StaffOnly>
+    <OpsPage title={t.ops.customers} toolbar={<TextField aria-label={t.ops.search} fieldClassName="ops-search" maxLength={60} onChange={setQ} placeholder={t.ops.search} prefix={<Search size={16} />} value={q} />}>
+      <QueryView empty={{ title: t.ops.customers, desc: t.common.networkErrorDesc, icon: Users }} isEmpty={(rows) => rows.length === 0} query={customers}>
+        {(rows) => (
+          <DataTable head={[t.ops.colCompany, t.ops.colPlan, t.ops.colProfile, t.ops.colLeads, t.ops.colPending, t.ops.colActive]}>
+            {rows.map((c) => (
+              <tr className="is-clickable" data-company-id={c.id} key={c.id} onClick={() => navigate(`/ops/customers/${c.id}`)}>
+                <td>
+                  <div className="table__title">{c.name_cn}</div>
+                  <div className="table__sub">{t.ops.customerMeta(c)}</div>
+                </td>
+                <td>{c.plan_status === 'expired' ? <Tag tone="danger">{t.billing.status.expired}</Tag> : c.plan}</td>
+                <td>{`${c.completeness}%`}</td>
+                <td>{c.leads_week}</td>
+                <td>{c.pending_review ? <Tag tone="warning">{c.pending_review}</Tag> : 0}</td>
+                <td className="muted">{c.last_active_at ? shortTime(c.last_active_at) : '—'}</td>
+              </tr>
+            ))}
+          </DataTable>
+        )}
+      </QueryView>
+    </OpsPage>
   )
 }
 
@@ -132,83 +157,84 @@ export function OpsCustomerPage() {
     onError: showError,
   })
   return (
-    <StaffOnly>
-      <StackPage backTo="/ops/customers" title={detail.data?.customer.name_cn ?? t.ops.customers}>
-        <QueryView query={detail}>
-          {(data) => (
-            <>
-              <SettingsFullWidthItem subtitle={t.ops.customerMeta(data.customer)} trailing={data.customer.plan_status === 'expired' ? '已到期' : '生效中'} trailingKind="none" type="双行列表-常规">
-                {data.usage.plan.name}
-              </SettingsFullWidthItem>
-              {data.usage.usage.map((u) => (
-                <SettingsFullWidthItem key={u.kind} trailing={usageText(u)} trailingKind="none" type="单行列表-常规">
-                  {u.label}
-                </SettingsFullWidthItem>
-              ))}
-              <div className="form-actions content-inset">
-                {data.customer.operator_joined ? (
-                  <>
-                    <Button
-                      onAction={(a) => {
-                        if (a !== 'press') return
-                        session.selectCompany(id)
-                        navigate('/assistant')
-                      }}
-                      size="L"
-                      type="Primary"
-                    >
-                      {t.ops.switchTo}
-                    </Button>
-                    <Button onAction={(a) => a === 'press' && !leave.isPending && leave.mutate()} size="M" type="Text">
-                      {t.ops.leave}
-                    </Button>
-                  </>
+    <OpsPage back="/ops/customers" title={detail.data?.customer.name_cn ?? t.ops.customers}>
+      <QueryView query={detail}>
+        {(data) => (
+          <div className="split">
+            <div className="stack-lg">
+              <Card>
+                <CardHeader
+                  actions={<Tag tone={data.customer.plan_status === 'expired' ? 'danger' : 'success'}>{data.customer.plan_status === 'expired' ? t.billing.status.expired : t.billing.status.active}</Tag>}
+                  description={t.ops.customerMeta(data.customer)}
+                  title={data.usage.plan.name}
+                />
+                <KeyValue items={data.usage.usage.map((u) => ({ label: u.label, value: usageText(u) }))} />
+              </Card>
+              <ListGroup title={t.ops.audit}>
+                {data.recent_audit.length ? (
+                  data.recent_audit.map((a) => <ListRow key={a.id} subtitle={a.on_behalf ? t.ops.onBehalf : a.target_type || undefined} title={a.action} value={shortTime(a.created_at)} />)
                 ) : (
-                  <Button onAction={(a) => a === 'press' && !join.isPending && join.mutate()} size="L" state={join.isPending ? 'Disable' : 'Default'} type="Primary">
-                    {t.ops.join}
-                  </Button>
+                  <ListRow title="—" />
                 )}
-              </div>
-
-              <ListSectionTitle>{t.ops.activate}</ListSectionTitle>
-              <div className="form-stack">
-                <FormSingleLine align="left" label={t.ops.activatePlan} maxLength={32} onChange={set('plan_key')} placeholder="growth" value={form.plan_key} />
-                <FormSingleLine align="left" label={t.ops.activateEnds} maxLength={10} onChange={set('ends_at')} placeholder="2027-10-31" value={form.ends_at} />
-                <FormSingleLine align="left" label={t.ops.activateAmount} maxLength={10} onChange={(v) => set('amount')(v.replace(/[^\d.]/g, ''))} placeholder="1999" value={form.amount} />
-                <FormSingleLine align="left" label={t.ops.activateNote} maxLength={300} onChange={set('note')} placeholder={t.ops.activateNote} value={form.note} />
-                <div className="form-actions">
-                  <Button onAction={(a) => a === 'press' && form.plan_key.trim() && !activate.isPending && activate.mutate()} size="M" state={activate.isPending ? 'Disable' : 'Default'} type="Secondary">
+              </ListGroup>
+            </div>
+            <aside className="split__side">
+              <Card>
+                <CardHeader title={t.ops.operate} />
+                <div className="stack">
+                  {data.customer.operator_joined ? (
+                    <>
+                      <Button
+                        block
+                        onClick={() => {
+                          session.selectCompany(id)
+                          navigate('/assistant')
+                        }}
+                        variant="primary"
+                      >
+                        {t.ops.switchTo}
+                      </Button>
+                      <Button block loading={leave.isPending} onClick={() => leave.mutate()} variant="ghost">
+                        {t.ops.leave}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button block loading={join.isPending} onClick={() => join.mutate()} variant="primary">
+                      {t.ops.join}
+                    </Button>
+                  )}
+                </div>
+              </Card>
+              <Card>
+                <CardHeader title={t.ops.activate} />
+                <div className="ui-form-stack">
+                  <TextField label={t.ops.activatePlan} maxLength={32} onChange={set('plan_key')} placeholder="growth" value={form.plan_key} />
+                  <TextField label={t.ops.activateEnds} maxLength={10} onChange={set('ends_at')} placeholder="2027-10-31" value={form.ends_at} />
+                  <TextField inputMode="decimal" label={t.ops.activateAmount} maxLength={10} onChange={(v) => set('amount')(v.replace(/[^\d.]/g, ''))} placeholder="1999" value={form.amount} />
+                  <TextField label={t.ops.activateNote} maxLength={300} onChange={set('note')} placeholder={t.ops.activateNote} value={form.note} />
+                  <Button disabled={!form.plan_key.trim()} loading={activate.isPending} onClick={() => activate.mutate()} variant="secondary">
                     {t.ops.activate}
                   </Button>
                 </div>
-              </div>
-
-              <ListSectionTitle>{t.ops.audit}</ListSectionTitle>
-              {data.recent_audit.map((a) => (
-                <SettingsFullWidthItem key={a.id} subtitle={a.on_behalf ? t.ops.onBehalf : a.target_type || ' '} trailing={shortTime(a.created_at)} trailingKind="none" type="双行列表-常规">
-                  {a.action}
-                </SettingsFullWidthItem>
-              ))}
-            </>
-          )}
-        </QueryView>
-      </StackPage>
-    </StaffOnly>
+              </Card>
+            </aside>
+          </div>
+        )}
+      </QueryView>
+    </OpsPage>
   )
 }
 
-// ── 复核队列（桌面键盘快捷键：A 通过 · R 驳回 · J / K 切换）─────────────
+// ── 复核队列（两栏；键盘快捷键：A 通过 · R 驳回 · J / K 切换）─────────────
 
 export function OpsReviewPage() {
   const queue = useQuery({ queryKey: ['ops-review'], queryFn: opsApi.reviewQueue })
   return (
-    <StaffOnly>
-      <StackPage backTo="/ops" title={t.ops.review}>
-        <QueryView empty={{ title: t.ops.reviewEmpty, desc: t.ops.shortcuts }} isEmpty={(items) => items.length === 0} query={queue}>
-          {(items) => <ReviewBoard items={items} />}
-        </QueryView>
-      </StackPage>
-    </StaffOnly>
+    <OpsPage description={t.ops.shortcuts} title={t.ops.review} width="full">
+      <QueryView empty={{ title: t.ops.reviewEmpty, desc: t.ops.shortcuts, icon: ClipboardCheck }} isEmpty={(items) => items.length === 0} query={queue}>
+        {(items) => <ReviewBoard items={items} />}
+      </QueryView>
+    </OpsPage>
   )
 }
 
@@ -245,46 +271,49 @@ function ReviewBoard({ items }: { items: ReviewItem[] }) {
   }, [items.length, review])
   if (!current) return null
   return (
-    <div className="ops-grid ops-review" data-lead-id={current.lead.id}>
-      <div>
-        <ListSectionTitle>{`${index + 1} / ${items.length} · ${t.ops.shortcuts}`}</ListSectionTitle>
-        {items.map((item, i) => (
-          <SettingsFullWidthItem
-            key={item.lead.id}
-            onAction={(a) => a === 'open' && (setIndex(i), setSummary(null))}
-            showDot={i === index}
-            subtitle={`${item.company_name} · ${item.lead.market || '—'}`}
-            trailing={`${item.lead.score} 分`}
-            trailingKind="chevron"
-            type="双行列表-常规"
-          >
-            {item.lead.title}
-          </SettingsFullWidthItem>
-        ))}
-      </div>
-      <div className="content-inset">
-        <div className="lead-card-tags">
-          <Tag showIcon={false} type="Default">
-            {current.company_name}
-          </Tag>
-          <Tag showIcon={false} type="Badge">
-            {`${current.lead.score} 分`}
-          </Tag>
-        </div>
-        <Markdown variant="Others+H4">{current.lead.title}</Markdown>
-        <FormDoubleLine label={t.ops.editSummary} maxLength={500} onChange={setSummary} placeholder={t.ops.editSummary} value={summary ?? current.lead.summary_cn} />
-        {current.signals.map((s, i) => (
-          <Markdown key={i} quoteText={<p>{`${s.source} · ${s.title}\n${s.snippet}`}</p>} variant="Quote" />
-        ))}
-        <div className="form-actions">
-          <Button onAction={(a) => a === 'press' && !review.isPending && review.mutate('approved')} size="L" state={review.isPending ? 'Disable' : 'Default'} type="Primary">
-            {t.ops.approve}
-          </Button>
-          <Button onAction={(a) => a === 'press' && !review.isPending && review.mutate('rejected')} size="L" state={review.isPending ? 'Disable' : 'Default'} type="Secondary">
-            {t.ops.reject}
-          </Button>
+    <div className="review-board">
+      <div className="review-board__list">
+        <div className="review-board__count">{`${index + 1} / ${items.length}`}</div>
+        <div className="ui-list">
+          {items.map((item, i) => (
+            <ListRow
+              active={i === index}
+              key={item.lead.id}
+              onClick={() => {
+                setIndex(i)
+                setSummary(null)
+              }}
+              subtitle={`${item.company_name} · ${item.lead.market || '—'}`}
+              title={item.lead.title}
+              value={`${item.lead.score} 分`}
+            />
+          ))}
         </div>
       </div>
+      <Card className="ops-review review-board__detail" data-lead-id={current.lead.id} padding="lg">
+        <div className="stack">
+          <div className="row">
+            <Tag>{current.company_name}</Tag>
+            <Tag tone="accent">{`${current.lead.score} 分`}</Tag>
+            {current.lead.market ? <Tag>{current.lead.market}</Tag> : null}
+          </div>
+          <Heading level={3}>{current.lead.title}</Heading>
+          <TextArea label={t.ops.editSummary} maxLength={500} onChange={setSummary} placeholder={t.ops.editSummary} rows={4} value={summary ?? current.lead.summary_cn} />
+          {current.signals.map((s, i) => (
+            <Quote key={i}>
+              <span className="pre-wrap">{`${s.source} · ${s.title}\n${s.snippet}`}</span>
+            </Quote>
+          ))}
+          <div className="ui-form-actions ui-form-actions--start">
+            <Button icon={Check} loading={review.isPending} onClick={() => review.mutate('approved')} variant="primary">
+              {t.ops.approve}
+            </Button>
+            <Button disabled={review.isPending} icon={X} onClick={() => review.mutate('rejected')} variant="outline">
+              {t.ops.reject}
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   )
 }
@@ -294,27 +323,29 @@ function ReviewBoard({ items }: { items: ReviewItem[] }) {
 export function OpsAuditPage() {
   const logs = useQuery({ queryKey: ['ops-audit'], queryFn: () => opsApi.audit('?limit=200') })
   return (
-    <StaffOnly>
-      <StackPage backTo="/ops" title={t.ops.audit}>
-        <QueryView query={logs}>
-          {(rows) => (
-            <div className="ops-grid">
-              {rows.map((a) => (
-                <SettingsFullWidthItem
-                  key={a.id}
-                  subtitle={[a.on_behalf ? t.ops.onBehalf : '', a.target_type, a.target_id.slice(0, 8)].filter(Boolean).join(' · ') || ' '}
-                  trailing={shortTime(a.created_at)}
-                  trailingKind="none"
-                  type="双行列表-常规"
-                >
-                  {a.action}
-                </SettingsFullWidthItem>
-              ))}
-            </div>
-          )}
-        </QueryView>
-      </StackPage>
-    </StaffOnly>
+    <OpsPage title={t.ops.audit}>
+      <QueryView query={logs}>
+        {(rows) => (
+          <DataTable head={[t.ops.colAction, t.ops.colTarget, t.ops.colTime]}>
+            {rows.map((a) => (
+              <tr key={a.id}>
+                <td>
+                  <span className="mono">{a.action}</span>
+                  {a.on_behalf ? (
+                    <>
+                      {' '}
+                      <Tag tone="warning">{t.ops.onBehalf}</Tag>
+                    </>
+                  ) : null}
+                </td>
+                <td className="muted">{[a.target_type, a.target_id.slice(0, 8)].filter(Boolean).join(' · ') || '—'}</td>
+                <td className="muted">{shortTime(a.created_at)}</td>
+              </tr>
+            ))}
+          </DataTable>
+        )}
+      </QueryView>
+    </OpsPage>
   )
 }
 
@@ -328,57 +359,59 @@ export function OpsSourcesPage() {
     onError: showError,
   })
   return (
-    <StaffOnly>
-      <StackPage backTo="/ops" title={t.ops.sources}>
-        <ListSectionTitle>{t.ops.days(7)}</ListSectionTitle>
-        <QueryView empty={{ title: t.ops.sources, desc: t.ops.days(7) }} isEmpty={(rows) => rows.length === 0} query={sources}>
-          {(rows) => (
-            <>
-              {rows.map((s) => (
-                <SettingsFullWidthItem
-                  key={s.source_key}
-                  onAction={(a) => a === 'open' && toggle.mutate({ key: s.source_key, enabled: !s.enabled })}
-                  showDot={!s.enabled || (s.success_rate !== null && s.success_rate < 0.5)}
-                  subtitle={`成功率 ${pct(s.success_rate)} · ${s.avg_ms}ms · 封禁 ${s.blocked} · 商机 ${s.leads} · 有效率 ${pct(s.valid_rate)}`}
-                  trailing={s.enabled ? t.ops.disable : t.ops.enable}
-                  trailingKind="chevron"
-                  type="双行列表-常规"
-                >
-                  {`${s.source_key}（${s.requests} 次）`}
-                </SettingsFullWidthItem>
-              ))}
-            </>
-          )}
-        </QueryView>
-      </StackPage>
-    </StaffOnly>
+    <OpsPage description={t.ops.days(7)} title={t.ops.sources}>
+      <QueryView empty={{ title: t.ops.sources, desc: t.ops.days(7), icon: Database }} isEmpty={(rows) => rows.length === 0} query={sources}>
+        {(rows) => (
+          <DataTable head={[t.ops.colSource, t.ops.colRequests, t.ops.colSuccess, t.ops.colLatency, t.ops.colBlocked, t.ops.colLeads, t.ops.colValid, t.ops.colEnabled]}>
+            {rows.map((s) => {
+              const warn = !s.enabled || (s.success_rate !== null && s.success_rate < 0.5)
+              return (
+                <tr className={warn ? 'is-warn' : undefined} key={s.source_key}>
+                  <td className="mono">{s.source_key}</td>
+                  <td>{s.requests}</td>
+                  <td>{pct(s.success_rate)}</td>
+                  <td>{`${s.avg_ms}ms`}</td>
+                  <td>{s.blocked}</td>
+                  <td>{s.leads}</td>
+                  <td>{pct(s.valid_rate)}</td>
+                  <td>
+                    <Switch checked={s.enabled} disabled={toggle.isPending} label={`${s.source_key} ${s.enabled ? t.ops.disable : t.ops.enable}`} onChange={(enabled) => toggle.mutate({ key: s.source_key, enabled })} />
+                  </td>
+                </tr>
+              )
+            })}
+          </DataTable>
+        )}
+      </QueryView>
+    </OpsPage>
   )
 }
 
 export function OpsCostsPage() {
   const costs = useQuery({ queryKey: ['ops-costs'], queryFn: () => opsApi.costs(30) })
   const micros = (n: number) => yuan(Math.round(n / 10_000))
+  const usage = (u: Record<string, number>) => Object.entries(u).map(([k, v]) => `${k} ${v.toLocaleString('zh-CN')}`).join(' · ')
   return (
-    <StaffOnly>
-      <StackPage backTo="/ops" title={t.ops.costs}>
-        <QueryView query={costs}>
-          {(data) => (
-            <>
-              <SettingsFullWidthItem subtitle={Object.entries(data.totals).map(([k, v]) => `${k} ${v.toLocaleString('zh-CN')}`).join(' · ') || ' '} trailing={micros(data.cost_micros)} trailingKind="none" type="双行列表-常规">
-                {`${t.ops.total}（${t.ops.days(data.days)}）`}
-              </SettingsFullWidthItem>
-              <div className="ops-grid">
-                {data.companies.map((c) => (
-                  <SettingsFullWidthItem key={c.company_id} subtitle={Object.entries(c.usage).map(([k, v]) => `${k} ${v.toLocaleString('zh-CN')}`).join(' · ')} trailing={micros(c.cost_micros)} trailingKind="none" type="双行列表-常规">
-                    {c.name || c.company_id.slice(0, 8)}
-                  </SettingsFullWidthItem>
-                ))}
-              </div>
-            </>
-          )}
-        </QueryView>
-      </StackPage>
-    </StaffOnly>
+    <OpsPage title={t.ops.costs}>
+      <QueryView query={costs}>
+        {(data) => (
+          <div className="stack-lg">
+            <div className="grid-3 keep-2">
+              <Stat hint={usage(data.totals) || undefined} label={`${t.ops.total}（${t.ops.days(data.days)}）`} value={micros(data.cost_micros)} />
+            </div>
+            <DataTable head={[t.ops.colCompany, t.ops.colUsage, t.ops.colCost]}>
+              {data.companies.map((c) => (
+                <tr key={c.company_id}>
+                  <td>{c.name || c.company_id.slice(0, 8)}</td>
+                  <td className="muted">{usage(c.usage)}</td>
+                  <td>{micros(c.cost_micros)}</td>
+                </tr>
+              ))}
+            </DataTable>
+          </div>
+        )}
+      </QueryView>
+    </OpsPage>
   )
 }
 
@@ -396,37 +429,42 @@ export function OpsEvalsPage() {
     onError: showError,
   })
   return (
-    <StaffOnly>
-      <StackPage backTo="/ops" title={t.ops.evals}>
-        <QueryView query={evals}>
-          {(data) => (
-            <>
+    <OpsPage title={t.ops.evals}>
+      <QueryView query={evals}>
+        {(data) => (
+          <div className="stack-lg">
+            <ListGroup title={t.ops.datasets}>
               {data.datasets.map((d) => (
-                <SettingsFullWidthItem key={d} onAction={(a) => a === 'open' && !run.isPending && run.mutate(d)} trailing={t.ops.runEval} trailingKind="chevron" type="单行列表-常规">
-                  {d}
-                </SettingsFullWidthItem>
-              ))}
-              <ListSectionTitle>{t.ops.evals}</ListSectionTitle>
-              {data.runs.map((r) => (
-                <SettingsFullWidthItem
-                  key={r.id}
-                  subtitle={
-                    r.status === 'done'
-                      ? `准确率 ${pct(r.metrics.intent_accuracy ?? null)} · Top20 有效 ${pct(r.metrics.top20_valid_rate ?? null)} · 重复 ${pct(r.metrics.duplicate_rate ?? null)} · 虚假 ${pct(r.metrics.fake_rate ?? null)}`
-                      : r.error || r.status
+                <ListRow
+                  key={d}
+                  title={<span className="mono">{d}</span>}
+                  trailing={
+                    <Button disabled={run.isPending} icon={Play} onClick={() => run.mutate(d)} size="sm" variant="outline">
+                      {t.ops.runEval}
+                    </Button>
                   }
-                  trailing={shortTime(r.created_at)}
-                  trailingKind="none"
-                  type="双行列表-常规"
-                >
-                  {`${r.dataset}（${r.mode}）`}
-                </SettingsFullWidthItem>
+                />
               ))}
-            </>
-          )}
-        </QueryView>
-      </StackPage>
-    </StaffOnly>
+            </ListGroup>
+            <DataTable head={[t.ops.colDataset, t.ops.colAccuracy, t.ops.colTop20, t.ops.colDup, t.ops.colFake, t.ops.colTime]}>
+              {data.runs.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <span className="mono">{`${r.dataset}（${r.mode}）`}</span>
+                    {r.status !== 'done' ? <div className="table__sub">{r.error || r.status}</div> : null}
+                  </td>
+                  <td>{r.status === 'done' ? pct(r.metrics.intent_accuracy ?? null) : '—'}</td>
+                  <td>{r.status === 'done' ? pct(r.metrics.top20_valid_rate ?? null) : '—'}</td>
+                  <td>{r.status === 'done' ? pct(r.metrics.duplicate_rate ?? null) : '—'}</td>
+                  <td>{r.status === 'done' ? pct(r.metrics.fake_rate ?? null) : '—'}</td>
+                  <td className="muted">{shortTime(r.created_at)}</td>
+                </tr>
+              ))}
+            </DataTable>
+          </div>
+        )}
+      </QueryView>
+    </OpsPage>
   )
 }
 
@@ -444,32 +482,35 @@ export function OpsDataRequestsPage() {
     onError: showError,
   })
   return (
-    <StaffOnly>
-      <StackPage backTo="/ops" title={t.ops.dataRequests}>
-        <QueryView empty={{ title: t.ops.dataRequests, desc: t.privacy.erasureDesc }} isEmpty={(rows) => rows.length === 0} query={requests}>
-          {(rows) => (
-            <>
-              {rows.map((r) => (
-                <section data-request-id={r.id} key={r.id}>
-                  <SettingsFullWidthItem subtitle={r.note || shortTime(r.created_at)} trailing={r.status} trailingKind="none" type="双行列表-常规">
-                    {r.email}
-                  </SettingsFullWidthItem>
-                  {r.status === 'open' ? (
-                    <div className="form-actions content-inset">
-                      <Button onAction={(a) => a === 'press' && handle.mutate({ id: r.id, decision: 'done' })} size="M" type="Primary">
+    <OpsPage title={t.ops.dataRequests}>
+      <QueryView empty={{ title: t.ops.dataRequests, desc: t.privacy.erasureDesc, icon: UserX }} isEmpty={(rows) => rows.length === 0} query={requests}>
+        {(rows) => (
+          <div className="ui-list">
+            {rows.map((r) => (
+              <ListRow
+                data={{ 'request-id': r.id }}
+                key={r.id}
+                subtitle={r.note || shortTime(r.created_at)}
+                title={r.email}
+                trailing={
+                  r.status === 'open' ? (
+                    <>
+                      <Button onClick={() => handle.mutate({ id: r.id, decision: 'done' })} size="sm" variant="primary">
                         {t.ops.handle}
                       </Button>
-                      <Button onAction={(a) => a === 'press' && handle.mutate({ id: r.id, decision: 'rejected' })} size="M" type="Text">
+                      <Button onClick={() => handle.mutate({ id: r.id, decision: 'rejected' })} size="sm" variant="ghost">
                         {t.ops.rejectRequest}
                       </Button>
-                    </div>
-                  ) : null}
-                </section>
-              ))}
-            </>
-          )}
-        </QueryView>
-      </StackPage>
-    </StaffOnly>
+                    </>
+                  ) : (
+                    <Tag>{r.status}</Tag>
+                  )
+                }
+              />
+            ))}
+          </div>
+        )}
+      </QueryView>
+    </OpsPage>
   )
 }

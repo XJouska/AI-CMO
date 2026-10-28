@@ -1,6 +1,0 @@
-/*
- * 生产环境字体：不打包任何字体文件，只使用系统字体。
- * 构建时由 apps/web/vite.config.ts 把设计包 tokens.css 中的 `@import "./fonts.css"` 替换为本文件。
- * 原因：设计包随附字体不构成网页部署授权，见 docs/licensing.md。
- * iOS / macOS 自带 PingFang SC；其他平台回退到系统中文字体。DIN Pro 回退到系统数字字体。
- */

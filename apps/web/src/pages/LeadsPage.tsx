@@ -1,20 +1,18 @@
-// 「商机」Tab：分类 Tab、今日概览、商机列表（分页加载）、筛选、未设置监控 / 等待首批商机 / 网络错误状态。
+// 商机：指标卡、分类标签、商机卡片网格（分页加载）、筛选、未设置监控 / 等待首批商机 / 网络错误状态。
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, EmptyPage, FormSingleLine, ListSectionTitle, Loading, NavBar, Tab } from '@yb/generated/components'
+import { Radar, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PageCenter } from '@/components/local/StackPage'
-import { TabPage } from '@/components/local/TabPage'
-import { FormSheet } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { AppPage } from '@/layout/AppPage'
 import { leadsApi, type LeadFilters, type LeadType } from '@/leads/api'
 import { LeadCard } from '@/leads/LeadCard'
 import { DueList } from '@/outreach/DueList'
 import { useSession } from '@/session/session'
+import { Button, Centered, EmptyState, ErrorState, FormModal, Spinner, Stat, Tabs, TextField, useToast } from '@/ui'
 
-// 第 2 个 Tab「待跟进」不是商机类型，单独渲染待跟进列表
+// 第 2 个分类「跟进」不是商机类型，单独渲染待跟进列表
 const DUE_TAB = 1
 const TAB_TYPES: (LeadType | undefined)[] = [undefined, undefined, 'tender', 'rfq', 'site_inquiry']
 
@@ -44,87 +42,59 @@ export function LeadsPage() {
     },
   })
 
-  const nav = (
-    <NavBar
-      barType="Fixed Color Bg"
-      divider={false}
-      leftButton={false}
-      rightButton
-      rightSlot={
-        <Button
-          onAction={(a) => {
-            if (a !== 'press') return
-            setDraftMarket(filters.market ?? '')
-            setDraftScore(filters.min_score ? String(filters.min_score) : '')
-            setFilterOpen(true)
-          }}
-          size="S"
-          type="Text"
-        >
-          {t.leads.filter}
-        </Button>
-      }
-      themeBg={false}
-    >
-      {t.leads.title}
-    </NavBar>
-  )
-
   const first = leads.data?.pages[0]
   const items = leads.data?.pages.flatMap((p) => p.items) ?? []
   const hasActiveWatch = watches.data?.some((w) => w.is_active) ?? false
-  const filtered = Boolean(filters.market || filters.min_score || tab)
+  const activeFilters = [filters.market, filters.min_score].filter(Boolean).length
+  const filtered = Boolean(activeFilters || tab)
 
   let body
   if (tab === DUE_TAB) {
     body = <DueList />
   } else if (leads.isPending || watches.isPending) {
     body = (
-      <PageCenter>
-        <Loading>{t.common.loading}</Loading>
-      </PageCenter>
+      <Centered>
+        <Spinner label={t.common.loading} />
+      </Centered>
     )
   } else if (leads.isError || watches.isError) {
     body = (
-      <PageCenter>
-        <EmptyPage
-          buttonLabel={t.common.retry}
-          descText={t.common.networkErrorDesc}
-          illus="networkError"
-          onAction={(a) => {
-            if (a !== 'press') return
+      <Centered>
+        <ErrorState
+          actionLabel={t.common.retry}
+          description={t.common.networkErrorDesc}
+          onRetry={() => {
             void leads.refetch()
             void watches.refetch()
           }}
-        >
-          {t.common.networkErrorTitle}
-        </EmptyPage>
-      </PageCenter>
+          title={t.common.networkErrorTitle}
+        />
+      </Centered>
     )
   } else if (!items.length && !filtered && !hasActiveWatch) {
     body = <NoWatch />
   } else if (!items.length) {
     body = (
-      <PageCenter>
-        <EmptyPage button={false} descText={filtered ? t.leads.emptyDesc : t.leads.waitingDesc} illus="noContent">
-          {filtered ? t.leads.emptyTitle : t.leads.waitingTitle}
-        </EmptyPage>
-      </PageCenter>
+      <Centered>
+        <EmptyState description={filtered ? t.leads.emptyDesc : t.leads.waitingDesc} icon={Radar} title={filtered ? t.leads.emptyTitle : t.leads.waitingTitle} />
+      </Centered>
     )
   } else {
     body = (
-      <div className="leads-list">
-        <ListSectionTitle>{t.leads.overview(first?.today_count ?? 0, first?.total ?? 0)}</ListSectionTitle>
-        {items.map((lead) => (
-          <LeadCard key={lead.id} lead={lead} onOpen={() => navigate(`/leads/${lead.id}`)} />
-        ))}
-        <div className="leads-more">
+      <div className="stack">
+        <p className="secondary">{t.leads.overview(first?.today_count ?? 0, first?.total ?? 0)}</p>
+        <div className="lead-grid">
+          {items.map((lead) => (
+            <LeadCard key={lead.id} lead={lead} onOpen={() => navigate(`/leads/${lead.id}`)} />
+          ))}
+        </div>
+        <div className="load-more">
           {leads.hasNextPage ? (
-            <Button onAction={(a) => a === 'press' && !leads.isFetchingNextPage && void leads.fetchNextPage()} size="M" state={leads.isFetchingNextPage ? 'Disable' : 'Default'} type="Secondary">
+            <Button loading={leads.isFetchingNextPage} onClick={() => void leads.fetchNextPage()} variant="outline">
               {t.leads.loadMore}
             </Button>
           ) : (
-            <ListSectionTitle>{t.leads.noMore}</ListSectionTitle>
+            <span className="muted">{t.leads.noMore}</span>
           )}
         </div>
       </div>
@@ -132,19 +102,45 @@ export function LeadsPage() {
   }
 
   return (
-    <TabPage nav={nav} surface="secondary">
-      <div className="leads-tabs">
-        <Tab items={[...t.leads.tabs]} onAction={(a) => a.startsWith('tab:') && setTab(Number(a.slice(4)))} />
-      </div>
+    <AppPage
+      actions={
+        <>
+          <Button className="hide-sm" icon={Radar} onClick={() => navigate('/me/watches')} variant="ghost">
+            {t.leads.watchSettings}
+          </Button>
+          <Button
+            icon={SlidersHorizontal}
+            onClick={() => {
+              setDraftMarket(filters.market ?? '')
+              setDraftScore(filters.min_score ? String(filters.min_score) : '')
+              setFilterOpen(true)
+            }}
+            variant="outline"
+          >
+            {activeFilters ? t.leads.filterActive(activeFilters) : t.leads.filter}
+          </Button>
+        </>
+      }
+      title={t.leads.title}
+      toolbar={<Tabs items={t.leads.tabs.map((label, index) => ({ value: index, label }))} label={t.leads.tabsLabel} onChange={setTab} value={tab} variant="underline" />}
+    >
+      {first && tab !== DUE_TAB && items.length ? (
+        <div className="grid-3 keep-2 lead-stats">
+          <Stat label={t.leads.statToday} tone="accent" value={first.today_count} />
+          <Stat label={t.leads.statNew} value={first.new_count} />
+          <Stat label={t.leads.statTotal} value={first.total} />
+        </div>
+      ) : null}
       {body}
-      <FormSheet
-        onClose={() => {
-          setFilters({})
-          setFilterOpen(false)
-        }}
+      <FormModal
+        onClose={() => setFilterOpen(false)}
         onPrimary={() => {
           const score = Number(draftScore)
           setFilters({ market: draftMarket.trim() || undefined, min_score: Number.isFinite(score) && score > 0 ? Math.min(100, score) : undefined })
+          setFilterOpen(false)
+        }}
+        onSecondary={() => {
+          setFilters({})
           setFilterOpen(false)
         }}
         open={filterOpen}
@@ -152,12 +148,10 @@ export function LeadsPage() {
         secondaryLabel={t.leads.filterReset}
         title={t.leads.filterTitle}
       >
-        <div className="sheet-form form-stack">
-          <FormSingleLine align="left" label={t.leads.filterMarket} maxLength={60} onChange={setDraftMarket} placeholder="Germany" value={draftMarket} />
-          <FormSingleLine align="left" label={t.leads.filterMinScore} maxLength={3} onChange={(v) => setDraftScore(v.replace(/\D/g, ''))} placeholder="60" value={draftScore} />
-        </div>
-      </FormSheet>
-    </TabPage>
+        <TextField label={t.leads.filterMarket} maxLength={60} onChange={setDraftMarket} placeholder="Germany" value={draftMarket} />
+        <TextField inputMode="numeric" label={t.leads.filterMinScore} maxLength={3} onChange={(v) => setDraftScore(v.replace(/\D/g, ''))} placeholder="60" value={draftScore} />
+      </FormModal>
+    </AppPage>
   )
 }
 
@@ -181,15 +175,15 @@ function NoWatch() {
     onError: showError,
   })
   return (
-    <PageCenter>
-      <EmptyPage
-        buttonLabel={t.leads.noWatchAction}
-        descText={t.leads.noWatchDesc}
-        illus="noContent"
-        onAction={(a) => a === 'press' && !create.isPending && create.mutate()}
-      >
-        {t.leads.noWatchTitle}
-      </EmptyPage>
-    </PageCenter>
+    <Centered>
+      <EmptyState
+        actionLabel={t.leads.noWatchAction}
+        actionLoading={create.isPending}
+        description={t.leads.noWatchDesc}
+        icon={Radar}
+        onAction={() => create.mutate()}
+        title={t.leads.noWatchTitle}
+      />
+    </Centered>
   )
 }

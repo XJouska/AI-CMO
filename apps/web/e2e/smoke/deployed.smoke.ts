@@ -4,23 +4,24 @@ import { signUp } from '../helpers'
 // 针对已部署的 aicmo-v2 容器做冒烟测试（含真实 Nginx 与 CSP）。
 // 用法：SMOKE_BASE_URL=http://127.0.0.1:9020 npx playwright test -c playwright.smoke.config.ts
 
-test('生产容器：页面加载无 CSP 违规和脚本错误，四个 Tab 可切换', async ({ page, request }) => {
+test('生产容器：页面加载无 CSP 违规和脚本错误，主导航可切换', async ({ page, request }) => {
   const problems: string[] = []
   page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`))
   page.on('console', (msg) => {
     if (msg.type() === 'error') problems.push(`console: ${msg.text()}`)
   })
 
-  const login = await page.goto('/')
-  expect(login?.headers()['content-security-policy']).toContain("script-src 'self'")
-  await expect(page).toHaveURL(/\/login$/)
+  const home = await page.goto('/')
+  expect(home?.headers()['content-security-policy']).toContain("script-src 'self'")
+  await expect(page.getByRole('heading', { level: 1, name: '外贸工厂的 AI 获客助手' })).toBeVisible()
+  await expect(page.locator('[class*="yb-"]')).toHaveCount(0)
 
   await signUp(page, request, { company: '冒烟测试厂' })
   await page.goto('/')
   await expect(page).toHaveURL(/\/assistant$/)
-  const nav = page.getByRole('navigation', { name: '主导航' })
+  const nav = page.locator('.app-sidebar').getByRole('navigation', { name: '主导航' })
   for (const label of ['商机', '官网', '我的', '助手']) {
-    await nav.getByRole('button', { name: label }).click()
+    await nav.getByRole('link', { name: label }).click()
     await page.waitForLoadState('networkidle')
   }
   await expect(page.getByText('AI-CMO').first()).toBeVisible()

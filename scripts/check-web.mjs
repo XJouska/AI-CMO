@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 前端检查：类型检查、单元测试、构建、品牌字样、危险 API、生产包不含字体。
+// 前端检查：源码规则（品牌字样、设计包引用、危险 API）、类型检查、单元测试、构建、生产包不含字体与设计包资源。
 // 用法：npm run check:web   （加 --skip-build 跳过构建）
 import { spawnSync } from 'node:child_process'
 import { readdir, readFile } from 'node:fs/promises'
@@ -10,12 +10,14 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const webRoot = path.join(repoRoot, 'apps', 'web')
 const skipBuild = process.argv.includes('--skip-build')
 
-// 应用自有代码；vendored 设计包不在检查范围内（它本身含有设计包品牌字样）。
-const SOURCE_DIRS = [path.join(webRoot, 'src'), path.join(repoRoot, 'packages', 'yb-ui', 'extensions')]
+// 应用自有代码。
+const SOURCE_DIRS = [path.join(webRoot, 'src')]
 const SOURCE_EXT = /\.(tsx?|css|html|svg|json)$/
 
 const RULES = [
   { name: '设计包品牌字样', pattern: /元宝|yuanbao/i },
+  // 界面只借鉴设计规范的基础样式，不允许引用设计包的组件、类名、图标或画布
+  { name: '引用设计包', pattern: /@yb\/|@yb-ext\/|packages\/yb-ui|\byb-[a-z]|HostCanvas|BrandTabBar/ },
   { name: 'dangerouslySetInnerHTML', pattern: /dangerouslySetInnerHTML/ },
   { name: 'eval / new Function', pattern: /\beval\s*\(|new\s+Function\s*\(/ },
 ]
@@ -73,6 +75,12 @@ async function scanDist() {
   const dist = path.join(webRoot, 'dist')
   const fonts = await listFiles(dist, (name) => /\.(otf|ttf|woff2?)$/i.test(name))
   for (const font of fonts) fail(`生产包中包含字体文件：${path.relative(repoRoot, font)}`)
+  // 生产包里不能出现设计包的图标、插画或品牌资产
+  const bannedDirs = ['icons', 'figma-assets', 'loading']
+  for (const dir of bannedDirs) {
+    const hits = await listFiles(path.join(dist, dir), () => true)
+    if (hits.length) fail(`生产包中包含设计包资源目录：dist/${dir}`)
+  }
   const banned = ['yuanbao-brand.svg', 'favicon.svg']
   for (const name of banned) {
     const hits = await listFiles(dist, (file) => file === name)
@@ -101,7 +109,6 @@ run('类型检查（配置与测试）', 'npx', ['tsc', '--noEmit', '-p', 'tscon
 run('类型检查（组件测试与 E2E）', 'npx', ['tsc', '--noEmit', '-p', 'tsconfig.test.json'], webRoot)
 if (!skipBuild) {
   run('构建', 'npx', ['vite', 'build'], webRoot)
-  run('裁剪设计包示例图', process.execPath, [path.join(repoRoot, 'scripts', 'prune-dist-assets.mjs'), path.join(webRoot, 'dist')])
   await scanDist()
 }
 

@@ -1,16 +1,16 @@
 // 资质与资料、团队成员、接受邀请。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, EmptyPage, Markdown, SettingsFullWidthItem } from '@yb/generated/components'
+import { FileText, FolderOpen, Link2Off, Trash2, Upload, UserPlus, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, type Asset, type AssetKind, type Member, type Role } from '@/api/endpoints'
-import { QueryView } from '@/components/local/QueryView'
-import { PageCenter, StackPage } from '@/components/local/StackPage'
-import { ChoiceSheet, ConfirmDialog } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
+import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { AuthCard } from '@/layout/AuthLayout'
+import { SettingsPage } from '@/layout/SettingsPage'
 import { useSession } from '@/session/session'
+import { Button, ChoiceMenu, ConfirmDialog, EmptyState, IconButton, ListRow, Tag, useToast } from '@/ui'
 import { useFilePicker } from '../onboarding/OnboardingPages'
 
 const KIND_LABEL: Record<AssetKind, string> = {
@@ -29,7 +29,6 @@ export function AssetsPage() {
   const query = useQuery({ queryKey: ['assets', session.company?.id], queryFn: () => api.assets() })
   const [kind, setKind] = useState<AssetKind>('certificate')
   const [choosing, setChoosing] = useState(false)
-  const [action, setAction] = useState<Asset | null>(null)
   const [deleting, setDeleting] = useState<Asset | null>(null)
   const picker = useFilePicker(kind, () => {})
 
@@ -53,44 +52,36 @@ export function AssetsPage() {
 
   const upload = () => setChoosing(true)
   return (
-    <StackPage
-      backTo="/me"
-      footer={
+    <SettingsPage
+      actions={
         query.data?.length ? (
-          <Button onAction={(a) => a === 'press' && upload()} size="L" state={picker.uploading ? 'Disable' : 'Default'} type="Primary">
-            {picker.uploading ? t.onboarding.uploading : t.assets.upload}
+          <Button icon={Upload} loading={picker.uploading} onClick={upload} variant="primary">
+            {t.assets.upload}
           </Button>
-        ) : undefined
+        ) : null
       }
       title={t.assets.title}
     >
       {picker.element}
-      <QueryView
-        empty={{ title: t.assets.emptyTitle, desc: t.assets.emptyDesc, action: t.assets.upload, onAction: upload }}
-        isEmpty={(items) => items.length === 0}
-        query={query}
-      >
+      <QueryView empty={{ title: t.assets.emptyTitle, desc: t.assets.emptyDesc, action: t.assets.upload, onAction: upload, icon: FolderOpen }} isEmpty={(items) => items.length === 0} query={query}>
         {(items) => (
-          <div className="list-block">
+          <div className="ui-list">
             {items.map((asset) => (
-              <SettingsFullWidthItem
+              <ListRow
+                icon={FileText}
                 key={asset.id}
-                onAction={(a) => a === 'open' && setAction(asset)}
+                onClick={() => void openAsset(asset)}
                 subtitle={`${KIND_LABEL[asset.kind]} · ${t.assets.size(asset.size)}`}
-                trailingKind="more"
-                type="双行列表-常规"
-              >
-                {asset.display_name}
-              </SettingsFullWidthItem>
+                title={asset.display_name}
+                trailing={<IconButton icon={Trash2} label={t.common.delete} onClick={() => setDeleting(asset)} size="sm" />}
+              />
             ))}
           </div>
         )}
       </QueryView>
-      <ChoiceSheet
+      <ChoiceMenu
         cancelLabel={t.common.cancel}
-        description={t.assets.chooseKind}
-        items={UPLOAD_KINDS.map((k) => KIND_LABEL[k])}
-        label={t.assets.chooseKind}
+        items={UPLOAD_KINDS.map((k) => ({ label: KIND_LABEL[k] }))}
         onCancel={() => setChoosing(false)}
         onSelect={(index) => {
           setChoosing(false)
@@ -99,23 +90,10 @@ export function AssetsPage() {
           window.setTimeout(picker.open, 0)
         }}
         open={choosing}
-      />
-      <ChoiceSheet
-        cancelLabel={t.common.cancel}
-        description={action?.display_name}
-        items={[t.assets.open, t.common.delete]}
-        label={action?.display_name ?? ''}
-        onCancel={() => setAction(null)}
-        onSelect={(index) => {
-          const target = action
-          setAction(null)
-          if (!target) return
-          if (index === 0) void openAsset(target)
-          else setDeleting(target)
-        }}
-        open={action !== null}
+        title={t.assets.chooseKind}
       />
       <ConfirmDialog
+        body={deleting?.display_name}
         cancelLabel={t.common.cancel}
         confirmLabel={t.common.delete}
         danger
@@ -127,7 +105,7 @@ export function AssetsPage() {
         open={deleting !== null}
         title={t.assets.deleteConfirm}
       />
-    </StackPage>
+    </SettingsPage>
   )
 }
 
@@ -144,6 +122,7 @@ export function MembersPage() {
   const queryClient = useQueryClient()
   const companyId = session.company?.id ?? ''
   const canManage = session.company?.role === 'owner' || session.company?.role === 'operator'
+  const isOwner = session.company?.role === 'owner'
   const query = useQuery({ queryKey: ['members', companyId], queryFn: () => api.members(companyId), enabled: Boolean(companyId) })
   const [link, setLink] = useState<string | null>(null)
   const [removing, setRemoving] = useState<Member | null>(null)
@@ -163,31 +142,32 @@ export function MembersPage() {
   })
 
   return (
-    <StackPage
-      backTo="/me"
-      footer={
+    <SettingsPage
+      actions={
         canManage ? (
-          <Button onAction={(a) => a === 'press' && !invite.isPending && invite.mutate()} size="L" state={invite.isPending ? 'Disable' : 'Default'} type="Primary">
+          <Button icon={UserPlus} loading={invite.isPending} onClick={() => invite.mutate()} variant="primary">
             {t.members.invite}
           </Button>
-        ) : undefined
+        ) : null
       }
       title={t.members.title}
     >
       <QueryView query={query}>
         {(members) => (
-          <div className="list-block">
+          <div className="ui-list">
             {members.map((member) => (
-              <SettingsFullWidthItem
+              <ListRow
+                icon={UserRound}
                 key={member.user_id}
-                onAction={(a) => a === 'open' && session.company?.role === 'owner' && member.role !== 'owner' && setRemoving(member)}
                 subtitle={member.email}
-                trailing={ROLE_LABEL[member.role]}
-                trailingKind={session.company?.role === 'owner' && member.role !== 'owner' ? 'chevron' : 'none'}
-                type="双行列表-常规"
-              >
-                {`${member.name || member.email}${member.is_me ? t.members.me : ''}`}
-              </SettingsFullWidthItem>
+                title={`${member.name || member.email}${member.is_me ? t.members.me : ''}`}
+                trailing={
+                  <>
+                    <Tag tone={member.role === 'owner' ? 'accent' : 'neutral'}>{ROLE_LABEL[member.role]}</Tag>
+                    {isOwner && member.role !== 'owner' ? <IconButton icon={Link2Off} label={t.members.remove} onClick={() => setRemoving(member)} size="sm" /> : null}
+                  </>
+                }
+              />
             ))}
           </div>
         )}
@@ -206,7 +186,7 @@ export function MembersPage() {
       />
       <ConfirmDialog
         cancelLabel={t.common.cancel}
-        confirmLabel={t.common.delete}
+        confirmLabel={t.members.remove}
         danger
         onCancel={() => setRemoving(null)}
         onConfirm={() => {
@@ -216,7 +196,7 @@ export function MembersPage() {
         open={removing !== null}
         title={removing ? t.members.removeConfirm(removing.name || removing.email) : ''}
       />
-    </StackPage>
+    </SettingsPage>
   )
 }
 
@@ -238,27 +218,21 @@ export function InviteAcceptPage() {
     onError: showError,
   })
   return (
-    <StackPage noBack surface="primary" title={t.invite.title}>
+    <AuthCard title={t.invite.title}>
       {preview.isError ? (
-        <PageCenter>
-          <EmptyPage button={false} descText="" description={false} illus="noContent">
-            {t.invite.invalid}
-          </EmptyPage>
-        </PageCenter>
+        <EmptyState icon={Link2Off} title={t.invite.invalid} />
       ) : (
         <QueryView query={preview}>
           {(info) => (
-            <div className="content-inset">
-              <Markdown variant="H3">{t.invite.desc(info.company_name)}</Markdown>
-              <div className="form-actions">
-                <Button onAction={(a) => a === 'press' && !accept.isPending && accept.mutate()} size="L" state={accept.isPending ? 'Disable' : 'Default'} type="Primary">
-                  {t.invite.accept}
-                </Button>
-              </div>
+            <div className="stack">
+              <p className="secondary">{t.invite.desc(info.company_name)}</p>
+              <Button block loading={accept.isPending} onClick={() => accept.mutate()} size="lg" variant="primary">
+                {t.invite.accept}
+              </Button>
             </div>
           )}
         </QueryView>
       )}
-    </StackPage>
+    </AuthCard>
   )
 }

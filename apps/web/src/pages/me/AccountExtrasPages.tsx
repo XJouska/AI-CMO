@@ -1,19 +1,18 @@
 // 「我的」中的：套餐与用量、通知列表、通知设置、数据与隐私；公开的隐私政策 / 用户协议 / 联系人删除请求页。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, FormDoubleLine, FormSingleLine, ListSectionTitle, Markdown, SettingsFullWidthItem, Switch } from '@yb/generated/components'
+import { Bell, CheckCircle2, Download, FileJson, FileSpreadsheet, FileText, Settings2, ShieldAlert } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { MarkdownText as PolicyMarkdown } from '@/assistant/MarkdownText'
-import { QueryView } from '@/components/local/QueryView'
-import { StackPage } from '@/components/local/StackPage'
-import { ConfirmDialog } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
+import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
+import { SettingsPage } from '@/layout/SettingsPage'
 import { isEmail } from '@/lib/validation'
 import { billingApi, complianceApi, notificationsApi, usageText, yuan, type PrefsOut } from '@/ops/api'
 import { shortTime } from '@/outreach/api'
 import { useSession } from '@/session/session'
+import { Button, Card, CardHeader, ConfirmDialog, cx, ListGroup, ListRow, Progress, Quote, Switch, Tag, Text, TextArea, TextField, useToast } from '@/ui'
 
 // ── 套餐与用量 ─────────────────────────────────────────────────────────
 
@@ -23,66 +22,74 @@ export function BillingPage() {
   const plans = useQuery({ queryKey: ['billing-plans'], queryFn: billingApi.plans })
   const invoices = useQuery({ queryKey: ['billing-invoices', session.company?.id], queryFn: billingApi.invoices })
   return (
-    <StackPage backTo="/me" title={t.billing.title}>
+    <SettingsPage title={t.billing.title}>
       <QueryView query={usage}>
         {(data) => (
-          <>
-            <ListSectionTitle>{t.billing.current}</ListSectionTitle>
-            <SettingsFullWidthItem
-              subtitle={data.ends_at ? t.billing.validUntil(data.ends_at.slice(0, 10)) : data.plan.description}
-              trailing={t.billing.status[data.status]}
-              trailingKind="none"
-              type="双行列表-常规"
-            >
-              {data.plan.name}
-            </SettingsFullWidthItem>
-            <ListSectionTitle>{t.billing.usageTitle}</ListSectionTitle>
-            {data.usage.map((item) => (
-              <div className="usage-row" data-kind={item.kind} data-full={item.limit >= 0 && item.used >= item.limit ? true : undefined} key={item.kind}>
-                <SettingsFullWidthItem showDot={item.limit > 0 && item.used >= item.limit} trailing={usageText(item)} trailingKind="none" type="单行列表-常规">
-                  {item.label}
-                </SettingsFullWidthItem>
+          <div className="stack-lg">
+            <Card padding="lg">
+              <CardHeader
+                actions={<Tag tone={data.status === 'active' ? 'success' : 'danger'}>{t.billing.status[data.status]}</Tag>}
+                description={data.ends_at ? t.billing.validUntil(data.ends_at.slice(0, 10)) : data.plan.description}
+                title={data.plan.name}
+              />
+              <div className="usage-grid">
+                {data.usage.map((item) => {
+                  const full = item.limit >= 0 && item.used >= item.limit
+                  return (
+                    <div className={cx('usage-item', full && 'is-full')} data-full={full || undefined} data-kind={item.kind} key={item.kind}>
+                      <div className="row-between">
+                        <span>{item.label}</span>
+                        <span className="usage-item__value">{usageText(item)}</span>
+                      </div>
+                      {item.limit > 0 ? <Progress label={item.label} value={(item.used / item.limit) * 100} /> : null}
+                    </div>
+                  )
+                })}
               </div>
-            ))}
+            </Card>
+
             {plans.data?.length ? (
-              <>
-                <ListSectionTitle>{t.billing.plansTitle}</ListSectionTitle>
-                {plans.data.map((plan) => (
-                  <SettingsFullWidthItem
-                    key={plan.key}
-                    subtitle={[plan.description, plan.setup_fee_cents ? t.billing.setupFee(yuan(plan.setup_fee_cents)) : ''].filter(Boolean).join(' · ')}
-                    trailing={`${yuan(plan.price_cents)} ${plan.period === 'year' ? t.billing.perYear : t.billing.perMonth}`}
-                    trailingKind="none"
-                    type="双行列表-常规"
-                  >
-                    {plan.key === data.plan.key ? `${plan.name} ✓` : plan.name}
-                  </SettingsFullWidthItem>
-                ))}
-              </>
+              <section>
+                <div className="ui-section-title">
+                  <h2>{t.billing.plansTitle}</h2>
+                </div>
+                <div className="grid-3 plan-grid">
+                  {plans.data.map((plan) => {
+                    const current = plan.key === data.plan.key
+                    return (
+                      <Card className={cx('plan-card', current && 'is-current')} key={plan.key}>
+                        <div className="row-between">
+                          <strong>{plan.name}</strong>
+                          {current ? <Tag icon={CheckCircle2} tone="accent">{t.assistant.current}</Tag> : null}
+                        </div>
+                        <div className="plan-card__price">{`${yuan(plan.price_cents)} ${plan.period === 'year' ? t.billing.perYear : t.billing.perMonth}`}</div>
+                        <p className="secondary small">{[plan.description, plan.setup_fee_cents ? t.billing.setupFee(yuan(plan.setup_fee_cents)) : ''].filter(Boolean).join(' · ')}</p>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </section>
             ) : null}
-            <div className="content-inset">
-              <Markdown quoteText={<p>{`${t.billing.contact}。${t.billing.contactDesc}`}</p>} variant="Quote" />
-            </div>
+
+            <Quote tone="accent">{`${t.billing.contact}。${t.billing.contactDesc}`}</Quote>
+
             {invoices.data?.length ? (
-              <>
-                <ListSectionTitle>{t.billing.invoicesTitle}</ListSectionTitle>
+              <ListGroup title={t.billing.invoicesTitle}>
                 {invoices.data.map((inv) => (
-                  <SettingsFullWidthItem
+                  <ListRow
+                    icon={FileText}
                     key={inv.id}
                     subtitle={[inv.period_start, inv.period_end].filter(Boolean).join(' – ') || inv.created_at.slice(0, 10)}
-                    trailing={`${yuan(inv.amount_cents)} · ${t.billing.invoiceStatus[inv.status]}`}
-                    trailingKind="none"
-                    type="双行列表-常规"
-                  >
-                    {inv.number}
-                  </SettingsFullWidthItem>
+                    title={inv.number}
+                    value={`${yuan(inv.amount_cents)} · ${t.billing.invoiceStatus[inv.status]}`}
+                  />
                 ))}
-              </>
+              </ListGroup>
             ) : null}
-          </>
+          </div>
         )}
       </QueryView>
-    </StackPage>
+    </SettingsPage>
   )
 }
 
@@ -100,36 +107,32 @@ export function NotificationsPage() {
     if (link.startsWith('/') && !link.startsWith('//')) navigate(link)
   }
   return (
-    <StackPage
-      backTo="/me"
-      right={
-        <Button onAction={(a) => a === 'press' && navigate('/me/notifications/settings')} size="S" type="Text">
+    <SettingsPage
+      actions={
+        <Button icon={Settings2} onClick={() => navigate('/me/notifications/settings')} variant="outline">
           {t.notifications.settingsEntry}
         </Button>
       }
       title={t.notifications.title}
     >
-      <QueryView empty={{ title: t.notifications.empty, desc: t.notifications.emptyDesc }} isEmpty={(items) => items.length === 0} query={list}>
+      <QueryView empty={{ title: t.notifications.empty, desc: t.notifications.emptyDesc, icon: Bell }} isEmpty={(items) => items.length === 0} query={list}>
         {(items) => (
-          <div className="notification-list">
+          <div className="ui-list notification-list">
             {items.map((n) => (
-              <div data-notification-id={n.id} data-read={n.read || undefined} key={n.id}>
-                <SettingsFullWidthItem
-                  onAction={(a) => a === 'open' && void open(n.id, n.link)}
-                  showDot={!n.read}
-                  subtitle={n.body || ' '}
-                  trailing={shortTime(n.created_at)}
-                  trailingKind="chevron"
-                  type="双行列表-常规"
-                >
-                  {n.title}
-                </SettingsFullWidthItem>
-              </div>
+              <ListRow
+                data={{ 'notification-id': n.id, read: n.read || undefined }}
+                dot={!n.read}
+                key={n.id}
+                onClick={() => void open(n.id, n.link)}
+                subtitle={n.body || undefined}
+                title={n.title}
+                value={shortTime(n.created_at)}
+              />
             ))}
           </div>
         )}
       </QueryView>
-    </StackPage>
+    </SettingsPage>
   )
 }
 
@@ -139,9 +142,9 @@ export function NotificationSettingsPage() {
   const session = useSession()
   const prefs = useQuery({ queryKey: ['notification-prefs', session.company?.id], queryFn: notificationsApi.prefs })
   return (
-    <StackPage backTo="/me/notifications" title={t.notifications.settingsTitle}>
+    <SettingsPage back="/me/notifications" title={t.notifications.settingsTitle}>
       <QueryView query={prefs}>{(data) => <PrefsEditor data={data} />}</QueryView>
-    </StackPage>
+    </SettingsPage>
   )
 }
 
@@ -169,53 +172,54 @@ function PrefsEditor({ data }: { data: PrefsOut }) {
   })
   const channels: ('email' | 'wecom')[] = data.wecom_configured ? ['email', 'wecom'] : ['email']
   return (
-    <>
-      <div className="content-inset">
-        <Markdown variant="Body">
-          <p>{t.notifications.emailHint(data.email)}</p>
-        </Markdown>
-      </div>
-      {channels.map((channel) => (
-        <section data-channel={channel} key={channel}>
-          <ListSectionTitle>{channel === 'email' ? t.notifications.email : t.notifications.wecom}</ListSectionTitle>
-          {data.groups.map((group) => (
-            <div className="pref-row" data-group={group.key} key={group.key}>
-              <SettingsFullWidthItem trailing=" " trailingKind="none" type="单行列表-常规">
-                {group.label}
-              </SettingsFullWidthItem>
-              <span className="pref-switch" aria-label={`${group.label} · ${channel === 'email' ? t.notifications.email : t.notifications.wecom}`}>
-                <Switch
-                  disabled={toggle.isPending ? 'true' : 'false'}
-                  onAction={(a) => a === 'toggle' && !toggle.isPending && toggle.mutate({ group: group.key, channel, enabled: !group[channel] })}
-                  turnOn={group[channel] ? 'true' : 'false'}
+    <div className="stack-lg">
+      <Text tone="secondary">{t.notifications.emailHint(data.email)}</Text>
+      {channels.map((channel) => {
+        const channelLabel = channel === 'email' ? t.notifications.email : t.notifications.wecom
+        return (
+          <section data-channel={channel} key={channel}>
+            <ListGroup title={channelLabel}>
+              {data.groups.map((group) => (
+                <ListRow
+                  data={{ group: group.key }}
+                  key={group.key}
+                  title={group.label}
+                  trailing={
+                    <Switch
+                      checked={group[channel]}
+                      disabled={toggle.isPending}
+                      label={`${group.label} · ${channelLabel}`}
+                      onChange={(enabled) => toggle.mutate({ group: group.key, channel, enabled })}
+                    />
+                  }
                 />
-              </span>
-            </div>
-          ))}
-        </section>
-      ))}
+              ))}
+            </ListGroup>
+          </section>
+        )
+      })}
       {canManage ? (
-        <section>
-          <ListSectionTitle>{t.notifications.wecomTitle}</ListSectionTitle>
-          <SettingsFullWidthItem trailing={data.wecom_configured ? t.notifications.wecomConfigured : t.notifications.wecomNotConfigured} trailingKind="none" type="单行列表-常规">
-            {t.notifications.wecom}
-          </SettingsFullWidthItem>
-          <div className="form-stack">
-            <FormSingleLine align="left" label={t.notifications.wecomLabel} maxLength={300} onChange={setWebhook} placeholder={t.notifications.wecomPlaceholder} value={webhook} />
-            <div className="form-actions">
-              <Button onAction={(a) => a === 'press' && webhook.trim() && !wecom.isPending && wecom.mutate(webhook.trim())} size="M" state={webhook.trim() && !wecom.isPending ? 'Default' : 'Disable'} type="Secondary">
-                {t.common.save}
-              </Button>
+        <Card>
+          <CardHeader
+            actions={<Tag tone={data.wecom_configured ? 'success' : 'neutral'}>{data.wecom_configured ? t.notifications.wecomConfigured : t.notifications.wecomNotConfigured}</Tag>}
+            title={t.notifications.wecomTitle}
+          />
+          <div className="stack">
+            <TextField label={t.notifications.wecomLabel} maxLength={300} onChange={setWebhook} placeholder={t.notifications.wecomPlaceholder} value={webhook} />
+            <div className="ui-form-actions">
               {data.wecom_configured ? (
-                <Button onAction={(a) => a === 'press' && !wecom.isPending && wecom.mutate('')} size="M" type="Text">
+                <Button disabled={wecom.isPending} onClick={() => wecom.mutate('')} variant="danger-ghost">
                   {t.notifications.wecomRemove}
                 </Button>
               ) : null}
+              <Button disabled={!webhook.trim()} loading={wecom.isPending} onClick={() => wecom.mutate(webhook.trim())} variant="primary">
+                {t.common.save}
+              </Button>
             </div>
           </div>
-        </section>
+        </Card>
       ) : null}
-    </>
+    </div>
   )
 }
 
@@ -240,54 +244,48 @@ export function PrivacySettingsPage() {
     },
     onError: showError,
   })
+  const nameMatches = Boolean(company) && name.trim() === company?.name_cn
   return (
-    <StackPage backTo="/me" title={t.privacy.dataTitle}>
-      {owner || company?.role === 'operator' ? (
-        <>
-          <SettingsFullWidthItem onAction={(a) => a === 'open' && !exporter.isPending && exporter.mutate('json')} trailing={exporter.isPending ? t.privacy.exporting : ' '} trailingKind="chevron" type="单行列表-常规">
-            {t.privacy.exportJson}
-          </SettingsFullWidthItem>
-          <SettingsFullWidthItem onAction={(a) => a === 'open' && !exporter.isPending && exporter.mutate('csv')} trailing=" " trailingKind="chevron" type="单行列表-常规">
-            {t.privacy.exportCsv}
-          </SettingsFullWidthItem>
-        </>
-      ) : null}
-      <SettingsFullWidthItem onAction={(a) => a === 'open' && navigate('/privacy')} trailing=" " trailingKind="chevron" type="单行列表-常规">
-        {t.privacy.privacyPolicy}
-      </SettingsFullWidthItem>
-      <SettingsFullWidthItem onAction={(a) => a === 'open' && navigate('/terms')} trailing=" " trailingKind="chevron" type="单行列表-常规">
-        {t.privacy.terms}
-      </SettingsFullWidthItem>
-      {owner && company ? (
-        <section>
-          <ListSectionTitle>{t.privacy.deleteTitle}</ListSectionTitle>
-          <div className="content-inset">
-            <Markdown variant="Body">
-              <p>{t.privacy.deleteDesc}</p>
-            </Markdown>
-          </div>
-          <div className="form-stack">
-            <FormSingleLine align="left" label={t.privacy.deleteLabel(company.name_cn)} maxLength={100} onChange={setName} placeholder={company.name_cn} value={name} />
-          </div>
-          <SettingsFullWidthItem onAction={(a) => a === 'press' && name.trim() === company.name_cn && setConfirming(true)} type="居中按钮-敏感操作">
-            {t.privacy.deleteTitle}
-          </SettingsFullWidthItem>
-          <ConfirmDialog
-            body={t.privacy.deleteDesc}
-            cancelLabel={t.common.cancel}
-            confirmLabel={t.privacy.deleteConfirm}
-            danger
-            onCancel={() => setConfirming(false)}
-            onConfirm={() => {
-              setConfirming(false)
-              remove.mutate()
-            }}
-            open={confirming}
-            title={t.privacy.deleteTitle}
-          />
-        </section>
-      ) : null}
-    </StackPage>
+    <SettingsPage title={t.privacy.dataTitle}>
+      <div className="stack-lg">
+        {owner || company?.role === 'operator' ? (
+          <ListGroup title={t.privacy.exportTitle}>
+            <ListRow icon={FileJson} onClick={() => !exporter.isPending && exporter.mutate('json')} title={t.privacy.exportJson} trailing={exporter.isPending ? <Tag>{t.privacy.exporting}</Tag> : <Download aria-hidden size={16} />} chevron={false} />
+            <ListRow icon={FileSpreadsheet} onClick={() => !exporter.isPending && exporter.mutate('csv')} title={t.privacy.exportCsv} trailing={<Download aria-hidden size={16} />} chevron={false} />
+          </ListGroup>
+        ) : null}
+        <ListGroup title={t.privacy.policiesTitle}>
+          <ListRow onClick={() => navigate('/privacy')} title={t.privacy.privacyPolicy} />
+          <ListRow onClick={() => navigate('/terms')} title={t.privacy.terms} />
+        </ListGroup>
+        {owner && company ? (
+          <Card className="danger-zone">
+            <CardHeader description={t.privacy.deleteDesc} icon={ShieldAlert} title={t.privacy.deleteTitle} />
+            <div className="stack">
+              <TextField label={t.privacy.deleteLabel(company.name_cn)} maxLength={100} onChange={setName} placeholder={company.name_cn} value={name} />
+              <div className="ui-form-actions">
+                <Button disabled={!nameMatches} loading={remove.isPending} onClick={() => nameMatches && setConfirming(true)} variant="danger">
+                  {t.privacy.deleteTitle}
+                </Button>
+              </div>
+            </div>
+            <ConfirmDialog
+              body={t.privacy.deleteDesc}
+              cancelLabel={t.common.cancel}
+              confirmLabel={t.privacy.deleteConfirm}
+              danger
+              onCancel={() => setConfirming(false)}
+              onConfirm={() => {
+                setConfirming(false)
+                remove.mutate()
+              }}
+              open={confirming}
+              title={t.privacy.deleteTitle}
+            />
+          </Card>
+        ) : null}
+      </div>
+    </SettingsPage>
   )
 }
 
@@ -331,21 +329,19 @@ const TERMS_MD = `### 用户协议
 5. 商机信息来自公开渠道，平台不保证每一条商机都能成交`
 
 export function PolicyPage({ kind }: { kind: 'privacy' | 'terms' }) {
-  const navigate = useNavigate()
   return (
-    <StackPage noBack={false} surface="primary" title={kind === 'privacy' ? t.privacy.privacyPolicy : t.privacy.terms}>
-      <div className="content-inset report-body">
+    <div className="site-container legal">
+      <article className="legal__body">
         <PolicyMarkdown text={kind === 'privacy' ? PRIVACY_MD : TERMS_MD} />
-      </div>
-      {kind === 'privacy' ? (
-        <SettingsFullWidthItem onAction={(a) => a === 'open' && navigate('/data-request')} trailing=" " trailingKind="chevron" type="单行列表-常规">
-          {t.privacy.erasureTitle}
-        </SettingsFullWidthItem>
-      ) : null}
-    </StackPage>
+        {kind === 'privacy' ? (
+          <p>
+            <Link to="/data-request">{t.privacy.erasureTitle}</Link>
+          </p>
+        ) : null}
+      </article>
+    </div>
   )
 }
-
 
 export function DataRequestPage() {
   const toast = useToast()
@@ -363,23 +359,28 @@ export function DataRequestPage() {
   })
   const valid = isEmail(email.trim())
   return (
-    <StackPage surface="primary" title={t.privacy.erasureTitle}>
-      <div className="content-inset">
-        <Markdown variant="Body">
-          <p>{done ? t.privacy.erasureDone : t.privacy.erasureDesc}</p>
-        </Markdown>
-      </div>
-      {!done ? (
-        <div className="form-stack">
-          <FormSingleLine align="left" label={t.privacy.erasureEmail} maxLength={254} onChange={setEmail} placeholder="name@company.com" value={email} />
-          <FormDoubleLine label={t.privacy.erasureNote} maxLength={1000} onChange={setNote} placeholder={t.privacy.erasureNote} value={note} />
-          <div className="form-actions">
-            <Button onAction={(a) => a === 'press' && valid && !submit.isPending && submit.mutate()} size="L" state={valid && !submit.isPending ? 'Default' : 'Disable'} type="Primary">
-              {t.privacy.erasureSubmit}
-            </Button>
-          </div>
+    <div className="site-container legal">
+      <Card className="legal__form" padding="lg">
+        <div className="stack">
+          <h1 className="ui-h ui-h2">{t.privacy.erasureTitle}</h1>
+          <Text tone="secondary">{done ? t.privacy.erasureDone : t.privacy.erasureDesc}</Text>
+          {!done ? (
+            <form
+              className="ui-form-stack"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (valid && !submit.isPending) submit.mutate()
+              }}
+            >
+              <TextField inputMode="email" label={t.privacy.erasureEmail} maxLength={254} onChange={setEmail} placeholder="name@company.com" value={email} />
+              <TextArea label={t.privacy.erasureNote} maxLength={1000} onChange={setNote} placeholder={t.privacy.erasureNote} value={note} />
+              <Button disabled={!valid} loading={submit.isPending} size="lg" type="submit" variant="primary">
+                {t.privacy.erasureSubmit}
+              </Button>
+            </form>
+          ) : null}
         </div>
-      ) : null}
-    </StackPage>
+      </Card>
+    </div>
   )
 }

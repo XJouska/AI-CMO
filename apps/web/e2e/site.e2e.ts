@@ -68,7 +68,7 @@ test('版本回滚与健康检查', async ({ page, request }) => {
 
   await page.goto('/site/versions')
   await expect(page.getByText('编辑：hero')).toBeVisible()
-  await page.getByText('AI 生成').click()
+  await page.locator('.ui-row', { hasText: 'AI 生成' }).getByRole('button', { name: '恢复为草稿' }).click()
   await page.getByRole('dialog').getByRole('button', { name: '恢复为草稿' }).click()
   await expect(page.getByText('已恢复为草稿')).toBeVisible()
   const draft = await (await request.get('/api/v1/site/draft', { headers })).json()

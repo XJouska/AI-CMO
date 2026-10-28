@@ -5,8 +5,6 @@ WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 RUN npm ci --workspaces --include-workspace-root --no-audit --no-fund
-COPY packages ./packages
-COPY scripts/prune-dist-assets.mjs ./scripts/prune-dist-assets.mjs
 COPY apps/web ./apps/web
 RUN npm run build -w apps/web
 

@@ -65,7 +65,7 @@ describe('套餐与用量', () => {
       .on('GET', '/billing/plans', [{ key: 'growth', name: '获客版', description: 'x', features: [], limits: {}, price_cents: 199900, setup_fee_cents: 0, period: 'month' }])
       .on('GET', '/billing/invoices', [{ id: 'i1', number: 'INV202610280001', amount_cents: 199900, status: 'paid', method: 'bank_transfer', period_start: '2026-10-28', period_end: '2026-11-28', paid_at: null, created_at: '' }])
     renderRoutes('/me/billing')
-    expect(await screen.findByText('获客版')).toBeTruthy()
+    expect((await screen.findAllByText('获客版')).length).toBeGreaterThan(0)
     expect(screen.getByText('有效期至 2026-11-01')).toBeTruthy()
     expect(screen.getByText('300 / 300')).toBeTruthy()
     expect(document.querySelector('[data-kind="leads"][data-full]')).toBeTruthy()
@@ -167,7 +167,7 @@ describe('数据与隐私', () => {
     window.localStorage.clear()
     renderRoutes('/privacy')
     expect(await screen.findByText('我们收集的信息')).toBeTruthy()
-    expect(screen.getByText('删除我的联系方式')).toBeTruthy()
+    expect(within(screen.getByRole('main')).getByRole('link', { name: '删除我的联系方式' })).toBeTruthy()
   })
 })
 

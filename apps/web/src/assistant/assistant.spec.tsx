@@ -23,7 +23,7 @@ beforeEach(() => {
 })
 
 function input() {
-  return document.querySelector<HTMLInputElement | HTMLTextAreaElement>('.yb-agent-native')!
+  return screen.getByRole('textbox', { name: '给助手发消息' }) as HTMLTextAreaElement
 }
 
 async function typeAndSend(text: string) {
@@ -68,9 +68,7 @@ describe('助手：发送与流式回答', () => {
     await typeAndSend('写一段很长的介绍')
     expect(await screen.findByText('正在整理')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '复制' })).toBeNull()
-    const stop = document.querySelector('.yb-tabbar [aria-label="停止"], .yb-tabbar [aria-label*="停止"]')
-    expect(stop).toBeTruthy()
-    fireEvent.click(stop!)
+    fireEvent.click(screen.getByRole('button', { name: '停止生成' }))
     expect(await screen.findByText('已停止生成')).toBeTruthy()
     await waitFor(() => expect(server.calls.some((c) => c.path.endsWith('/m1/cancel'))).toBe(true))
     expect(screen.getByText('正在整理')).toBeTruthy() // 已生成的内容保留
@@ -183,9 +181,7 @@ describe('助手：卡片', () => {
     await typeAndSend('我们 2008 年成立')
     const title = await screen.findByText('档案待确认变更')
     expect(screen.getByText('整理出 2 项变更，点击确认')).toBeTruthy()
-    const button = title.closest('button')!
-    fireEvent.pointerDown(button, { pointerId: 1 })
-    fireEvent.pointerUp(button, { pointerId: 1 })
+    fireEvent.click(title.closest('button')!)
     await waitFor(() => expect(router.state.location.pathname).toBe('/extractions/e1/review'))
   })
 })
@@ -220,8 +216,8 @@ describe('助手：历史会话', () => {
       ])
     const { router } = renderRoutes('/assistant')
     await screen.findByText(/你好，我是/)
-    fireEvent.click(screen.getByRole('button', { name: '打开侧边栏菜单' }))
-    fireEvent.click(await screen.findByText('找德国客户'))
+    // 桌面端历史会话常驻在左侧栏
+    fireEvent.click(await screen.findByRole('button', { name: '找德国客户' }))
     expect(await screen.findByText('找到 3 家')).toBeTruthy()
     expect(router.state.location.search).toBe('?c=c9')
   })

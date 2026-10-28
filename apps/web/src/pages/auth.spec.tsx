@@ -35,7 +35,7 @@ describe('登录 / 注册（规范 form-validation-timing）', () => {
     fireEvent.click(primary('登录'))
     expect(await screen.findByText('邮箱格式不正确')).toBeTruthy()
     expect(server.calls).toEqual([])
-    expect(document.querySelector('.yb-form-error, [role="alert"]')).toBeNull()
+    expect(document.querySelector('[role="alert"]')).toBeNull()
   })
 
   it('服务端错误显示后端文案的 Toast', async () => {

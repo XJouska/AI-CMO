@@ -1,6 +1,6 @@
-// 回答渲染：安全 Markdown AST → 正式 Markdown 组件变体。所有文本都是 React 文本子节点。
-import { Markdown, SettingsFullWidthItem } from '@yb/generated/components'
+// 回答渲染：安全 Markdown AST → 自有排版组件。所有文本都是 React 文本子节点，不注入 HTML。
 import { Fragment } from 'react'
+import { BulletList, Divider, Heading, NumberList, Quote, Text } from '@/ui'
 import { parseMarkdown, type InlineNode } from './markdown'
 
 function Inline({ nodes }: { nodes: InlineNode[] }) {
@@ -24,48 +24,62 @@ function Inline({ nodes }: { nodes: InlineNode[] }) {
 export function MarkdownText({ text }: { text: string }) {
   const blocks = parseMarkdown(text)
   return (
-    <>
+    <div className="md">
       {blocks.map((block, index) => {
         switch (block.type) {
           case 'heading':
             return (
-              <Markdown key={index} variant={block.level === 3 ? 'Others+H3' : 'Others+H4'}>
+              <Heading key={index} level={block.level === 3 ? 3 : 4}>
                 <Inline nodes={block.inline} />
-              </Markdown>
+              </Heading>
             )
           case 'paragraph':
             return (
-              <Markdown key={index} variant="Body">
-                <p>
-                  <Inline nodes={block.inline} />
-                </p>
-              </Markdown>
+              <Text key={index}>
+                <Inline nodes={block.inline} />
+              </Text>
             )
           case 'ul':
-            return <Markdown items={block.items} key={index} variant="UL" />
+            return <BulletList items={block.items} key={index} />
           case 'ol':
-            return <Markdown items={block.items} key={index} variant="OL" />
+            return <NumberList items={block.items} key={index} />
           case 'quote':
             return (
-              <Markdown key={index} quoteText={<Inline nodes={block.inline} />} variant="Quote" />
+              <Quote key={index}>
+                <Inline nodes={block.inline} />
+              </Quote>
             )
           case 'divider':
-            return <Markdown key={index} variant="Divider" />
+            return <Divider key={index} />
           case 'table':
-            // 正式 Table 变体表头写死（GAP-014）：用正式列表行逐行展示「第一列 → 其余列」
             return (
               <div className="md-table" key={index}>
-                {block.rows.map((row, r) => (
-                  <SettingsFullWidthItem key={r} trailing={row.slice(1).join(' · ') || ' '} trailingKind="none" type="单行列表-常规">
-                    {row[0] ?? ''}
-                  </SettingsFullWidthItem>
-                ))}
+                <table>
+                  {block.header.length ? (
+                    <thead>
+                      <tr>
+                        {block.header.map((cell, c) => (
+                          <th key={c}>{cell}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                  ) : null}
+                  <tbody>
+                    {block.rows.map((row, r) => (
+                      <tr key={r}>
+                        {row.map((cell, c) => (
+                          <td key={c}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )
           default:
             return null
         }
       })}
-    </>
+    </div>
   )
 }

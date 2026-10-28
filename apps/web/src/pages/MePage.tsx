@@ -1,24 +1,18 @@
+// 「我的」概览：企业资料、获客工具、账户三组入口卡片；切换企业、退出登录。
 import { useQuery } from '@tanstack/react-query'
-import { ListSectionTitle, NavBar, SettingsFullWidthItem } from '@yb/generated/components'
+import { Building2, LogOut, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/endpoints'
+import { BRAND } from '@/brand'
+import { t } from '@/i18n'
+import { AppPage } from '@/layout/AppPage'
+import { SETTINGS_GROUPS } from '@/layout/SettingsPage'
 import { leadsApi } from '@/leads/api'
 import { billingApi, notificationsApi } from '@/ops/api'
 import { outreachApi } from '@/outreach/api'
-import { TabPage } from '@/components/local/TabPage'
-import { BRAND } from '@/brand'
-import { ChoiceSheet, ConfirmDialog } from '@/feedback/overlays'
-import { useToast } from '@/feedback/toast'
-import { t } from '@/i18n'
 import { useSession } from '@/session/session'
-
-interface MeItem {
-  id: string
-  label: string
-  value: string
-  onOpen: () => void
-}
+import { Button, Card, ChoiceMenu, ConfirmDialog, ListGroup, ListRow, Progress, useToast } from '@/ui'
 
 export function MePage() {
   const navigate = useNavigate()
@@ -32,103 +26,74 @@ export function MePage() {
   const usage = useQuery({ queryKey: ['billing-usage', session.company?.id], queryFn: billingApi.usage })
   const notifications = useQuery({ queryKey: ['notifications', session.company?.id], queryFn: notificationsApi.list })
   const unread = notifications.data?.filter((n) => !n.read).length ?? 0
-
   const companies = session.user?.companies ?? []
-  const staffSection: { title: string; items: MeItem[] }[] = session.user?.is_staff
-    ? [{ title: t.ops.section, items: [{ id: 'ops', label: t.ops.section, value: ' ', onOpen: () => navigate('/ops') }] }]
-    : []
-  const sections: { title: string; items: MeItem[] }[] = [
-    {
-      title: t.me.sectionCompany,
-      items: [
-        {
-          id: 'profile',
-          label: t.me.profile,
-          value: profile.data ? t.profile.completeness(profile.data.completeness) : t.common.loading,
-          onOpen: () => navigate('/me/profile'),
-        },
-        {
-          id: 'products',
-          label: t.me.products,
-          value: profile.data ? t.me.countValue(profile.data.product_count) : t.common.loading,
-          onOpen: () => navigate('/me/products'),
-        },
-        { id: 'assets', label: t.me.assets, value: t.me.manage, onOpen: () => navigate('/me/assets') },
-        { id: 'team', label: t.me.team, value: t.me.manage, onOpen: () => navigate('/me/members') },
-      ],
-    },
-    {
-      title: t.me.sectionGrowth,
-      items: [
-        {
-          id: 'monitoring',
-          label: t.me.monitoring,
-          value: watches.data?.some((w) => w.is_active) ? t.leads.watchDaily : t.me.monitoringValue,
-          onOpen: () => navigate('/me/watches'),
-        },
-        {
-          id: 'mail',
-          label: t.me.mailAccounts,
-          value: mailAccounts.data ? t.me.mailAccountsValue(mailAccounts.data.length) : t.common.loading,
-          onOpen: () => navigate('/me/mail-accounts'),
-        },
-        { id: 'reports', label: t.me.reports, value: t.me.manage, onOpen: () => navigate('/me/reports') },
-      ],
-    },
-    {
-      title: t.me.sectionAccount,
-      items: [
-        {
-          id: 'plan',
-          label: t.me.plan,
-          value: usage.data ? `${usage.data.plan.name}${usage.data.status === 'expired' ? '（已到期）' : ''}` : t.common.loading,
-          onOpen: () => navigate('/me/billing'),
-        },
-        { id: 'notifications', label: t.me.notifications, value: t.me.unread(unread), onOpen: () => navigate('/me/notifications') },
-        { id: 'privacy', label: t.me.privacy, value: ' ', onOpen: () => navigate('/me/privacy') },
-        { id: 'switch', label: t.me.switchCompany, value: session.company?.name_cn ?? '', onOpen: () => setSwitching(true) },
-        { id: 'about', label: t.me.about, value: `v${BRAND.version}`, onOpen: () => {} },
-      ],
-    },
-  ]
+
+  // 各入口右侧显示的状态
+  const values: Record<string, string> = {
+    '/me/profile': profile.data ? t.profile.completeness(profile.data.completeness) : t.common.loading,
+    '/me/products': profile.data ? t.me.countValue(profile.data.product_count) : t.common.loading,
+    '/me/watches': watches.data?.some((w) => w.is_active) ? t.leads.watchDaily : t.me.monitoringValue,
+    '/me/mail-accounts': mailAccounts.data ? t.me.mailAccountsValue(mailAccounts.data.length) : t.common.loading,
+    '/me/billing': usage.data ? `${usage.data.plan.name}${usage.data.status === 'expired' ? '（已到期）' : ''}` : t.common.loading,
+    '/me/notifications': t.me.unread(unread),
+  }
 
   return (
-    <TabPage
-      nav={
-        <NavBar barType="Fixed Color Bg" divider={false} leftButton={false} rightButton={false} themeBg={false}>
-          {t.me.title}
-        </NavBar>
-      }
-      surface="secondary"
-    >
-      <div className="me-list">
-        {[...sections, ...staffSection].map((section) => (
-          <section key={section.title}>
-            <ListSectionTitle>{section.title}</ListSectionTitle>
-            {section.items.map((item) => (
-              <SettingsFullWidthItem
-                key={item.id}
-                onAction={(action) => action === 'open' && item.onOpen()}
-                trailing={item.value}
-                trailingKind="chevron"
-                type="单行列表-常规"
-              >
-                {item.label}
-              </SettingsFullWidthItem>
-            ))}
-          </section>
-        ))}
-        <section className="me-logout">
-          <SettingsFullWidthItem onAction={(action) => action === 'press' && setLoggingOut(true)} type="居中按钮-敏感操作">
+    <AppPage description={t.me.overviewDesc} title={t.me.title}>
+      <div className="stack-lg">
+        <Card className="me-company" padding="lg">
+          <div className="me-company__main">
+            <span aria-hidden className="me-company__icon">
+              <Building2 size={22} />
+            </span>
+            <div className="me-company__text">
+              <strong>{session.company?.name_cn}</strong>
+              <span className="muted">{session.user?.email}</span>
+            </div>
+            <Button onClick={() => setSwitching(true)} variant="outline">
+              {t.me.switchCompany}
+            </Button>
+          </div>
+          {profile.data ? (
+            <div className="me-company__progress">
+              <div className="row-between">
+                <span className="secondary">{t.profile.completeness(profile.data.completeness)}</span>
+                <Button onClick={() => navigate('/me/profile')} size="sm" variant="link">
+                  {t.me.profile}
+                </Button>
+              </div>
+              <Progress label={t.profile.completeness(profile.data.completeness)} value={profile.data.completeness} />
+            </div>
+          ) : null}
+        </Card>
+
+        <div className="grid-3 me-groups">
+          {SETTINGS_GROUPS.map((group) => (
+            <ListGroup key={group.title} title={group.title}>
+              {group.items.map((item) => (
+                <ListRow icon={item.icon} key={item.path} onClick={() => navigate(item.path)} title={item.label} value={values[item.path]} />
+              ))}
+            </ListGroup>
+          ))}
+        </div>
+
+        {session.user?.is_staff ? (
+          <ListGroup title={t.ops.section}>
+            <ListRow icon={ShieldCheck} onClick={() => navigate('/ops')} title={t.ops.section} />
+          </ListGroup>
+        ) : null}
+
+        <div className="row-between me-foot">
+          <span className="muted">{`${BRAND.name} ${BRAND.version}`}</span>
+          <Button icon={LogOut} onClick={() => setLoggingOut(true)} variant="danger-ghost">
             {t.me.logout}
-          </SettingsFullWidthItem>
-        </section>
+          </Button>
+        </div>
       </div>
-      <ChoiceSheet
+
+      <ChoiceMenu
         cancelLabel={t.common.cancel}
-        description={t.company.switchTitle}
-        items={[...companies.map((c) => (c.id === session.company?.id ? `${c.name_cn} ✓` : c.name_cn)), t.company.createTitle]}
-        label={t.company.switchTitle}
+        items={[...companies.map((c) => ({ label: c.name_cn, current: c.id === session.company?.id })), { label: t.company.createTitle }]}
         onCancel={() => setSwitching(false)}
         onSelect={(index) => {
           setSwitching(false)
@@ -140,6 +105,7 @@ export function MePage() {
           }
         }}
         open={switching}
+        title={t.company.switchTitle}
       />
       <ConfirmDialog
         cancelLabel={t.common.cancel}
@@ -155,6 +121,6 @@ export function MePage() {
         open={loggingOut}
         title={t.me.logoutConfirm}
       />
-    </TabPage>
+    </AppPage>
   )
 }

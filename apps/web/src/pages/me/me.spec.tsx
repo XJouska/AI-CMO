@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Profile } from '@/api/endpoints'
 import { demoProfile, DEMO_USER, installFakeServer, signedIn, type FakeServer } from '@/test/fakeServer'
@@ -19,12 +19,13 @@ describe('「我的」Tab', () => {
   it('显示完整度与分组；退出登录需二次确认', async () => {
     server.on('POST', '/auth/logout', null, 204)
     const { router } = renderRoutes('/me')
-    expect(await screen.findByText('完整度 0%')).toBeTruthy()
-    for (const title of ['企业', '获客', '账户']) expect(screen.getByText(title)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '退出登录' }))
+    expect((await screen.findAllByText('完整度 0%')).length).toBeGreaterThan(0)
+    const main = screen.getByRole('main')
+    for (const title of ['企业', '获客', '账户']) expect(within(main).getByText(title)).toBeTruthy()
+    fireEvent.click(within(main).getByRole('button', { name: '退出登录' }))
     const dialog = await screen.findByRole('dialog')
     expect(dialog.textContent).toContain('确定退出登录？')
-    fireEvent.click(screen.getAllByRole('button', { name: '退出登录' }).at(-1)!)
+    fireEvent.click(within(dialog).getByRole('button', { name: '退出登录' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(window.localStorage.getItem('aicmo.token')).toBeNull()
   })
@@ -36,9 +37,9 @@ describe('「我的」Tab', () => {
     }
     server.on('GET', '/auth/me', two)
     renderRoutes('/me')
-    await screen.findByText('完整度 0%')
-    fireEvent.click(screen.getByText('切换企业'))
-    fireEvent.pointerDown(await screen.findByRole('button', { name: '温州泵业' }))
+    await screen.findAllByText('完整度 0%')
+    fireEvent.click(within(screen.getByRole('main')).getByRole('button', { name: '切换企业' }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '温州泵业' }))
     expect(await screen.findByText('已切换到 温州泵业')).toBeTruthy()
     expect(window.localStorage.getItem('aicmo.company')).toBe('c2')
   })
@@ -95,7 +96,7 @@ describe('产品管理', () => {
     const { router } = renderRoutes('/me/products')
     fireEvent.click(await screen.findByRole('button', { name: '新增产品' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/me/products/new'))
-    fireEvent.change(screen.getByLabelText('中文名称'), { target: { value: '球阀' } })
+    fireEvent.change(await screen.findByLabelText('中文名称'), { target: { value: '球阀' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
     expect(await screen.findByText('请填写英文名称')).toBeTruthy()
   })

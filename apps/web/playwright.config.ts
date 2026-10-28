@@ -24,8 +24,8 @@ export default defineConfig({
     colorScheme: 'light',
   },
   projects: [
-    { name: 'mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 402, height: 874 }, deviceScaleFactor: 1 } },
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } },
+    { name: 'mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true } },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } },
   ],
   webServer: [
     {
@@ -36,7 +36,7 @@ export default defineConfig({
       env: { E2E_API_PORT: String(API_PORT) },
     },
     {
-      command: `npx vite build --logLevel warn && node ../../scripts/prune-dist-assets.mjs dist && npx vite preview --host 127.0.0.1 --port ${WEB_PORT} --strictPort`,
+      command: `npx vite build --logLevel warn && npx vite preview --host 127.0.0.1 --port ${WEB_PORT} --strictPort`,
       url: `http://127.0.0.1:${WEB_PORT}`,
       reuseExistingServer: false,
       timeout: 180_000,
