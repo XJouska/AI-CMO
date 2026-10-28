@@ -234,3 +234,14 @@ def usage_summary(db: Session, company_id: uuid.UUID) -> dict[str, Any]:
         "ends_at": ent.subscription.ends_at.isoformat() if ent.subscription else None,
         "usage": items,
     }
+
+
+def require_ai(db: Session, company_id: uuid.UUID, feature: str | None = None, estimate_tokens: int = 2_000) -> None:
+    """调用 LLM 前的统一检查：套餐有效、（可选）包含功能、本月 AI 用量还有余量。
+
+    estimate_tokens 为本次调用的预估用量（实际用量在调用后按真实 token 记录）。助手、官网生成 / 改写、
+    资料抽取、开发信都经过这里，API 与助手工具共用同一道检查。
+    """
+    if feature is not None:
+        require_feature(db, company_id, feature)
+    check_quota(db, company_id, "llm_tokens", estimate_tokens)

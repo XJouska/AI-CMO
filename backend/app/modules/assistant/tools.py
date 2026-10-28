@@ -62,6 +62,11 @@ class Tool:
     label: str  # 进度条上显示的中文动作，例如「查询档案完整度」
     roles: tuple[str, ...] = ("owner", "member", "operator")
     requires_confirmation: bool = False
+    # 副作用分类（注册时必须声明，test_assistant_tool_safety 校验）：
+    # - "read"：只读查询
+    # - "draft"：只生成待用户确认 / 审阅的草稿（档案变更、产品草稿、开发信草稿、官网草稿），不对外生效
+    # - "write"：直接修改数据、启动任务或对外发送 —— 必须 requires_confirmation=True
+    side_effect: str = "read"
     # 确认卡片内容：{title, summary, confirm_label, danger}。只能使用从数据库读取的、属于当前企业的数据。
     describe_confirm: Callable[[ToolContext, Any], dict[str, Any]] | None = None
 
@@ -149,7 +154,14 @@ def tool(
     roles: tuple[str, ...] = ("owner", "member", "operator"),
     describe_confirm: Callable[[ToolContext, Any], dict[str, Any]] | None = None,
     target: ToolRegistry | None = None,
+    side_effect: str = "read",
 ) -> Callable[[ToolFunc], ToolFunc]:
+    if side_effect not in ("read", "draft", "write"):
+        raise ValueError(f"unknown side_effect {side_effect!r}")
+    if side_effect == "write" and not requires_confirmation:
+        # 外部内容（询盘、网页）可能诱导模型调用工具：直接生效的操作一律需要用户确认
+        raise ValueError(f"tool {name!r} has side effects and must require confirmation")
+
     def decorator(func: ToolFunc) -> ToolFunc:
         (target or registry).register(
             Tool(
@@ -161,6 +173,7 @@ def tool(
                 roles=roles,
                 requires_confirmation=requires_confirmation,
                 describe_confirm=describe_confirm,
+                side_effect=side_effect,
             )
         )
         return func

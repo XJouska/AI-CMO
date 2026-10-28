@@ -66,6 +66,7 @@ class DraftArgs(ToolArgs):
     description="为某条商机生成开发信（英文或目标市场语言），语气可选 concise / professional / warm。",
     args=DraftArgs,
     label="生成开发信",
+    side_effect="draft",
 )
 async def outreach_draft(ctx: ToolContext, args: DraftArgs) -> ToolResult:
     from app.modules.outreach.router import create_draft
@@ -83,7 +84,13 @@ class ReviseArgs(ToolArgs):
     instruction: str = Field(min_length=1, max_length=300, description="修改要求，例如「再短一点」「强调 CE 认证」")
 
 
-@tool("outreach_revise", description="按要求修改一封开发信，生成新版本。", args=ReviseArgs, label="修改开发信")
+@tool(
+    "outreach_revise",
+    description="按要求修改一封开发信，生成新版本。",
+    args=ReviseArgs,
+    label="修改开发信",
+    side_effect="draft",
+)
 async def outreach_revise(ctx: ToolContext, args: ReviseArgs) -> ToolResult:
     from app.modules.outreach.router import create_draft
 
@@ -129,6 +136,7 @@ def _describe_send(ctx: ToolContext, args: SendArgs) -> dict[str, Any]:
     label="发送开发信",
     requires_confirmation=True,
     describe_confirm=_describe_send,
+    side_effect="write",
 )
 async def outreach_send(ctx: ToolContext, args: SendArgs) -> ToolResult:
     from app.core.deps import CompanyScope
@@ -156,11 +164,25 @@ class StageArgs(ToolArgs):
     lost_reason: Literal["", "no_reply", "price", "spec_mismatch", "competitor", "not_real", "other"] = ""
 
 
+def _describe_stage(ctx: ToolContext, args: StageArgs) -> dict[str, Any]:
+    lead = _lead(ctx, args.lead_id)
+    reason = f"（{service.LOST_REASONS[args.lost_reason]}）" if args.lost_reason else ""
+    return {
+        "title": "更新跟进阶段",
+        "summary": f"商机：{lead.title}\n变更为：{service.STAGE_LABELS[args.stage]}{reason}",
+        "confirm_label": "更新",
+        "danger": args.stage in ("lost", "invalid"),
+    }
+
+
 @tool(
     "pipeline_update_stage",
     description="更新商机的跟进阶段（已联系 / 已回复 / 已询价 / 已报价 / 打样中 / 已成交 / 已放弃 / 无效）。",
     args=StageArgs,
     label="更新跟进阶段",
+    side_effect="write",
+    requires_confirmation=True,
+    describe_confirm=_describe_stage,
 )
 def pipeline_update_stage(ctx: ToolContext, args: StageArgs) -> ToolResult:
     lead = _lead(ctx, args.lead_id)

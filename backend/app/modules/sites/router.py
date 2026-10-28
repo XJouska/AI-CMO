@@ -146,11 +146,6 @@ class GenerateIn(BaseModel):
 def generate_site(
     body: GenerateIn, scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)
 ) -> SiteOut:
-    from app.modules.billing.service import check_quota, require_feature
-
-    require_feature(db, scope.company_id, "site")
-    if db.scalar(select(Site.id).where(Site.company_id == scope.company_id)) is None:
-        check_quota(db, scope.company_id, "sites")
     site = service.start_generation(db, scope.company, scope.user.id, body.template)
     db.commit()
     return site_out(db, site)

@@ -277,9 +277,9 @@ class DraftIn(BaseModel):
 async def create_draft(
     db: Session, lead: Lead, scope_user: Any, tone: str, language: str, *, instruction: str = "", base: Any = None
 ) -> OutreachDraft:
-    from app.modules.billing.service import require_feature
+    from app.modules.billing.service import require_ai
 
-    require_feature(db, lead.company_id, "outreach")
+    require_ai(db, lead.company_id, "outreach", estimate_tokens=2_000)
     if _version_count(db, lead.id) >= MAX_DRAFT_VERSIONS:
         raise AppError(f"每条商机最多保存 {MAX_DRAFT_VERSIONS} 个版本", code="draft_limit")
     from app.services.metering import metering
@@ -360,7 +360,14 @@ def edit_draft(
     draft_id: uuid.UUID, body: DraftPatch, scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)
 ) -> DraftOut:
     draft = _own_draft(db, scope, draft_id)
-    if draft.status == "sent":
+    draft = db.scalar(
+        select(OutreachDraft)
+        .where(OutreachDraft.id == draft.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    assert draft is not None
+    if draft.status in ("sent", "sending"):
         raise AppError("已发送的开发信不能修改", code="draft_sent")
     if body.to_email is not None:
         draft.to_email = _normalize_email(body.to_email) if body.to_email.strip() else ""
@@ -391,6 +398,15 @@ def mark_sent(
     """用户用自己的邮箱发出（复制 / mailto）后确认：记录跟进并推进到「已联系」。"""
     draft = _own_draft(db, scope, draft_id)
     lead = _own_lead(db, scope, draft.lead_id)
+    draft = db.scalar(
+        select(OutreachDraft)
+        .where(OutreachDraft.id == draft.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    assert draft is not None
+    if draft.status == "sending":
+        raise AppError("这封开发信正在发送中", code="draft_sending", status_code=409)
     if draft.status != "sent":
         draft.status, draft.sent_at = "sent", utcnow()
         service.add_activity(
@@ -419,17 +435,37 @@ class SendOut(BaseModel):
 
 
 async def send_draft(db: Session, scope: CompanyScope, draft: OutreachDraft, account_id: uuid.UUID) -> SendOut:
+    """发送分两阶段，防止并发重复发送与突破限额：
+
+    1. 占位（加锁事务）：锁定草稿与发信邮箱 → 检查状态、屏蔽名单、每日上限、套餐额度 → 草稿置为 sending，
+       并立即写入发送记录与用量（计入限额）→ 提交释放锁。并发的第二个请求会看到 sending 而被拒绝，
+       同时它看到的已发送数量已包含这次占位。
+    2. 发送：调用邮件服务器。成功 → 草稿置为 sent；失败 → 撤销占位（草稿回到 draft，删除发送记录与用量）。
+    """
+    from app.modules.admin.audit import audit_scope, record_usage
+    from app.modules.billing.service import check_quota, require_feature
+
     lead = _own_lead(db, scope, draft.lead_id)
-    if draft.status == "sent":
+    draft = db.scalar(
+        select(OutreachDraft)
+        .where(OutreachDraft.id == draft.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    assert draft is not None
+    if draft.status in ("sent", "sending"):
         raise AppError("这封开发信已经发送过", code="draft_sent", status_code=409)
-    account = db.get(MailAccount, account_id)
+    account = db.scalar(
+        select(MailAccount)
+        .where(MailAccount.id == account_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if account is None or account.company_id != scope.company_id:
         raise NotFoundError("发信邮箱不存在")
     if not draft.to_email:
         raise AppError("请先填写收件人邮箱", code="recipient_required")
     service.check_can_send(db, account, draft.to_email)
-    from app.modules.billing.service import check_quota, require_feature
-
     require_feature(db, scope.company_id, "outreach")
     check_quota(db, scope.company_id, "emails_sent")
     try:
@@ -444,15 +480,9 @@ async def send_draft(db: Session, scope: CompanyScope, draft: OutreachDraft, acc
         body=draft.body,
         unsubscribe_url=service.unsubscribe_url(scope.company_id, draft.to_email),
     )
-    try:
-        message_id = await providers.mailer().send(creds, mail)
-    except MailSendError as exc:
-        account.last_error = exc.code
-        db.commit()
-        raise AppError(exc.message, code=f"mail_{exc.code}", status_code=502) from exc
-    draft.status, draft.sent_at = "sent", utcnow()
-    account.last_error = ""
-    service.add_activity(
+    # ── 阶段 1：占位 ──
+    draft.status = "sending"
+    activity = service.add_activity(
         db,
         lead,
         "email_sent",
@@ -462,14 +492,28 @@ async def send_draft(db: Session, scope: CompanyScope, draft: OutreachDraft, acc
             "mail_account_id": str(account.id),
             "to": draft.to_email,
             "subject": draft.subject,
-            "message_id": message_id,
+            "status": "sending",
         },
         scope.user.id,
     )
-    pipe = service.change_stage(db, lead, "contacted", user_id=scope.user.id, auto=True)
-    from app.modules.admin.audit import audit_scope, record_usage
+    usage = record_usage(db, scope.company_id, "emails_sent", 1, {"draft_id": str(draft.id)})
+    db.commit()
 
-    record_usage(db, scope.company_id, "emails_sent", 1, {"draft_id": str(draft.id)})
+    # ── 阶段 2：发送 ──
+    try:
+        message_id = await providers.mailer().send(creds, mail)
+    except MailSendError as exc:
+        draft.status = "draft"
+        account.last_error = exc.code
+        db.delete(activity)
+        if usage is not None:
+            db.delete(usage)
+        db.commit()
+        raise AppError(exc.message, code=f"mail_{exc.code}", status_code=502) from exc
+    draft.status, draft.sent_at = "sent", utcnow()
+    account.last_error = ""
+    activity.content = {**activity.content, "status": "sent", "message_id": message_id}
+    pipe = service.change_stage(db, lead, "contacted", user_id=scope.user.id, auto=True)
     audit_scope(
         db,
         scope,

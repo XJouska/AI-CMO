@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from freezegun import freeze_time
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -661,18 +662,28 @@ def test_lead_tools(client, db, search, llm) -> None:
     assert card["card_type"] == "lead_list" and card["payload"]["leads"][0]["type"] == "tender"
     lead_id = card["payload"]["leads"][0]["id"]
 
-    llm.script(
-        "assistant.chat",
-        call("lead_explain", {"lead_id": lead_id}),
-        call("watch_update", {"add_keywords": ["gate valve"], "frequency": "weekly"}, "c2"),
-        call("lead_run_now", {}, "c3"),
-        text("ok"),
-    )
-    send(client, tenant, new_conversation(client, tenant), "解释一下并加上闸阀")
+    llm.script("assistant.chat", call("lead_explain", {"lead_id": lead_id}), text("ok"))
+    send(client, tenant, new_conversation(client, tenant), "解释一下")
     outputs = [m["content"] for m in llm.calls[-1]["messages"] if m["role"] == "tool"]
     assert "产品匹配度" in outputs[0]
-    assert "gate valve" in outputs[1] and "weekly" in outputs[1]
-    assert '"runs": 1' in outputs[2]
+
+    # 修改监控、立即运行会修改数据 / 消耗额度：先出确认卡片，确认后才执行
+    def confirm_last(events):  # type: ignore[no-untyped-def]
+        card = next(e["data"] for e in events if e["event"] == "block.card" and e["data"]["card_type"] == "confirm")
+        r = client.post(f"/api/v1/assistant/tool-runs/{card['payload']['tool_run_id']}/confirm", headers=tenant.headers)
+        assert r.json()["status"] == "succeeded", r.text
+        return card
+
+    llm.script("assistant.chat", call("watch_update", {"add_keywords": ["gate valve"], "frequency": "weekly"}))
+    card = confirm_last(send(client, tenant, new_conversation(client, tenant), "加上闸阀"))
+    assert "gate valve" in card["payload"]["summary"]
+    watch = db.scalars(select(Watch).where(Watch.company_id == tenant.company.id)).first()
+    db.refresh(watch)
+    assert "gate valve" in watch.keywords_en and watch.frequency == "weekly"
+    run_pending(db)
+    with freeze_time(datetime.now(UTC) + timedelta(hours=1)):
+        llm.script("assistant.chat", call("lead_run_now", {}))
+        confirm_last(send(client, tenant, new_conversation(client, tenant), "立即运行"))
 
 
 def test_lead_tools_scoped_to_company(client, db, llm) -> None:
@@ -687,14 +698,17 @@ def test_lead_tools_scoped_to_company(client, db, llm) -> None:
         "assistant.chat",
         call("lead_explain", {"lead_id": str(lead.id)}),
         call("lead_search", {}, "c2"),
-        call("lead_run_now", {}, "c3"),
         text("x"),
     )
     send(client, attacker, new_conversation(client, attacker), "看看别人的商机")
     outputs = [m["content"] for m in llm.calls[-1]["messages"] if m["role"] == "tool"]
     assert "商机不存在" in outputs[0]
     assert "secret" not in outputs[1]
-    assert "还没有开启的监控计划" in outputs[2]
+    llm.script("assistant.chat", call("lead_run_now", {}))
+    events = send(client, attacker, new_conversation(client, attacker), "运行")
+    card = next(e["data"] for e in events if e["event"] == "block.card")
+    r = client.post(f"/api/v1/assistant/tool-runs/{card['payload']['tool_run_id']}/confirm", headers=attacker.headers)
+    assert r.json()["status"] == "failed" and "还没有开启的监控计划" in r.json()["error"]
 
 
 # ── 评测 ───────────────────────────────────────────────────────────────

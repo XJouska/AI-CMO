@@ -784,18 +784,32 @@ def test_pipeline_tools_and_report(client, db, tenant, llm) -> None:
     llm.script(
         "assistant.chat",
         call("pipeline_list_due", {}),
-        call("pipeline_update_stage", {"lead_id": str(lead.id), "stage": "replied", "note": "客户回信"}, "c2"),
-        call("pipeline_update_stage", {"lead_id": str(lead.id), "stage": "new"}, "c3"),
-        call("report_weekly", {"week": "this"}, "c4"),
+        call("report_weekly", {"week": "this"}, "c2"),
         text("ok"),
     )
     events = chat(client, tenant, new_conversation(client, tenant), "今天该跟进哪些")
     cards = [e["data"] for e in events if e["event"] == "block.card"]
     assert cards[0]["card_type"] == "follow_ups" and cards[0]["payload"]["items"][0]["overdue"] is True
     outputs = [m["content"] for m in llm.calls[-1]["messages"] if m["role"] == "tool"]
-    assert "已回复" in outputs[1]
-    assert "error" in outputs[2].lower() or "不能" in outputs[2]  # 不允许倒退
-    assert "效果周报" in outputs[3]
+    assert "效果周报" in outputs[1]
+
+    # 更新阶段需要确认：确认后生效；不允许倒退
+    def confirm(stage):  # type: ignore[no-untyped-def]
+        llm.script("assistant.chat", call("pipeline_update_stage", {"lead_id": str(lead.id), "stage": stage}))
+        events = chat(client, tenant, new_conversation(client, tenant), "更新阶段")
+        card = next(e["data"] for e in events if e["event"] == "block.card")
+        assert card["card_type"] == "confirm"
+        return client.post(
+            f"/api/v1/assistant/tool-runs/{card['payload']['tool_run_id']}/confirm", headers=tenant.headers
+        ).json()
+
+    assert confirm("replied")["status"] == "succeeded"
+    assert (
+        client.get(f"/api/v1/leads/{lead.id}/follow-up", headers=tenant.headers).json()["pipeline"]["stage"]
+        == "replied"
+    )
+    result = confirm("viewed")
+    assert result["status"] == "failed" and "不能" in result["error"]
 
 
 def test_tools_scoped_to_company(client, db, tenant, llm) -> None:

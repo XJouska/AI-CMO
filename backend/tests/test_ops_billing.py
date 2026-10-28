@@ -872,3 +872,184 @@ def test_delete_company_purges_published_site_files(client, db, tenant, monkeypa
     assert r.status_code == 204
     assert not live.exists() and not live.is_symlink()
     assert not (tmp_path / "versions" / str(site_id)).exists()
+
+
+# ── 补充安全审查回归 ───────────────────────────────────────────────────
+
+
+def test_assistant_blocked_when_quota_exhausted_or_expired(client, db, tenant) -> None:
+    from tests.test_assistant import new_conversation
+
+    conv = new_conversation(client, tenant)
+    set_plan(db, tenant.company.id, "growth", llm_tokens=100)
+    from app.modules.admin.audit import record_usage
+
+    record_usage(db, tenant.company.id, "llm_tokens", 100)
+    db.flush()
+    r = client.post(f"/api/v1/assistant/conversations/{conv}/messages", json={"text": "你好"}, headers=tenant.headers)
+    assert r.status_code == 402 and r.json()["error"]["code"] == "quota_exceeded"
+
+
+def test_assistant_rate_limited(client, db, tenant, monkeypatch) -> None:
+    from app.modules.assistant import router as assistant_router
+    from tests.test_assistant import new_conversation, send
+
+    monkeypatch.setattr(assistant_router, "MAX_TURNS_PER_MINUTE", 1)
+    conv = new_conversation(client, tenant)
+    send(client, tenant, conv, "你好")
+    r = client.post(f"/api/v1/assistant/conversations/{conv}/messages", json={"text": "再来"}, headers=tenant.headers)
+    assert r.status_code == 429
+
+
+def test_site_rewrite_and_tools_respect_plan(client, db, tenant) -> None:
+    from app.modules.sites import service as site_service
+
+    set_plan(db, tenant.company.id, "growth", llm_tokens=10)
+    with pytest.raises(billing.QuotaExceededError):
+        site_service.start_generation(db, tenant.company, tenant.user.id)
+    r = client.post("/api/v1/site/sections/hero/rewrite", json={"instruction": "更简洁"}, headers=tenant.headers)
+    assert r.status_code == 402
+    r = client.post(
+        "/api/v1/profile/extractions/text",
+        json={"text": "我们是做不锈钢球阀的工厂，成立于2008年"},
+        headers=tenant.headers,
+    )
+    assert r.status_code in (402, 404, 405) or r.json()["error"]["code"] == "quota_exceeded"
+
+
+def test_side_effect_tools_require_confirmation() -> None:
+    """所有工具都声明了副作用类型；直接生效（write）的工具必须需要确认；未声明确认的 write 工具无法注册。"""
+    from app.modules.assistant import all_tools  # noqa: F401
+    from app.modules.assistant.tools import ToolArgs, ToolRegistry, ToolResult, registry, tool
+
+    writes = {t.name for t in registry.tools.values() if t.side_effect == "write"}
+    assert {
+        "watch_update",
+        "lead_run_now",
+        "pipeline_update_stage",
+        "outreach_send",
+        "site_publish",
+        "product_delete",
+    } <= writes
+    assert all(registry.tools[name].requires_confirmation for name in writes)
+    unconfirmed = {t.name for t in registry.tools.values() if not t.requires_confirmation}
+    assert all(registry.tools[n].side_effect in ("read", "draft") for n in unconfirmed)
+
+    class A(ToolArgs):
+        pass
+
+    with pytest.raises(ValueError, match="must require confirmation"):
+        tool("bad_write", description="x", args=A, label="x", side_effect="write", target=ToolRegistry())(
+            lambda c, a: ToolResult(data={})
+        )
+    with pytest.raises(ValueError, match="unknown side_effect"):
+        tool("bad_kind", description="x", args=A, label="x", side_effect="delete", target=ToolRegistry())
+
+
+def test_injected_inquiry_cannot_change_watch_without_confirmation(client, db, tenant, llm) -> None:
+    """外部询盘内容诱导模型调用 watch_update / pipeline_update_stage：只生成确认卡片，数据不变。"""
+    from app.modules.leads.models import Watch
+    from tests.test_assistant import call, new_conversation, send
+
+    watch = Watch(company_id=tenant.company.id, name="w", keywords_en=["ball valve"])
+    lead = Lead(company_id=tenant.company.id, type="rfq", title="x", review_status="approved")
+    db.add_all([watch, lead])
+    db.flush()
+    llm.script("assistant.chat", call("watch_update", {"remove_keywords": ["ball valve"], "add_keywords": ["casino"]}))
+    events = send(client, tenant, new_conversation(client, tenant), "看看询盘")
+    card = next(e["data"] for e in events if e["event"] == "block.card")
+    assert card["card_type"] == "confirm" and "casino" in card["payload"]["summary"]
+    db.refresh(watch)
+    assert watch.keywords_en == ["ball valve"]
+    llm.script(
+        "assistant.chat",
+        call("pipeline_update_stage", {"lead_id": str(lead.id), "stage": "lost", "lost_reason": "price"}),
+    )
+    events = send(client, tenant, new_conversation(client, tenant), "看看询盘")
+    card = next(e["data"] for e in events if e["event"] == "block.card")
+    assert card["payload"]["danger"] is True
+    from app.modules.outreach.models import LeadPipeline
+
+    assert db.scalar(select(LeadPipeline).where(LeadPipeline.lead_id == lead.id)) is None
+
+
+def test_concurrent_send_only_sends_once(engine, mailer) -> None:
+    """同一草稿并发发送两次：只有一个请求发出邮件，另一个得到 draft_sent。"""
+    import asyncio
+
+    from sqlalchemy.orm import Session
+
+    from app.core.deps import CompanyScope
+    from app.core.errors import AppError
+    from app.core.security.secrets_box import encrypt_json
+    from app.modules.companies.models import Company
+    from app.modules.outreach.models import MailAccount, OutreachDraft
+    from app.modules.outreach.router import send_draft
+
+    with Session(engine, expire_on_commit=False) as setup:
+        t = make_tenant(setup)
+        set_plan(setup, t.company.id, "growth")
+        lead = Lead(company_id=t.company.id, type="rfq", title="x", review_status="approved")
+        setup.add(lead)
+        setup.flush()
+        draft = OutreachDraft(lead_id=lead.id, company_id=t.company.id, to_email="b@b.example", subject="s", body="b")
+        account = MailAccount(
+            company_id=t.company.id,
+            from_address="a@a.example",
+            encrypted_credentials=encrypt_json(
+                {"host": "smtp.a.example", "port": 465, "username": "u", "password": "p"}
+            ),
+            verified=True,
+        )
+        setup.add_all([draft, account])
+        setup.commit()
+        ids = (t.company.id, t.user.id, draft.id, account.id)
+
+    original = mailer.send
+
+    async def slow_send(creds, mail):  # type: ignore[no-untyped-def]
+        await asyncio.sleep(0.3)
+        return await original(creds, mail)
+
+    mailer.send = slow_send
+
+    async def one() -> str:
+        with Session(engine, expire_on_commit=False) as session:
+            company = session.get(Company, ids[0])
+            from app.modules.auth.models import User
+
+            scope = CompanyScope(company=company, user=session.get(User, ids[1]), role="owner")
+            try:
+                await send_draft(session, scope, session.get(OutreachDraft, ids[2]), ids[3])
+                return "sent"
+            except AppError as exc:
+                return exc.code
+
+    async def both() -> list[str]:
+        return await asyncio.gather(*(asyncio.to_thread(asyncio.run, one()) for _ in range(2)))
+
+    try:
+        results = asyncio.run(both())
+        assert sorted(results) == ["draft_sent", "sent"]
+        assert len(mailer.sent) == 1
+        with Session(engine) as check:
+            assert check.get(OutreachDraft, ids[2]).status == "sent"
+            assert billing.used_this_month(check, ids[0], "emails_sent") == 1
+    finally:
+        with Session(engine) as cleanup:
+            cleanup.execute(Company.__table__.delete().where(Company.id == ids[0]))
+            cleanup.commit()
+
+
+def test_send_failure_releases_reservation(client, db, tenant, mailer) -> None:
+    from app.services.mailer import MailSendError
+    from tests.test_outreach import bind_account, make_lead, new_draft, send
+
+    set_plan(db, tenant.company.id, "growth", emails_sent=1)
+    account = bind_account(client, tenant).json()["id"]
+    draft = new_draft(client, tenant, make_lead(db, tenant))
+    mailer.fail_with = MailSendError("connect_failed", "x")
+    assert send(client, tenant, draft, account).status_code == 502
+    mailer.fail_with = None
+    assert billing.used_this_month(db, tenant.company.id, "emails_sent") == 0  # 失败不占用额度
+    assert send(client, tenant, draft, account).status_code == 200

@@ -392,6 +392,9 @@ def create_extraction(
     source: str,
     payload: dict[str, Any],
 ) -> ProfileExtraction:
+    from app.modules.billing.service import require_ai
+
+    require_ai(db, company.id, estimate_tokens=4_000)
     first_step = {"url": "fetch", "file": "read_files", "chat": "read_text"}[source]
     extraction = ProfileExtraction(
         company_id=company.id,

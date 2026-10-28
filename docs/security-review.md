@@ -6,7 +6,8 @@
 
 ## 结论
 
-未发现高危问题。发现 3 个中危问题，均已修复并增加回归测试 / 部署验证。
+两轮审查（第一轮覆盖部署与计划 07 新代码，第二轮补充覆盖全部后端模块与安全相关前端）均未发现高危问题。
+共发现 6 个中危问题，均已修复并增加回归测试 / 部署验证。
 
 ## 发现与修复
 
@@ -37,6 +38,32 @@
 - **修复**：新增 `render.purge_site()`，注销时下线并删除站点全部已构建版本；删除失败时抛出异常，事务回滚，注销不生效（可重试）。备份按 14 天保留期自动删除，注销数据在 14 天内从备份中消失（已写入运维手册与隐私政策）。
 - **验证**：`test_delete_company_purges_published_site_files`（发布一个站点后注销，断言 live 链接与版本目录均不存在）。
 
+### M4 · 助手与官网改写可绕过套餐和 AI 用量限制（中危，已修复）
+
+- **位置**：`backend/app/modules/assistant/router.py`、`orchestrator.py`；`backend/app/modules/sites/service.py`（生成 / 改写）；助手工具 `site_generate_draft` / `site_update_section`
+- **问题**：助手每轮直接调用 LLM 只记录用量、不检查额度；官网改写接口和助手中的官网工具不检查套餐。套餐到期或额度用尽的用户仍可持续消耗平台模型费用。
+- **修复**：
+  - 新增 `billing.require_ai()`（套餐有效 + 功能 + 本月 AI 用量余量），助手每个回合、官网生成 / 改写（服务层，接口与工具共用）、资料抽取、开发信生成全部经过
+  - 助手增加每企业每分钟 20 个回合的速率限制
+  - `lead_run_now` 工具同样检查商机功能与监控次数额度
+- **验证**：`test_assistant_blocked_when_quota_exhausted_or_expired`、`test_assistant_rate_limited`、`test_site_rewrite_and_tools_respect_plan`。
+
+### M5 · 有副作用的助手工具无需确认，可被外部内容诱导执行（中危，已修复）
+
+- **位置**：`watch_update`、`lead_run_now`、`pipeline_update_stage`
+- **问题**：这三个工具会直接修改监控、启动付费任务、变更跟进阶段，却不需要用户确认。攻击者可在官网询盘中写入指令，用户让助手查看询盘时模型可能被诱导调用。
+- **修复**：
+  - 工具注册时必须声明副作用类型：`read`（只读）/ `draft`（只生成待确认草稿）/ `write`（直接生效）；`write` 工具未设置确认时**注册即报错**
+  - 上述三个工具改为需要确认，并提供明确的确认卡片内容（新增 / 移除哪些关键词、变更为哪个阶段，放弃 / 无效标红）
+- **验证**：`test_side_effect_tools_require_confirmation`（全部工具分类检查 + 未确认的 write 工具无法注册）、`test_injected_inquiry_cannot_change_watch_without_confirmation`（模型被诱导调用后只出现确认卡片，数据不变）。
+
+### M6 · 并发发送可重复发信并突破限额（中危，已修复）
+
+- **位置**：`backend/app/modules/outreach/router.py`（`send_draft`）
+- **问题**：草稿状态检查、限额检查、SMTP 发送与状态更新不是原子操作，并发请求可重复发送同一封邮件并突破每日 / 套餐限额。
+- **修复**：两阶段发送——先在加锁事务中（`SELECT … FOR UPDATE` 锁定草稿与发信邮箱）检查并把草稿置为 `sending`，同时写入发送记录与用量（立即计入限额），提交后再调用邮件服务器；发送失败时撤销占位。编辑与手动标记发送同样加锁并拒绝 `sending` 状态。
+- **验证**：`test_concurrent_send_only_sends_once`（真实数据库两个并发事务，只发出一封，另一个得到 `draft_sent`，用量记为 1）、`test_send_failure_releases_reservation`（失败不占用额度，可重发）。
+
 ## 自动化守卫补强
 
 审查指出 `test_route_guard.py` 缺少逐接口角色矩阵，已补充：
@@ -58,7 +85,7 @@
 | 公开接口限流；登录防爆破 | 通过 | 登录 IP 限流 + 账号锁定；注册限流；询盘限流 + 蜜罐 + Turnstile 接口；联系人删除请求每 IP 每天 5 次 + 蜜罐；退订链接签名；支付回调验签 |
 | 依赖漏洞扫描无高危 | 通过（报告性） | `check-all` 执行 `pip-audit` 与 `npm audit --omit=dev` |
 | 安全响应头与 CSP | 通过 | 应用：严格 CSP、`frame-ancestors 'none'`、nosniff、Referrer-Policy；官网：`script-src 'none'`；生产 HSTS |
-| 提示词注入：外部内容无法触发有副作用的工具 | 通过 | 外部内容作为 JSON 数据传入并转义尖括号；有副作用的工具需用户点击确认卡片；`test_prompt_injection_*` |
+| 提示词注入：外部内容无法触发有副作用的工具 | 通过 | 外部内容作为 JSON 数据传入并转义尖括号；工具按副作用分类，直接生效的工具注册时强制要求用户确认（M5）；`test_prompt_injection_*`、`test_injected_inquiry_*` |
 | 支付回调 | 通过 | 验签、金额以服务端订单为准、行锁 + 幂等、手工开通仅 staff；`test_online_payment_*` |
 | 文件上传与下载 | 通过 | 文件头识别、大小限制、图片重编码去 EXIF、PDF 页数限制；下载签名绑定资源与企业并有过期时间 |
 | 容器与网络 | 通过 | 全部容器非 root、去除 capabilities、`no-new-privileges`；数据库与 api 不暴露端口；生产只有 Caddy 暴露 80/443 |

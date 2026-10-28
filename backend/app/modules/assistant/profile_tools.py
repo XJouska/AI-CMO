@@ -52,6 +52,7 @@ class UrlArgs(ToolArgs):
     description="读取企业现有网站，整理出待用户确认的档案变更。用户提供了自己公司的网址时使用。",
     args=UrlArgs,
     label="读取企业网站",
+    side_effect="draft",
 )
 def profile_extract_from_url(ctx: ToolContext, args: UrlArgs) -> ToolResult:
     raw = args.url if "://" in args.url else f"https://{args.url}"
@@ -109,6 +110,7 @@ def _draft_extraction(ctx: ToolContext, output: ExtractionOutput) -> tuple[Profi
     description="根据用户在对话中提供的企业信息，生成待确认的档案变更（不会直接修改档案）。只填写用户明确说过的内容。",
     args=ProfileFieldsArgs,
     label="整理档案变更",
+    side_effect="draft",
 )
 def profile_update_fields(ctx: ToolContext, args: ProfileFieldsArgs) -> ToolResult:
     output = ExtractionOutput(company=args.company, certifications=args.certifications, contacts=args.contacts)
@@ -169,6 +171,7 @@ class ProductDraftArgs(ToolArgs):
     description="根据用户描述起草一个产品（英文名、类别、关键词等），生成待确认的产品草稿，不直接创建。",
     args=ProductDraftArgs,
     label="起草产品",
+    side_effect="draft",
 )
 def product_create_draft(ctx: ToolContext, args: ProductDraftArgs) -> ToolResult:
     item, changes = _draft_extraction(ctx, ExtractionOutput(products=[args.product.model_dump()]))
@@ -213,6 +216,7 @@ def _describe_delete(ctx: ToolContext, args: ProductIdArgs) -> dict[str, Any]:
     requires_confirmation=True,
     roles=("owner", "operator"),
     describe_confirm=_describe_delete,
+    side_effect="write",
 )
 def product_delete(ctx: ToolContext, args: ProductIdArgs) -> ToolResult:
     product = _own_product(ctx, args.product_id)

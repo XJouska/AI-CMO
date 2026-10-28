@@ -267,6 +267,11 @@ def _fail(site: Site, message: str) -> None:
 
 
 def start_generation(db: Session, company: Company, user_id: uuid.UUID, template: str | None = None) -> Site:
+    from app.modules.billing.service import check_quota, require_ai
+
+    require_ai(db, company.id, "site", estimate_tokens=6_000)
+    if db.scalar(select(Site.id).where(Site.company_id == company.id)) is None:
+        check_quota(db, company.id, "sites")
     score, _ = refresh_completeness(db, company)
     if score < MIN_COMPLETENESS:
         raise AppError(
@@ -341,6 +346,9 @@ REWRITABLE = ("hero", "about", "products", "factory", "faq", "cases", "seo")
 def start_rewrite(db: Session, company: Company, user_id: uuid.UUID, section: str, instruction: str) -> Site:
     if section not in REWRITABLE:
         raise AppError("该分区不支持 AI 改写", code="invalid_section")
+    from app.modules.billing.service import require_ai
+
+    require_ai(db, company.id, "site", estimate_tokens=3_000)
     site = db.scalar(select(Site).where(Site.company_id == company.id))
     if site is None or site.draft_version_id is None:
         raise NotFoundError("请先生成官网", code="site_missing")

@@ -48,6 +48,7 @@ def _describe_create(ctx: ToolContext, args: NoArgs) -> dict[str, Any]:
     label="创建商机监控",
     requires_confirmation=True,
     describe_confirm=_describe_create,
+    side_effect="write",
 )
 def watch_create_from_profile(ctx: ToolContext, args: NoArgs) -> ToolResult:
     try:
@@ -79,7 +80,42 @@ class WatchUpdateArgs(ToolArgs):
     frequency: Literal["daily", "weekly"] | None = None
 
 
-@tool("watch_update", description="修改商机监控的关键词、目标市场或频率。", args=WatchUpdateArgs, label="修改监控")
+def _describe_watch_update(ctx: ToolContext, args: WatchUpdateArgs) -> dict[str, Any]:
+    parts = []
+    if args.add_keywords:
+        parts.append(f"新增关键词：{', '.join(args.add_keywords)}")
+    if args.remove_keywords:
+        parts.append(f"移除关键词：{', '.join(args.remove_keywords)}")
+    if args.markets is not None:
+        parts.append(f"目标市场改为：{', '.join(args.markets) or '（不限）'}")
+    if args.frequency:
+        parts.append(f"频率改为：{'每天' if args.frequency == 'daily' else '每周'}")
+    return {
+        "title": "修改商机监控",
+        "summary": "\n".join(parts) or "修改监控设置",
+        "confirm_label": "修改",
+        "danger": False,
+    }
+
+
+def _describe_run_now(ctx: ToolContext, args: NoArgs) -> dict[str, Any]:
+    return {
+        "title": "立即运行商机监控",
+        "summary": "将立即运行一次商机监控（会计入本月监控运行次数与 AI 用量）。",
+        "confirm_label": "运行",
+        "danger": False,
+    }
+
+
+@tool(
+    "watch_update",
+    description="修改商机监控的关键词、目标市场或频率。",
+    args=WatchUpdateArgs,
+    label="修改监控",
+    side_effect="write",
+    requires_confirmation=True,
+    describe_confirm=_describe_watch_update,
+)
 def watch_update(ctx: ToolContext, args: WatchUpdateArgs) -> ToolResult:
     stmt = select(Watch).where(Watch.company_id == ctx.company_id)
     watch = ctx.db.scalar(stmt.where(Watch.id == args.watch_id) if args.watch_id else stmt.order_by(Watch.created_at))
@@ -149,11 +185,23 @@ def lead_explain(ctx: ToolContext, args: ExplainArgs) -> ToolResult:
     )
 
 
-@tool("lead_run_now", description="立即运行一次商机监控。", args=NoArgs, label="运行商机监控")
+@tool(
+    "lead_run_now",
+    description="立即运行一次商机监控。",
+    args=NoArgs,
+    label="运行商机监控",
+    side_effect="write",
+    requires_confirmation=True,
+    describe_confirm=_describe_run_now,
+)
 def lead_run_now(ctx: ToolContext, args: NoArgs) -> ToolResult:
+    from app.modules.billing.service import check_quota, require_feature
+
     watches = ctx.db.scalars(select(Watch).where(Watch.company_id == ctx.company_id, Watch.is_active.is_(True))).all()
     if not watches:
         raise ToolError("还没有开启的监控计划，可以先让我根据档案创建一个")
+    require_feature(ctx.db, ctx.company_id, "leads")
+    check_quota(ctx.db, ctx.company_id, "watch_runs", min(len(watches), 3))
     runs = [pipeline.start_run(ctx.db, w, "manual") for w in watches[:3]]
     return ToolResult(
         data={"runs": len(runs), "note": "监控在后台运行，新商机复核后会出现在「商机」页"},

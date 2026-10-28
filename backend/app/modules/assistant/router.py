@@ -27,6 +27,8 @@ from app.modules.assistant.tools import ToolContext, ToolError, registry
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
 MAX_CONCURRENT_TURNS = 3
+# 每个企业每分钟最多发起的助手回合（防止脚本刷 LLM 用量）
+MAX_TURNS_PER_MINUTE = 20
 STALE_TURN = timedelta(minutes=5)
 CONFIRM_TTL = timedelta(hours=24)
 
@@ -182,6 +184,24 @@ def _check_concurrency(db: Session, scope: CompanyScope) -> None:
         )
         or 0
     )
+    from app.modules.billing.service import require_ai
+
+    # 套餐有效且本月 AI 用量还有余量（每回合可能多次调用 LLM，按 4K token 预估）
+    require_ai(db, scope.company_id, estimate_tokens=4_000)
+    recent = (
+        db.scalar(
+            select(func.count())
+            .select_from(Message)
+            .where(
+                Message.company_id == scope.company_id,
+                Message.role == "assistant",
+                Message.created_at >= utcnow() - timedelta(minutes=1),
+            )
+        )
+        or 0
+    )
+    if recent >= MAX_TURNS_PER_MINUTE:
+        raise RateLimitedError("发送太频繁，请稍后再试")
     if active >= MAX_CONCURRENT_TURNS:
         raise RateLimitedError("同时进行的对话太多，请稍后再试", code="too_many_turns")
 

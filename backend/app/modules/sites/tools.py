@@ -49,6 +49,7 @@ class GenerateArgs(ToolArgs):
     description="根据企业档案生成英文 B2B 官网草稿（不会发布）。",
     args=GenerateArgs,
     label="生成官网草稿",
+    side_effect="draft",
 )
 def site_generate_draft(ctx: ToolContext, args: GenerateArgs) -> ToolResult:
     try:
@@ -72,6 +73,7 @@ class RewriteArgs(ToolArgs):
     description="按用户要求改写官网的一个分区，生成新的草稿版本（不会发布）。",
     args=RewriteArgs,
     label="改写官网内容",
+    side_effect="draft",
 )
 def site_update_section(ctx: ToolContext, args: RewriteArgs) -> ToolResult:
     try:
@@ -103,6 +105,7 @@ def _describe_publish(ctx: ToolContext, args: NoArgs) -> dict:
     requires_confirmation=True,
     roles=("owner", "operator"),
     describe_confirm=_describe_publish,
+    side_effect="write",
 )
 def site_publish(ctx: ToolContext, args: NoArgs) -> ToolResult:
     try:
