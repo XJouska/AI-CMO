@@ -20,6 +20,9 @@ x-app-env: &app-env
   SITES_BASE_DOMAIN: ${SITES_BASE_DOMAIN:-sites.localhost}
   SITES_SCHEME: ${SITES_SCHEME:-http}
   TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
+  # 发信邮箱 / 企业微信凭据加密密钥：生产环境必填（未设置时 api / worker 拒绝启动）
+  MAIL_ENCRYPTION_KEY: ${MAIL_ENCRYPTION_KEY:-}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
   SITE_TEMPLATES_DIR: /app/site-templates
 
 services:

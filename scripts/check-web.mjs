@@ -78,6 +78,16 @@ async function scanDist() {
     const hits = await listFiles(dist, (file) => file === name)
     for (const hit of hits) fail(`生产包中包含设计包品牌资产：${path.relative(repoRoot, hit)}`)
   }
+  // 包体预算：首屏 JS（入口 + 共享组件库，gzip 前）与整个 dist 的体积
+  const { stat } = await import('node:fs/promises')
+  const js = await listFiles(path.join(dist, 'assets'), (name) => name.endsWith('.js'))
+  const sizes = await Promise.all(js.map(async (f) => ({ f, size: (await stat(f)).size })))
+  const largest = sizes.sort((a, b) => b.size - a.size)[0]
+  if (largest && largest.size > 480 * 1024) fail(`单个 JS 文件超过 480KB：${path.relative(repoRoot, largest.f)}（${Math.round(largest.size / 1024)}KB）`)
+  const all = await listFiles(dist, () => true)
+  const total = (await Promise.all(all.map(async (f) => (await stat(f)).size))).reduce((a, b) => a + b, 0)
+  if (total > 6 * 1024 * 1024) fail(`dist 总体积超过 6MB（${(total / 1024 / 1024).toFixed(1)}MB）`)
+  console.log(`  最大 JS ${Math.round((largest?.size ?? 0) / 1024)}KB · dist 共 ${(total / 1024 / 1024).toFixed(1)}MB`)
   const css = await listFiles(path.join(dist, 'assets'), (name) => name.endsWith('.css'))
   for (const file of css) {
     if (/@font-face/.test(await readFile(file, 'utf8'))) fail(`生产 CSS 中包含 @font-face：${path.relative(repoRoot, file)}`)
@@ -91,6 +101,7 @@ run('类型检查（配置与测试）', 'npx', ['tsc', '--noEmit', '-p', 'tscon
 run('类型检查（组件测试与 E2E）', 'npx', ['tsc', '--noEmit', '-p', 'tsconfig.test.json'], webRoot)
 if (!skipBuild) {
   run('构建', 'npx', ['vite', 'build'], webRoot)
+  run('裁剪设计包示例图', process.execPath, [path.join(repoRoot, 'scripts', 'prune-dist-assets.mjs'), path.join(webRoot, 'dist')])
   await scanDist()
 }
 

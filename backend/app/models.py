@@ -1,6 +1,20 @@
 """全部 ORM 模型的汇总导入点（Alembic 与测试使用）。各计划新增模型后在此登记。"""
 
 from app.core.jobs import Job
+from app.modules.admin.models import (
+    AuditLog,
+    CompanyChannel,
+    DataRequest,
+    EvalRun,
+    Invoice,
+    NotificationDelivery,
+    NotificationPref,
+    PaymentOrder,
+    Plan,
+    Subscription,
+    UsageRecord,
+    WorkerHeartbeat,
+)
 from app.modules.assistant.models import Conversation, Message, ToolRun
 from app.modules.auth.models import LoginAttempt, Session, User
 from app.modules.companies.models import (
@@ -35,13 +49,18 @@ from app.modules.sites.models import Notification, Site, SiteHealthReport, SiteI
 
 __all__ = [
     "Asset",
+    "AuditLog",
     "Buyer",
     "Company",
+    "CompanyChannel",
     "CompanyMember",
     "CompanyProfile",
     "Conversation",
+    "DataRequest",
     "EmailSuppression",
+    "EvalRun",
     "Invite",
+    "Invoice",
     "Job",
     "Lead",
     "LeadActivity",
@@ -52,7 +71,11 @@ __all__ = [
     "MailAccount",
     "Message",
     "Notification",
+    "NotificationDelivery",
+    "NotificationPref",
     "OutreachDraft",
+    "PaymentOrder",
+    "Plan",
     "Product",
     "ProfileExtraction",
     "Session",
@@ -63,9 +86,12 @@ __all__ = [
     "SiteVersion",
     "SourceConfig",
     "SourceRequest",
+    "Subscription",
     "ToolRun",
+    "UsageRecord",
     "User",
     "Watch",
     "WatchRun",
     "WeeklyReport",
+    "WorkerHeartbeat",
 ]

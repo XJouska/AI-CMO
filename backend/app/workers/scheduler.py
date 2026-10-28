@@ -6,6 +6,8 @@
 - 每小时：为超过 7 天未检查的已发布官网安排健康检查
 - 每 5 分钟：跟进提醒与招标截止提醒（同一事件只提醒一次，行级锁 SKIP LOCKED）
 - 每小时：为上一周生成周报并推送到助手（唯一约束防重复；worker 停机后会补发）
+- 每 5 分钟：告警检查（任务积压、worker 心跳、连接器失败率），告警以 ERROR 级别写日志供外部监控告警
+- 每天：清理过期数据（会话、登录记录、数据源请求记录、已完成任务）
 """
 
 from __future__ import annotations
@@ -58,6 +60,15 @@ def handle_health(db: Session, job) -> None:  # type: ignore[no-untyped-def]
     version = db.get(SiteVersion, site.published_version_id)
     if version is not None:
         run_health_check(db, site, version)
+
+
+def run_alert_checks(db: Session) -> int:
+    from app.core.observability import alert_checks
+
+    alerts = alert_checks(db)
+    for alert in alerts:
+        logger.error("ALERT %s", alert)
+    return len(alerts)
 
 
 def _with_session(func: Callable[[Session], int], name: str) -> Callable[[], None]:

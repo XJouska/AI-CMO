@@ -200,14 +200,17 @@ def test_provider_registry_selects_fakes_in_test_mode(monkeypatch, tmp_path) -> 
 
     monkeypatch.setattr(get_settings(), "storage_dir", str(tmp_path))
     registry = _Providers()
-    assert isinstance(registry.llm(), FakeLLM)
+    from app.services.metering import MeteredLLM
+
+    llm = registry.llm()
+    assert isinstance(llm, MeteredLLM) and isinstance(llm.inner, FakeLLM)
     assert isinstance(registry.fetcher(), FakeFetcher)
     assert isinstance(registry.storage(), LocalStorage)
     assert registry.llm() is registry.llm()  # 缓存
     replacement = FakeLLM()
     with registry.override(llm=replacement):
-        assert registry.llm() is replacement
-    assert registry.llm() is not replacement
+        assert registry.llm().inner is replacement
+    assert registry.llm().inner is not replacement
 
     monkeypatch.setattr(get_settings(), "test_mode", False)
     registry.reset()

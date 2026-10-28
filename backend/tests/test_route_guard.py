@@ -124,3 +124,40 @@ def test_staff_routes_reject_regular_users(client, db: Session, route: Route | N
     path = _fill(route.path, route.setup(db, user))
     response = _call(client, route, path, user.headers)
     assert response.status_code == 403, response.text
+
+
+ROLE_ROUTES = [r for r in ROUTES if r.roles is not None]
+
+
+@pytest.mark.parametrize("route", ROLE_ROUTES, ids=lambda r: f"{r.method} {r.path}")
+def test_role_restricted_routes_reject_members(client, db: Session, route: Route) -> None:
+    """标注了 roles 的路由：同企业的普通成员（member）调用得到 403，且不产生副作用。"""
+    from tests.factories import add_member, make_session, make_user
+
+    victim = make_tenant(db)
+    params = route.setup(db, victim)
+    member = make_user(db)
+    add_member(db, victim.company, member, "member")
+    headers = {"Authorization": f"Bearer {make_session(db, member)}", "X-Company-Id": str(victim.company.id)}
+    path = _fill(route.path, {**params, "company_id": str(victim.company.id)})
+    response = _call(client, route, path, headers)
+    assert "member" not in route.roles
+    assert response.status_code == 403, (route, response.text)
+
+
+def test_role_restricted_routes_are_declared() -> None:
+    """代码中使用 require_role / _require_manager 的接口数量与矩阵中标注 roles 的数量一致（防止漏标）。"""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "app"
+    count = 0
+    for file in root.rglob("*.py"):
+        text = file.read_text(encoding="utf-8")
+        count += len(re.findall(r"Depends\(require_role\(", text))
+        count += len(re.findall(r"^\s+_require_manager\(scope\)", text, re.M))
+        count += len(re.findall(r"path_scope\(company_id, user, db, (?:MANAGER_ROLES|\(\"owner\",\))\)", text))
+    assert count == len(ROLE_ROUTES) + 1, (
+        count,
+        len(ROLE_ROUTES),
+    )  # +1：移除成员（仅所有者）在 path_company 中单独测试

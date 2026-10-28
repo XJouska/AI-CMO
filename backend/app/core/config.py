@@ -77,6 +77,18 @@ class Settings(BaseSettings):
     # 退订链接签名有效期（天）
     unsubscribe_link_days: int = 365
 
+    # 平台系统邮件（通知、每日摘要）。未配置时邮件通知跳过
+    system_smtp_host: str = ""
+    system_smtp_port: int = 465
+    system_smtp_username: str = ""
+    system_smtp_password: SecretStr | None = None
+    system_mail_from: str = "noreply@aicmo.site"
+    system_mail_name: str = "AI-CMO"
+
+    # 可观测性
+    sentry_dsn: SecretStr | None = None
+    metrics_token: SecretStr | None = None  # /metrics 访问令牌（Bearer）；未配置时只允许内网来源
+
     # 测试模式：外部服务（LLM、抓取、短信等）全部使用假实现。生产环境禁止开启。
     test_mode: bool = False
 

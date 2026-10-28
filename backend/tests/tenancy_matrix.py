@@ -7,6 +7,9 @@
 - company：通过 X-Company-Id 确定企业，需要是该企业成员；路径中的资源 ID 必须属于该企业
 - staff：需要平台运营人员
 
+`roles` 标注只允许部分企业角色调用的路由（例如只有所有者 / 代运营可以发布官网、管理发信邮箱），
+test_route_guard 会用普通成员（member）身份调用并断言 403。
+
 对于 company / path_company 路由，`setup` 在「受害企业 A」中创建所需资源并返回路径参数，
 守卫测试会用「攻击者 B」的身份（自己的企业头 / 冒用 A 的企业头）访问，断言被拒绝。
 """
@@ -169,6 +172,22 @@ def _outreach(db: Session, victim: Tenant) -> dict[str, str]:
     return {**params, "draft_id": str(draft.id), "account_id": str(account.id), "report_id": str(report.id)}
 
 
+def _ops(db: Session, victim: Tenant) -> dict[str, str]:
+    from app.modules.admin.models import DataRequest, Invoice
+
+    invoice = Invoice(company_id=victim.company.id, number=f"INV-{victim.company.id.hex[:8]}", amount_cents=1)
+    request = DataRequest(kind="contact_erasure", email="x@victim.example")
+    db.add_all([invoice, request])
+    db.flush()
+    return {
+        "company_id": str(victim.company.id),
+        "invoice_id": str(invoice.id),
+        "request_id": str(request.id),
+        "source_key": "web_search",
+        "provider": "fake",
+    }
+
+
 def png_bytes() -> bytes:
     from PIL import Image
 
@@ -185,6 +204,8 @@ class Route:
     setup: Setup = _none
     body: dict[str, Any] | None = None
     files: dict[str, Any] | None = field(default=None, hash=False)
+    # 只允许这些角色调用（其他企业成员角色应得到 403）。None 表示所有成员都可调用。
+    roles: tuple[str, ...] | None = None
 
 
 CONV = "/api/v1/assistant/conversations/{conversation_id}"
@@ -204,10 +225,24 @@ ROUTES: list[Route] = [
     Route("POST", "/api/v1/companies", "auth", body={"name_cn": "攻击者工厂"}),
     Route("GET", "/api/v1/companies", "auth"),
     Route("GET", "/api/v1/companies/{company_id}", "path_company", _company),
-    Route("PATCH", "/api/v1/companies/{company_id}", "path_company", _company, {"name_cn": "被篡改"}),
+    Route(
+        "PATCH",
+        "/api/v1/companies/{company_id}",
+        "path_company",
+        _company,
+        {"name_cn": "被篡改"},
+        roles=("owner", "operator"),
+    ),
     Route("GET", "/api/v1/companies/{company_id}/members", "path_company", _company),
     Route("DELETE", "/api/v1/companies/{company_id}/members/{user_id}", "path_company", _member),
-    Route("POST", "/api/v1/companies/{company_id}/invites", "path_company", _company, {"role": "member"}),
+    Route(
+        "POST",
+        "/api/v1/companies/{company_id}/invites",
+        "path_company",
+        _company,
+        {"role": "member"},
+        roles=("owner", "operator"),
+    ),
     Route("GET", "/api/v1/invites/{token}", "auth"),
     Route("POST", "/api/v1/invites/{token}/accept", "auth"),
     # 企业档案
@@ -252,14 +287,14 @@ ROUTES: list[Route] = [
     Route("POST", "/api/v1/site/flags/ack", "company", body={"section": "hero", "field": "x", "text": "y"}),
     Route("GET", "/api/v1/site/versions", "company"),
     Route("POST", "/api/v1/site/versions/{version_id}/restore", "company", _site),
-    Route("POST", "/api/v1/site/publish", "company"),
-    Route("POST", "/api/v1/site/unpublish", "company"),
+    Route("POST", "/api/v1/site/publish", "company", roles=("owner", "operator")),
+    Route("POST", "/api/v1/site/unpublish", "company", roles=("owner", "operator")),
     Route("GET", "/api/v1/site/preview-url", "company"),
     Route("POST", "/api/v1/site/health-check", "company"),
     Route("GET", "/api/v1/site/health", "company"),
-    Route("PUT", "/api/v1/site/domain", "company", body={"domain": "victim.example"}),
-    Route("POST", "/api/v1/site/domain/verify", "company"),
-    Route("DELETE", "/api/v1/site/domain", "company"),
+    Route("PUT", "/api/v1/site/domain", "company", body={"domain": "victim.example"}, roles=("owner", "operator")),
+    Route("POST", "/api/v1/site/domain/verify", "company", roles=("owner", "operator")),
+    Route("DELETE", "/api/v1/site/domain", "company", roles=("owner", "operator")),
     Route("GET", "/api/v1/site/inquiries", "company"),
     Route("GET", "/api/v1/site/inquiries/{inquiry_id}", "company", _site),
     Route("PATCH", "/api/v1/site/inquiries/{inquiry_id}", "company", _site, {"status": "spam"}),
@@ -313,9 +348,17 @@ ROUTES: list[Route] = [
             "username": "a",
             "password": "p",
         },
+        roles=("owner", "operator"),
     ),
-    Route("PATCH", "/api/v1/mail-accounts/{account_id}", "company", _outreach, {"daily_limit": 1}),
-    Route("DELETE", "/api/v1/mail-accounts/{account_id}", "company", _outreach),
+    Route(
+        "PATCH",
+        "/api/v1/mail-accounts/{account_id}",
+        "company",
+        _outreach,
+        {"daily_limit": 1},
+        roles=("owner", "operator"),
+    ),
+    Route("DELETE", "/api/v1/mail-accounts/{account_id}", "company", _outreach, roles=("owner", "operator")),
     Route("GET", "/api/v1/email-suppressions", "company"),
     Route("POST", "/api/v1/email-suppressions", "company", body={"email": "x@y.example"}),
     Route("GET", "/api/v1/reports/weekly", "company"),
@@ -324,6 +367,53 @@ ROUTES: list[Route] = [
     # 公开：退订（签名链接，见 test_outreach）
     Route("GET", "/api/v1/public/unsubscribe", "public"),
     Route("POST", "/api/v1/public/unsubscribe", "public"),
+    # 套餐与用量
+    Route("GET", "/api/v1/billing/plans", "company"),
+    Route("GET", "/api/v1/billing/usage", "company"),
+    Route("GET", "/api/v1/billing/invoices", "company"),
+    Route(
+        "POST",
+        "/api/v1/billing/checkout",
+        "company",
+        body={"plan_key": "growth", "provider": "fake"},
+        roles=("owner", "operator"),
+    ),
+    # 支付回调：公开（验签 + 金额校验 + 幂等，见 test_ops_billing）
+    Route("POST", "/api/v1/public/payments/{provider}/notify", "public", _ops),
+    # 合规与通知设置
+    Route("GET", "/api/v1/compliance/export", "company", roles=("owner", "operator")),
+    Route(
+        "POST",
+        "/api/v1/compliance/delete-company",
+        "company",
+        body={"confirm": "DELETE", "company_name": "x"},
+        roles=("owner",),
+    ),
+    Route("GET", "/api/v1/notification-prefs", "company"),
+    Route(
+        "PATCH", "/api/v1/notification-prefs", "company", body={"group": "leads", "channel": "email", "enabled": False}
+    ),
+    Route("PUT", "/api/v1/notification-prefs/wecom", "company", body={"webhook": ""}, roles=("owner", "operator")),
+    # 内网：Caddy 证书签发 ask（只允许内网来源，见 test_ops_billing）
+    Route("GET", "/api/v1/public/internal/tls-ask", "public"),
+    # 公开：联系人删除请求（限流 + 蜜罐）、政策版本
+    Route("POST", "/api/v1/public/data-requests", "public"),
+    Route("GET", "/api/v1/public/policies", "public"),
+    # 运营工作台
+    Route("GET", "/api/v1/ops/customers", "staff"),
+    Route("GET", "/api/v1/ops/customers/{company_id}", "staff", _ops),
+    Route("POST", "/api/v1/ops/customers/{company_id}/join", "staff", _ops),
+    Route("POST", "/api/v1/ops/customers/{company_id}/leave", "staff", _ops),
+    Route("POST", "/api/v1/ops/companies/{company_id}/subscription", "staff", _ops, {"plan_key": "growth"}),
+    Route("PATCH", "/api/v1/ops/invoices/{invoice_id}", "staff", _ops, {"status": "void"}),
+    Route("GET", "/api/v1/ops/audit-logs", "staff"),
+    Route("GET", "/api/v1/ops/sources", "staff"),
+    Route("PATCH", "/api/v1/ops/sources/{source_key}", "staff", _ops, {"enabled": False}),
+    Route("GET", "/api/v1/ops/costs", "staff"),
+    Route("GET", "/api/v1/ops/evals", "staff"),
+    Route("POST", "/api/v1/ops/evals", "staff", body={}),
+    Route("GET", "/api/v1/ops/data-requests", "staff"),
+    Route("POST", "/api/v1/ops/data-requests/{request_id}", "staff", _ops, {"decision": "done"}),
     # 运营
     Route("GET", "/api/v1/ops/review-queue", "staff"),
     Route("POST", "/api/v1/ops/leads/{lead_id}/review", "staff", _lead, {"decision": "approved"}),

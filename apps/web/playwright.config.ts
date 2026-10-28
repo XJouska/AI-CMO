@@ -36,7 +36,7 @@ export default defineConfig({
       env: { E2E_API_PORT: String(API_PORT) },
     },
     {
-      command: `npx vite build --logLevel warn && npx vite preview --host 127.0.0.1 --port ${WEB_PORT} --strictPort`,
+      command: `npx vite build --logLevel warn && node ../../scripts/prune-dist-assets.mjs dist && npx vite preview --host 127.0.0.1 --port ${WEB_PORT} --strictPort`,
       url: `http://127.0.0.1:${WEB_PORT}`,
       reuseExistingServer: false,
       timeout: 180_000,

@@ -133,3 +133,40 @@
 - [ ] 生产环境生成并妥善保管 `MAIL_ENCRYPTION_KEY`（丢失后已绑定的邮箱需重新绑定）
 - [ ] 配置真实 LLM 后，人工审阅 3 种语气的开发信质量
 - [ ] 退订页文案的法律审阅（如需中英双语或公司地址信息，CAN-SPAM 要求邮件含发件人实际地址，可在签名中补充）
+
+## 计划 07 · 运营后台、计费与上线
+
+| 验收项 | 状态 | 证据 |
+|---|---|---|
+| 运营人员可在一个界面完成多家客户的复核与代操作，且全部留有审计日志 | 通过（假数据） | `e2e/ops.e2e.ts`「运营工作台」：客户列表 → 手工开通 → 进入企业代操作 → 切换企业 → 复核（键盘 A）→ 审计日志；`test_operator_join_acts_on_behalf_with_audit`（代操作标记 `on_behalf`）、`test_review_is_audited`、`test_member_changes_audited` |
+| 套餐限额生效，超限提示清晰；手工开通流程可用 | 通过 | `test_feature_gating_by_plan`、`test_quota_exceeded_for_watch_runs_and_leads`、`test_email_quota`、`test_expired_subscription_blocks_with_clear_message`（402 + 具体文案 + 前端附「套餐与用量」入口）、`test_manual_activation_with_invoice`（续期顺延、发票、审计）；新企业自动 14 天试用 |
+| 在线支付回调验签、幂等、金额以服务端为准 | 通过（假网关） | `test_online_payment_verifies_signature_amount_and_is_idempotent`、`test_failed_payment_notice` |
+| 通知按设置正确送达 | 通过 | `test_notification_delivery_respects_prefs`、`test_wecom_channel_encrypted_and_sent`、`test_delivery_failure_retries_without_resending`（失败退避重试、已成功渠道不重发）；`ops.spec.tsx`「通知设置」；`e2e/ops.e2e.ts` 开关持久化 |
+| 数据合规：导出、注销、联系人删除请求、隐私政策 | 通过 | `test_export_json_and_csv`（含 CSV 公式注入防护）、`test_delete_company`、`test_contact_erasure_request_flow`、`test_contact_erasure_rate_limit`；`/privacy`、`/terms`、`/data-request` 公开页面；数据保留期限 `app/modules/admin/retention.py` + `test_retention_purge` |
+| 可观测性：指标、健康检查、告警、错误追踪接口 | 通过 | `/metrics`（`test_metrics_endpoint`：路由模板、任务积压、worker 心跳、连接器失败率、LLM 用量与成本）；`test_alert_checks`；`test_worker_heartbeat`；`SENTRY_DSN` 接口 |
+| 成本看板与 LLM 用量计量 | 通过 | `test_llm_usage_metered_for_assistant_and_drafts`、`test_cost_board`；流水线、助手、开发信、官网生成的 LLM 调用全部计入企业用量 |
+| 数据源监控、评测集管理 | 通过 | `test_source_monitor_and_toggle`、`test_eval_runs`、`test_eval_failure_recorded` |
+| 备份与恢复演练通过 | 通过（本机 aicmo-v2） | `deploy/backup.sh` 加密备份 72KB；`deploy/restore.sh` 恢复到临时库校验迁移版本、核心表行数与文件数后删除（演练输出见下） |
+| 生产部署配置 | 已完成配置（未切换） | `deploy/docker-compose.prod.yml` + `deploy/caddy/Caddyfile`（自动 HTTPS、自定义域名 on-demand TLS 经 `tls-ask` 校验）；`docker compose config` 与 `caddy validate` 通过；本机 aicmo-v2 以新配置重建并通过 `/health`、官网冒烟脚本 |
+| Light / Dark 主题、桌面 / 手机宽度视觉回归基线 | 通过 | `e2e/__screenshots__/**`（全部页面关键状态两种宽度）；`e2e/ops.e2e.ts`「Dark 主题截图基线」覆盖登录、四个 Tab、套餐与用量、通知设置 |
+| 包体优化 | 通过 | 路由级分包（官网编辑、开发信、运营工作台、账户设置按需加载）；生产包裁剪设计包示例图（dist 17MB → 4.1MB）；`check-web` 增加包体预算（单个 JS ≤ 480KB、dist ≤ 6MB） |
+| 安全审查清单 | 见 `docs/security-review.md` | 安全审查子代理完整审查 + 修复记录 |
+| 运维手册 | 已完成 | `docs/runbook.md`（部署、发布、回滚、备份恢复、证书、监控告警、常见故障、合规操作、旧版切换） |
+
+**说明**
+
+- 运营工作台与其他页面一样使用 402 宽单栏画布（正式组件宽度写死），桌面双栏登记为 GAP-016；复核队列提供键盘快捷键 A / R / J / K。
+- 列表行受控开关登记为 GAP-015（通知设置使用正式 `Switch` 并排放置）。
+- 客户端 IP 可信链修正：Nginx 只信任内网上游的 `X-Forwarded-For`，uvicorn 只信任内网代理，生产入口 Caddy 覆盖客户端伪造的转发头；`/metrics` 与内部 `tls-ask` 接口在公网入口返回 404，生产环境 `/metrics` 必须使用令牌。
+
+**人工确认项**
+
+- [ ] 为 2 家试点工厂完成建档、官网发布、监控设置；连续 30 天每天交付经复核的商机；第 14 天、第 30 天复盘（试点交付清单）
+- [ ] 生产服务器 DNS（应用域名、`*.SITES_BASE_DOMAIN`）、`ACME_EMAIL`、密钥生成与离线保管，按 `docs/runbook.md` 第 2 节上线
+- [ ] 旧版 `ai-cmo-*` 与宿主 Nginx 的切换（`docs/runbook.md` 第 10 节），需要你确认时间窗口
+- [ ] 套餐价格与限额最终确认（当前为 `app/modules/billing/service.py` 中的默认值，运营可在数据库中调整）
+- [ ] 对公收款账户信息与发票开具流程（当前为运营手工登记）
+- [ ] 在线支付（支付宝 / 微信支付）商户号申请后接入真实网关（接口与回调验签流程已就绪）
+- [ ] 系统发信邮箱（`SYSTEM_SMTP_*`）与企业微信群机器人的真实送达验证
+- [ ] 隐私政策 / 用户协议文本的法律审阅
+- [ ] 异地备份存储（对象存储）与告警接收渠道（日志平台按 `ALERT` 规则告警）

@@ -200,6 +200,9 @@ class Orchestrator:
             allow_tools = _round < MAX_TOOL_ROUNDS
             result = await llm.complete(messages, task="assistant.chat", tools=schemas if allow_tools else None)
             self.state.usage.add(result.usage)
+            from app.modules.admin.audit import record_usage
+
+            record_usage(self.db, self.company.id, "llm_tokens", result.usage.total, {"task": "assistant.chat"})
             self._check_cancel()
             calls = result.tool_calls if allow_tools else []
             if not calls:

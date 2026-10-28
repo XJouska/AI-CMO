@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from app.core.security.ssrf import SsrfBlockedError, safe_fetch, validate_url
@@ -63,3 +63,39 @@ class FakeFetcher:
         self.requested.append(parsed.url)
         html = self.pages.get(parsed.url, DEMO_SITE)
         return FetchedPage(url=parsed.url, status=200, content_type="text/html; charset=utf-8", text=html)
+
+
+# ── Webhook 发送（企业微信群机器人等）─────────────────────────────────
+
+
+@dataclass
+class WebhookResult:
+    status_code: int
+    body: bytes
+
+
+class SafeWebhook:
+    """经 safe_fetch 发出 POST（不允许内网地址、限制跳转与响应大小）。"""
+
+    async def post(self, url: str, payload: bytes) -> WebhookResult:
+        result = await safe_fetch(
+            url,
+            method="POST",
+            content=payload,
+            headers={"Content-Type": "application/json"},
+            max_redirects=0,
+            max_bytes=64_000,
+            timeout=10.0,
+        )
+        return WebhookResult(result.status_code, result.content)
+
+
+@dataclass
+class FakeWebhook:
+    sent: list[tuple[str, bytes]] = field(default_factory=list)
+    status_code: int = 200
+
+    async def post(self, url: str, payload: bytes) -> WebhookResult:
+        validate_url(url)
+        self.sent.append((url, payload))
+        return WebhookResult(self.status_code, b'{"errcode":0}')

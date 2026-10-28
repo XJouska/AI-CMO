@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/endpoints'
 import { leadsApi } from '@/leads/api'
+import { billingApi, notificationsApi } from '@/ops/api'
 import { outreachApi } from '@/outreach/api'
 import { TabPage } from '@/components/local/TabPage'
 import { BRAND } from '@/brand'
@@ -28,9 +29,14 @@ export function MePage() {
   const profile = useQuery({ queryKey: ['profile', session.company?.id], queryFn: api.profile })
   const watches = useQuery({ queryKey: ['watches', session.company?.id], queryFn: leadsApi.watches })
   const mailAccounts = useQuery({ queryKey: ['mail-accounts'], queryFn: outreachApi.mailAccounts })
+  const usage = useQuery({ queryKey: ['billing-usage', session.company?.id], queryFn: billingApi.usage })
+  const notifications = useQuery({ queryKey: ['notifications', session.company?.id], queryFn: notificationsApi.list })
+  const unread = notifications.data?.filter((n) => !n.read).length ?? 0
 
-  const soon = () => toast.show(t.common.comingSoon)
   const companies = session.user?.companies ?? []
+  const staffSection: { title: string; items: MeItem[] }[] = session.user?.is_staff
+    ? [{ title: t.ops.section, items: [{ id: 'ops', label: t.ops.section, value: ' ', onOpen: () => navigate('/ops') }] }]
+    : []
   const sections: { title: string; items: MeItem[] }[] = [
     {
       title: t.me.sectionCompany,
@@ -72,7 +78,14 @@ export function MePage() {
     {
       title: t.me.sectionAccount,
       items: [
-        { id: 'plan', label: t.me.plan, value: t.me.planValue, onOpen: soon },
+        {
+          id: 'plan',
+          label: t.me.plan,
+          value: usage.data ? `${usage.data.plan.name}${usage.data.status === 'expired' ? '（已到期）' : ''}` : t.common.loading,
+          onOpen: () => navigate('/me/billing'),
+        },
+        { id: 'notifications', label: t.me.notifications, value: t.me.unread(unread), onOpen: () => navigate('/me/notifications') },
+        { id: 'privacy', label: t.me.privacy, value: ' ', onOpen: () => navigate('/me/privacy') },
         { id: 'switch', label: t.me.switchCompany, value: session.company?.name_cn ?? '', onOpen: () => setSwitching(true) },
         { id: 'about', label: t.me.about, value: `v${BRAND.version}`, onOpen: () => {} },
       ],
@@ -89,7 +102,7 @@ export function MePage() {
       surface="secondary"
     >
       <div className="me-list">
-        {sections.map((section) => (
+        {[...sections, ...staffSection].map((section) => (
           <section key={section.title}>
             <ListSectionTitle>{section.title}</ListSectionTitle>
             {section.items.map((item) => (

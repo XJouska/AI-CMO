@@ -277,12 +277,18 @@ class DraftIn(BaseModel):
 async def create_draft(
     db: Session, lead: Lead, scope_user: Any, tone: str, language: str, *, instruction: str = "", base: Any = None
 ) -> OutreachDraft:
+    from app.modules.billing.service import require_feature
+
+    require_feature(db, lead.company_id, "outreach")
     if _version_count(db, lead.id) >= MAX_DRAFT_VERSIONS:
         raise AppError(f"每条商机最多保存 {MAX_DRAFT_VERSIONS} 个版本", code="draft_limit")
+    from app.services.metering import metering
+
     ctx = service.draft_context(db, lead, scope_user.name)
-    result, flags = await service.generate_email(
-        ctx, tone, language, instruction=instruction, previous=base.body if base is not None else ""
-    )
+    with metering(db, lead.company_id):
+        result, flags = await service.generate_email(
+            ctx, tone, language, instruction=instruction, previous=base.body if base is not None else ""
+        )
     latest = db.scalar(
         select(OutreachDraft.version).where(OutreachDraft.lead_id == lead.id).order_by(OutreachDraft.version.desc())
     )
@@ -422,6 +428,10 @@ async def send_draft(db: Session, scope: CompanyScope, draft: OutreachDraft, acc
     if not draft.to_email:
         raise AppError("请先填写收件人邮箱", code="recipient_required")
     service.check_can_send(db, account, draft.to_email)
+    from app.modules.billing.service import check_quota, require_feature
+
+    require_feature(db, scope.company_id, "outreach")
+    check_quota(db, scope.company_id, "emails_sent")
     try:
         creds = SmtpCredentials(**decrypt_json(account.encrypted_credentials))
     except (DecryptionError, TypeError) as exc:
@@ -457,6 +467,17 @@ async def send_draft(db: Session, scope: CompanyScope, draft: OutreachDraft, acc
         scope.user.id,
     )
     pipe = service.change_stage(db, lead, "contacted", user_id=scope.user.id, auto=True)
+    from app.modules.admin.audit import audit_scope, record_usage
+
+    record_usage(db, scope.company_id, "emails_sent", 1, {"draft_id": str(draft.id)})
+    audit_scope(
+        db,
+        scope,
+        "email.send",
+        target_type="outreach_draft",
+        target_id=draft.id,
+        detail={"to": draft.to_email, "mail_account_id": str(account.id)},
+    )
     limit = min(account.daily_limit, get_settings().mail_daily_limit_max)
     remaining = max(limit - service.sent_today(db, account), 0)
     db.commit()
@@ -563,6 +584,17 @@ async def create_mail_account(
         dns_hints=dns,
     )
     db.add(account)
+    db.flush()
+    from app.modules.admin.audit import audit_scope
+
+    audit_scope(
+        db,
+        scope,
+        "mail_account.create",
+        target_type="mail_account",
+        target_id=account.id,
+        detail={"from": from_address},
+    )
     db.commit()
     return mail_account_out(db, account)
 
@@ -597,6 +629,9 @@ def delete_mail_account(
     account = db.get(MailAccount, account_id)
     if account is None or account.company_id != scope.company_id:
         raise NotFoundError("发信邮箱不存在")
+    from app.modules.admin.audit import audit_scope
+
+    audit_scope(db, scope, "mail_account.delete", target_type="mail_account", target_id=account.id)
     db.delete(account)
     db.commit()
 

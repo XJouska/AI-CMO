@@ -103,6 +103,10 @@ class RequestContextMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
         finally:
+            from app.core.observability import metrics, route_template
+
+            duration = time.perf_counter() - start
+            metrics.observe(str(scope.get("method")), route_template(scope), status_holder["status"], duration)
             access_logger.info(
                 "request",
                 extra={

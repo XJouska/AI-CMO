@@ -114,14 +114,26 @@ def claim_next(session: Session, *, kinds: list[str] | None = None, worker_id: s
 
 
 def _run_handler(handler: JobHandler, session: Session, job: Job) -> None:
-    result = handler(session, job)
-    if inspect.isawaitable(result):
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            asyncio.run(_await(result))
-        else:  # pragma: no cover - 处理函数不应在事件循环内被同步调用
-            raise RuntimeError("run_job 不能在事件循环中调用")
+    from contextlib import nullcontext
+
+    from app.services.metering import metering
+
+    # 属于某企业的任务：其中的 LLM 调用计入该企业用量（计费与成本看板）
+    meter = metering(session, job.company_id) if job.company_id else nullcontext()
+    with meter:
+        result = handler(session, job)
+        if inspect.isawaitable(result):
+            _drive(result)
+
+
+def _drive(result: Awaitable[Any]) -> None:
+    """同步执行异步处理函数（asyncio.run 会复制当前 contextvars，计量上下文随之传入）。"""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(_await(result))
+    else:  # pragma: no cover - 处理函数不应在事件循环内被同步调用
+        raise RuntimeError("run_job 不能在事件循环中调用")
 
 
 async def _await(awaitable: Awaitable[Any]) -> Any:

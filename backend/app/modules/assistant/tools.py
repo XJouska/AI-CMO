@@ -122,11 +122,17 @@ class ToolRegistry:
             raise ValueError(f"invalid arguments: {', '.join(fields)}") from exc
 
     async def execute(self, tool: Tool, ctx: ToolContext, args: ToolArgs) -> ToolResult:
+        from app.core.errors import AppError
+
         if ctx.role not in tool.roles:
             raise ToolError("没有权限执行此操作")
-        result = tool.func(ctx, args)
-        if inspect.isawaitable(result):
-            result = await result
+        try:
+            result = tool.func(ctx, args)
+            if inspect.isawaitable(result):
+                result = await result
+        except AppError as exc:
+            # 业务错误（含套餐限额 402）作为工具失败返回给助手，由助手转述给用户
+            raise ToolError(exc.message) from exc
         return result
 
 

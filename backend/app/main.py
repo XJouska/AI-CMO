@@ -5,15 +5,17 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import text
 
 from app.core.config import APP_VERSION, get_settings
 from app.core.db import get_engine
 from app.core.errors import install_error_handlers
 from app.core.logging import RequestContextMiddleware, configure_logging
+from app.modules.admin import notifications as _notifications  # noqa: F401  注册通知投递事件
+from app.modules.admin.compliance import router as compliance_router
 from app.modules.admin.router import router as admin_router
 from app.modules.assistant.router import router as assistant_router
 from app.modules.auth.router import router as auth_router
@@ -39,6 +41,7 @@ MODULE_ROUTERS = [
     outreach_router,
     billing_router,
     admin_router,
+    compliance_router,
     sites_public_router,
 ]
 
@@ -83,6 +86,25 @@ def create_app() -> FastAPI:
             db_ok = False
         body = {"status": "ok" if db_ok else "degraded", "database": "ok" if db_ok else "error"}
         return JSONResponse(body, status_code=200 if db_ok else 503)
+
+    @app.get("/metrics", tags=["system"], include_in_schema=False)
+    def prometheus_metrics(request: Request) -> PlainTextResponse:
+        from app.core.db import get_sessionmaker
+        from app.core.observability import business_metrics, metrics, metrics_allowed
+
+        if not metrics_allowed(
+            request.client.host if request.client else None, request.headers.get("authorization", "")
+        ):
+            return PlainTextResponse("forbidden", status_code=403)
+        lines = metrics.render()
+        try:
+            with get_sessionmaker()() as db:
+                lines += business_metrics(db)
+            lines += ["aicmo_db_up 1"]
+        except Exception:
+            logger.exception("metrics: database unreachable")
+            lines += ["aicmo_db_up 0"]
+        return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
     @app.get(f"{API_PREFIX}/meta", tags=["system"])
     def meta() -> dict[str, object]:

@@ -318,3 +318,11 @@ def deactivate(hosts: list[str]) -> None:
             (live / safe_host(host)).unlink(missing_ok=True)
         except ValueError:
             continue
+
+
+def purge_site(site_id: uuid.UUID | str, hosts: list[str]) -> None:
+    """注销企业时彻底删除站点：先移除 live 链接（立即停止对外服务），再删除全部已构建版本。"""
+    deactivate(hosts)
+    target = output_root() / "versions" / str(uuid.UUID(str(site_id)))
+    if target.exists():
+        shutil.rmtree(target)

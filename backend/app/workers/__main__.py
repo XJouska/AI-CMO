@@ -32,6 +32,28 @@ def run_once() -> bool:
         return True
 
 
+def beat() -> None:
+    """写入心跳（失败只记录日志，不影响任务执行）。"""
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.core.db import utcnow
+    from app.core.jobs import WORKER_ID
+    from app.modules.admin.models import WorkerHeartbeat
+
+    try:
+        with get_sessionmaker()() as session:
+            now = utcnow()
+            session.execute(
+                insert(WorkerHeartbeat)
+                .values(worker_id=WORKER_ID, beat_at=now, started_at=now)
+                .on_conflict_do_update(index_elements=["worker_id"], set_={"beat_at": now})
+            )
+            session.commit()
+        logger.info("worker heartbeat")
+    except Exception:
+        logger.exception("worker heartbeat failed")
+
+
 def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
@@ -49,7 +71,8 @@ def main() -> None:
     scheduler = build_scheduler()
     scheduler.start()
     logger.info("worker started (env=%s, test_mode=%s)", settings.app_env, settings.test_mode)
-    last_beat = 0.0
+    beat()
+    last_beat = time.monotonic()
     while not stopping:
         try:
             worked = run_once()
@@ -58,7 +81,7 @@ def main() -> None:
             worked = False
         now = time.monotonic()
         if now - last_beat >= 60:
-            logger.info("worker heartbeat")
+            beat()
             last_beat = now
         if not worked:
             time.sleep(IDLE_SLEEP_SECONDS)

@@ -1,0 +1,48 @@
+# AI-CMO v2 生产入口（Caddy）：自动 HTTPS。
+#
+# - {$APP_DOMAIN}：应用（SPA + /api），转发到 web 容器
+# - *.{$SITES_BASE_DOMAIN}：平台子域名官网（泛域名证书需 DNS 验证插件，见 docs/runbook.md「证书」）
+# - 客户自定义域名：on-demand TLS，签发前调用 api 的 tls-ask 接口确认该域名已验证且官网已发布
+#
+# 环境变量：APP_DOMAIN、SITES_BASE_DOMAIN、ACME_EMAIL
+
+{
+	email {$ACME_EMAIL}
+	on_demand_tls {
+		ask http://api:8000/api/v1/public/internal/tls-ask
+	}
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}
+
+{$APP_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+	reverse_proxy web:8080 {
+		# 覆盖客户端可能伪造的转发头：只认 Caddy 看到的真实来源地址
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+		flush_interval -1
+	}
+}
+
+# 平台子域名与客户自定义域名：都交给 sites 容器按 Host 选择站点
+https:// {
+	import security_headers
+	tls {
+		on_demand
+	}
+	encode zstd gzip
+	reverse_proxy sites:8080 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
+}

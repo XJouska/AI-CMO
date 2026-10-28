@@ -232,6 +232,10 @@ def run_watch(
     watch_id: uuid.UUID, scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)
 ) -> RunOut:
     watch = _own_watch(db, scope, watch_id)
+    from app.modules.billing.service import check_quota, require_feature
+
+    require_feature(db, scope.company_id, "leads")
+    check_quota(db, scope.company_id, "watch_runs")
     recent = db.scalar(
         select(WatchRun).where(WatchRun.watch_id == watch.id, WatchRun.status.in_(("queued", "running")))
     )
@@ -511,5 +515,17 @@ def review_lead(
                 link=f"/leads/{lead.id}",
             )
         )
+    from app.modules.admin.audit import audit
+
+    audit(
+        db,
+        f"lead.review.{body.decision}",
+        actor_id=staff.id,
+        company_id=lead.company_id,
+        target_type="lead",
+        target_id=lead.id,
+        detail={"edited": body.summary_cn is not None or body.title is not None},
+        on_behalf=True,
+    )
     db.commit()
     return lead_out(db, lead, None)

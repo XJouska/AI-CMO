@@ -98,6 +98,9 @@ def create_company(body: CompanyIn, user: User = Depends(current_user), db: Sess
     db.add(CompanyMember(company_id=company.id, user_id=user.id, role="owner"))
     db.add(CompanyProfile(company_id=company.id))
     db.flush()
+    from app.modules.billing.service import start_trial
+
+    start_trial(db, company.id)
     refresh_completeness(db, company)
     db.commit()
     return company_out(company, "owner")
@@ -192,6 +195,17 @@ def remove_member(
         raise NotFoundError("成员不存在")
     if member.role == "owner":
         raise AppError("不能移除企业所有者", code="cannot_remove_owner")
+    from app.modules.admin.audit import audit
+
+    audit(
+        db,
+        "member.remove",
+        actor_id=user.id,
+        company_id=company_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"role": member.role},
+    )
     db.delete(member)
     db.commit()
     return Response(status_code=204)
@@ -224,6 +238,11 @@ def create_invite(
             expires_at=expires,
             created_by=user.id,
         )
+    )
+    from app.modules.admin.audit import audit
+
+    audit(
+        db, "invite.create", actor_id=user.id, company_id=company_id, target_type="invite", detail={"role": body.role}
     )
     db.commit()
     return InviteOut(token=token, expires_at=expires.isoformat(), role=body.role)
@@ -265,6 +284,18 @@ def accept_invite(token: str, user: User = Depends(current_user), db: Session = 
         raise ForbiddenError("该邀请仅限平台运营人员接受")
     db.add(CompanyMember(company_id=company.id, user_id=user.id, role=invite.role))
     invite.accepted_by, invite.accepted_at = user.id, utcnow()
+    from app.modules.admin.audit import audit
+
+    audit(
+        db,
+        "member.join",
+        actor_id=user.id,
+        company_id=company.id,
+        target_type="user",
+        target_id=user.id,
+        detail={"role": invite.role},
+        on_behalf=invite.role == "operator",
+    )
     db.commit()
     return company_out(company, invite.role)
 

@@ -410,3 +410,21 @@ body,
 .yb-dialog-body {
   white-space: pre-line;
 }
+
+/* 通知设置：正式列表行 + 正式 Switch 并排（GAP-015），只做布局 */
+.pref-row {
+  align-items: center;
+  background: var(--yb-color-basic-container-primary);
+  display: flex;
+}
+
+.pref-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.pref-switch {
+  display: inline-flex;
+  flex: none;
+  padding-right: 16px;
+}

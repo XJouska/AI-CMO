@@ -1,0 +1,67 @@
+# 生产环境覆盖文件：在基础编排之上增加 Caddy（80 / 443，自动 HTTPS），web / sites 不再直接暴露端口。
+# 用法（仓库根目录）：
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml --env-file .env -p aicmo-v2 up -d --build
+# 首次上线前请阅读 docs/runbook.md（DNS、证书、密钥、备份）。
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_started
+      sites:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN 未设置}
+      SITES_BASE_DOMAIN: ${SITES_BASE_DOMAIN:?SITES_BASE_DOMAIN 未设置}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL 未设置}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    mem_limit: 128m
+
+  web:
+    ports: !reset []
+
+  sites:
+    ports: !reset []
+
+  api:
+    environment:
+      APP_ENV: production
+      MAIL_ENCRYPTION_KEY: ${MAIL_ENCRYPTION_KEY:?生产环境必须设置 MAIL_ENCRYPTION_KEY}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SYSTEM_SMTP_HOST: ${SYSTEM_SMTP_HOST:-}
+      SYSTEM_SMTP_PORT: ${SYSTEM_SMTP_PORT:-465}
+      SYSTEM_SMTP_USERNAME: ${SYSTEM_SMTP_USERNAME:-}
+      SYSTEM_SMTP_PASSWORD: ${SYSTEM_SMTP_PASSWORD:-}
+      SYSTEM_MAIL_FROM: ${SYSTEM_MAIL_FROM:-noreply@aicmo.site}
+      SEARCH_API_PROVIDER: ${SEARCH_API_PROVIDER:-none}
+      SEARCH_API_KEY: ${SEARCH_API_KEY:-}
+
+  worker:
+    environment:
+      APP_ENV: production
+      MAIL_ENCRYPTION_KEY: ${MAIL_ENCRYPTION_KEY:?生产环境必须设置 MAIL_ENCRYPTION_KEY}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SYSTEM_SMTP_HOST: ${SYSTEM_SMTP_HOST:-}
+      SYSTEM_SMTP_PORT: ${SYSTEM_SMTP_PORT:-465}
+      SYSTEM_SMTP_USERNAME: ${SYSTEM_SMTP_USERNAME:-}
+      SYSTEM_SMTP_PASSWORD: ${SYSTEM_SMTP_PASSWORD:-}
+      SYSTEM_MAIL_FROM: ${SYSTEM_MAIL_FROM:-noreply@aicmo.site}
+      SEARCH_API_PROVIDER: ${SEARCH_API_PROVIDER:-none}
+      SEARCH_API_KEY: ${SEARCH_API_KEY:-}
+
+volumes:
+  caddy_data:
+  caddy_config:

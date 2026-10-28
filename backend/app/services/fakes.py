@@ -309,10 +309,12 @@ class FakeLLM:
             raise value
         if callable(value):
             value = value(messages)
+        prompt_chars = sum(len(str(m.get("content", ""))) for m in messages)
         if isinstance(value, LLMResult):
+            if not value.usage.total:  # 模拟真实接口：每次调用都有 token 用量
+                value.usage = LLMUsage(prompt_tokens=prompt_chars // 4, completion_tokens=len(value.content) // 4 + 1)
             return value
         content = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
-        prompt_chars = sum(len(str(m.get("content", ""))) for m in messages)
         return LLMResult(
             content=content,
             usage=LLMUsage(prompt_tokens=prompt_chars // 4, completion_tokens=len(content) // 4),

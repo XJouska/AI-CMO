@@ -146,6 +146,11 @@ class GenerateIn(BaseModel):
 def generate_site(
     body: GenerateIn, scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)
 ) -> SiteOut:
+    from app.modules.billing.service import check_quota, require_feature
+
+    require_feature(db, scope.company_id, "site")
+    if db.scalar(select(Site.id).where(Site.company_id == scope.company_id)) is None:
+        check_quota(db, scope.company_id, "sites")
     site = service.start_generation(db, scope.company, scope.user.id, body.template)
     db.commit()
     return site_out(db, site)
@@ -265,7 +270,12 @@ def restore_version(
 @router.post("/site/publish", response_model=SiteOut, status_code=202)
 def publish_site(scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)) -> SiteOut:
     _require_manager(scope)
+    from app.modules.admin.audit import audit_scope
+    from app.modules.billing.service import require_feature
+
+    require_feature(db, scope.company_id, "site")
     site = service.start_publish(db, scope.company, scope.user.id)
+    audit_scope(db, scope, "site.publish", target_type="site", target_id=site.id)
     db.commit()
     return site_out(db, site)
 
@@ -278,6 +288,9 @@ def unpublish_site(scope: CompanyScope = Depends(current_company), db: Session =
 
     render.deactivate(service.site_hosts(site))
     site.status, site.published_version_id = "draft", None
+    from app.modules.admin.audit import audit_scope
+
+    audit_scope(db, scope, "site.unpublish", target_type="site", target_id=site.id)
     db.commit()
     return site_out(db, site)
 
@@ -590,3 +603,36 @@ def site_preview(
             "Referrer-Policy": "no-referrer" if settings.is_production else "same-origin",
         },
     )
+
+
+@public.get("/public/internal/tls-ask")
+def tls_ask(domain: str, request: Request, db: Session = Depends(get_db)) -> Response:
+    """Caddy on-demand TLS 的 ask 接口：只为已验证的客户自定义域名和平台子域名签发证书。
+
+    只允许内网（Caddy 容器）调用，防止被外部用来探测客户域名。
+    """
+    import ipaddress
+
+    from app.core.config import get_settings
+
+    try:
+        caller = ipaddress.ip_address(request.client.host if request.client else "")
+    except ValueError:
+        return Response(status_code=403)
+    if not (caller.is_private or caller.is_loopback):
+        return Response(status_code=403)
+    host = domain.strip().lower().rstrip(".")
+    base = get_settings().sites_base_domain
+    if host.endswith(f".{base}"):
+        sub = host.removesuffix(f".{base}")
+        ok = db.scalar(select(Site.id).where(Site.subdomain == sub, Site.status == "published")) is not None
+    else:
+        ok = (
+            db.scalar(
+                select(Site.id).where(
+                    Site.custom_domain == host, Site.domain_verified.is_(True), Site.status == "published"
+                )
+            )
+            is not None
+        )
+    return Response(status_code=200 if ok else 404)

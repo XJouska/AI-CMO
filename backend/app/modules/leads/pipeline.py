@@ -25,10 +25,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import utcnow
-from app.core.errors import ServiceUnavailableError
+from app.core.errors import AppError, ServiceUnavailableError
 from app.core.jobs import Job, enqueue, job_handler, on_job_failure
 from app.core.providers import providers
 from app.core.security.ssrf import SsrfBlockedError, validate_url
+from app.modules.admin.audit import record_usage
 from app.modules.companies.models import Company, Product
 from app.modules.leads import scoring
 from app.modules.leads.models import Buyer, Lead, LeadSignal, Signal, Watch, WatchRun
@@ -312,7 +313,17 @@ async def handle_run(db: Session, job: Job) -> None:
     if watch is None or company is None:
         run.status, run.error = "failed", "监控计划不存在"
         return
+    from app.modules.billing import service as billing
+
+    try:
+        billing.require_feature(db, company.id, "leads")
+        billing.check_quota(db, company.id, "watch_runs")
+    except AppError as exc:
+        run.status, run.error, run.finished_at = "failed", exc.message[:300], utcnow()
+        watch.next_run_at = next_run(watch, run.finished_at)
+        return
     run.status, run.started_at = "running", utcnow()
+    record_usage(db, company.id, "watch_runs", 1, {"run_id": str(run.id)})
     db.commit()
 
     products = db.scalars(select(Product).where(Product.company_id == company.id)).all()
@@ -406,6 +417,8 @@ async def handle_run(db: Session, job: Job) -> None:
         run.status = "done"
     run.finished_at = utcnow()
     run.stats = {**stats, **budget.stats()}
+    record_usage(db, company.id, "search_queries", budget.queries, {"run_id": str(run.id)})
+    record_usage(db, company.id, "fetches", budget.fetches, {"run_id": str(run.id)})
     watch.last_run_at = run.finished_at
     watch.next_run_at = next_run(watch, run.finished_at)
     approved = stats.get("auto_approved", 0)
@@ -466,6 +479,12 @@ async def _analyze_signal(
         existing.updated_at = utcnow()
         stats["merged"] += 1
         return
+    from app.modules.billing.service import remaining
+
+    left = remaining(db, company.id, "leads")
+    if left is not None and left <= 0:
+        stats["quota_skipped"] = stats.get("quota_skipped", 0) + 1
+        return
     conf = scoring.confidence(analysis.product_match, hits, analysis.confident)
     auto = get_settings().leads_auto_approve_score
     review = "approved" if auto is not None and total >= auto and conf == "high" else "pending"
@@ -492,6 +511,7 @@ async def _analyze_signal(
     db.add(lead)
     db.flush()
     db.add(LeadSignal(lead_id=lead.id, signal_id=signal_id))
+    record_usage(db, company.id, "leads", 1, {"lead_id": str(lead.id)})
     stats["leads"] += 1
     if review == "approved":
         stats["auto_approved"] = stats.get("auto_approved", 0) + 1

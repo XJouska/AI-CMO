@@ -32,12 +32,24 @@ class _Providers:
         return self._cache[name]
 
     def llm(self) -> LLMClient:
+        """LLM 客户端，统一包一层用量计量（见 app/services/metering.py）。"""
         from app.services.fakes import FakeLLM
+        from app.services.metering import MeteredLLM
 
-        return self._get("llm", OpenAICompatLLM, FakeLLM)
+        inner = self._get("llm", OpenAICompatLLM, FakeLLM)
+        cached = self._cache.get("llm_metered")
+        if cached is None or cached.inner is not inner:
+            cached = MeteredLLM(inner)
+            self._cache["llm_metered"] = cached
+        return cached  # type: ignore[return-value]
 
     def fetcher(self) -> Fetcher:
         return self._get("fetcher", SafeFetcher, FakeFetcher)
+
+    def webhook(self) -> Any:
+        from app.services.fetcher import FakeWebhook, SafeWebhook
+
+        return self._get("webhook", SafeWebhook, FakeWebhook)
 
     def mailer(self) -> Any:
         from app.services.mailer import FakeMailer, SmtpMailer
