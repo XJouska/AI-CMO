@@ -119,11 +119,33 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml --
 - **联系人删除请求**：公开页面 `/data-request` 提交，运营在「运营工作台 → 联系人删除请求」核实后执行；会从所有企业的买家联系方式、未发送的开发信中移除，并加入各企业屏蔽名单
 - **审计日志**：运营工作台「审计日志」，包含权限变更、数据导出、代客操作、发布官网、发送邮件、套餐开通、支付、删除等
 
-## 10. 旧版切换（需人工确认后执行）
+## 10. 当前生产部署（2026-10-28 已切换）
 
-旧版容器 `ai-cmo-*`（9010 / 9011 / 5434）与宿主 Nginx 目前保持不动。切换步骤：
+本服务器的 80 / 443 由宝塔面板管理的宿主 Nginx 占用（同机还托管 vidsnap、wordscene 等站点），因此**没有启用** `docker-compose.prod.yml` 中的 Caddy，而是由宿主 Nginx 反代到新版容器：
 
-1. 在新版上为试点客户完成建档与官网发布，确认运行稳定
-2. 停止宿主 Nginx 中 `aicmo.site` 的旧配置（或改为反代到新版 Caddy）
-3. 启动生产覆盖文件中的 Caddy（占用 80 / 443），确认证书签发
-4. 观察一周后再下线旧版容器，并对旧数据库做最终备份
+| 项 | 值 |
+|---|---|
+| 应用 | `https://www.aicmo.site` → `127.0.0.1:9020`（aicmo-v2 web）；`aicmo.site` 与 HTTP 均 308 跳转到 `https://www.aicmo.site` |
+| 客户官网 | `*.sites.aicmo.site`（HTTP）→ `127.0.0.1:9021`（aicmo-v2 sites）。**DNSPod 尚未添加 `*.sites` 泛解析**，客户官网暂不能公网访问（见下方待办） |
+| 宿主 Nginx 配置 | `/www/server/panel/vhost/nginx/ai-cmo.conf`（旧版备份：`/var/backups/aicmo-legacy/nginx-ai-cmo.conf.bak`）；修改后 `nginx -t && nginx -s reload` |
+| 证书 | `/etc/letsencrypt/live/aicmo.site`（certbot standalone 自动续期，覆盖 aicmo.site / www.aicmo.site） |
+| 环境文件 | `deploy/.env.v2`（权限 600，不入库）；启动：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env.v2 -p aicmo-v2 up -d --build` |
+| 模型 | OpenAI 兼容接口（`LLM_API_BASE` / `LLM_MODEL` 来自旧版 `.env` 的 QWEN_* 配置） |
+| 商机数据源 | 欧盟 TED 官方检索 API（免密钥）；未配置搜索 API |
+| 运营账号 | `lixin.time@gmail.com`（staff），初始密码见服务器 `/root/aicmo-staff-account.txt`（权限 600），首次登录后修改 |
+| 备份 | cron 每日 03:00 `deploy/backup.sh` → `/var/backups/aicmo-v2`；每周日 04:00 恢复演练；密钥 `/root/.aicmo-backup.key`（**请另行离线保存**） |
+| 旧版 | 前后端容器 `ai-cmo-frontend-1`、`ai-cmo-backend-1` 已停止且不自动重启；旧数据库 `ai-cmo-db-1`（5434）保留运行；切换前的全量导出：`/var/backups/aicmo-legacy/legacy-db-*.sql.gz` |
+
+**回滚到旧版**（紧急情况）：
+
+```bash
+cp /var/backups/aicmo-legacy/nginx-ai-cmo.conf.bak /www/server/panel/vhost/nginx/ai-cmo.conf
+docker start ai-cmo-backend-1 ai-cmo-frontend-1
+nginx -t && nginx -s reload
+```
+
+**待办：开通客户官网公网访问**
+
+1. DNSPod 为 `aicmo.site` 添加记录：主机记录 `*.sites`，类型 A，记录值 `43.160.243.154`
+2. HTTPS（可选）：用 DNS 验证签发 `*.sites.aicmo.site` 泛域名证书（certbot + DNSPod 插件，需要 DNSPod API 密钥），然后把 `ai-cmo.conf` 中客户官网的 server 改为 443 并把 `.env.v2` 的 `SITES_SCHEME` 改为 `https`
+3. 客户自定义域名：为每个已验证的域名签发证书后，在 `ai-cmo.conf` 中加入对应的 `server_name`

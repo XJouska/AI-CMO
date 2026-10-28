@@ -199,6 +199,136 @@ class SerpApiSearch(BingSearch):
         ]
 
 
+# ── 欧盟 TED 公开招标（官方检索 API，无需密钥）────────────────────────
+
+# 出口市场英文名 → ISO 3166-1 alpha-3（TED 的 buyer-country 字段）
+TED_COUNTRIES = {
+    "austria": "AUT",
+    "belgium": "BEL",
+    "bulgaria": "BGR",
+    "croatia": "HRV",
+    "cyprus": "CYP",
+    "czechia": "CZE",
+    "czech republic": "CZE",
+    "denmark": "DNK",
+    "estonia": "EST",
+    "finland": "FIN",
+    "france": "FRA",
+    "germany": "DEU",
+    "greece": "GRC",
+    "hungary": "HUN",
+    "ireland": "IRL",
+    "italy": "ITA",
+    "latvia": "LVA",
+    "lithuania": "LTU",
+    "luxembourg": "LUX",
+    "malta": "MLT",
+    "netherlands": "NLD",
+    "poland": "POL",
+    "portugal": "PRT",
+    "romania": "ROU",
+    "slovakia": "SVK",
+    "slovenia": "SVN",
+    "spain": "ESP",
+    "sweden": "SWE",
+    "norway": "NOR",
+    "switzerland": "CHE",
+    "iceland": "ISL",
+}
+TED_COUNTRY_NAMES = {v: k.title() for k, v in TED_COUNTRIES.items() if k != "czech republic"}
+
+
+def _ted_text(value: Any, prefer: tuple[str, ...] = ("eng", "ENG")) -> str:
+    """TED 多语言字段：{"deu": "…", "eng": "…"} 或 {"deu": ["…"]} 或 ["…"]，优先英文。"""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return _ted_text(value[0], prefer) if value else ""
+    if isinstance(value, dict):
+        for key in prefer:
+            if key in value:
+                return _ted_text(value[key], prefer)
+        return _ted_text(next(iter(value.values()), ""), prefer)
+    return ""
+
+
+class TedSearch:
+    """欧盟 TED 官方检索接口（https://api.ted.europa.eu/v3/notices/search，公开、无需密钥）。
+
+    按产品关键词全文检索近期招标公告（contract notice），只读取公告元数据。
+    """
+
+    key = "ted"
+    label = "欧盟 TED 招标"
+    terms_note = "欧盟官方公开招标数据（TED Open Data，CC BY 4.0），使用官方检索 API，只读取公告元数据。"
+    requires_api_key = False
+    rate_limit_per_minute = 20
+    URL = "https://api.ted.europa.eu/v3/notices/search"
+    FIELDS: tuple[str, ...] = (
+        "publication-number",
+        "notice-title",
+        "buyer-name",
+        "buyer-country",
+        "description-lot",
+        "deadline-receipt-tender-date-lot",
+        "publication-date",
+        "notice-type",
+    )
+
+    async def search(self, query: str, market: str, since: datetime) -> list[RawSignal]:
+        # 查询词形如 '"ball valve" RFQ Germany'：取引号内的产品词做全文检索
+        m = re.search(r'"([^"]{2,80})"', query)
+        term = (m.group(1) if m else query).replace('"', " ").strip()
+        if not term:
+            return []
+        conditions = [f'FT~"{term}"', f"PD>={since.strftime('%Y%m%d')}"]
+        country = TED_COUNTRIES.get(market.strip().lower()) if market else None
+        if market and country is None:
+            return []  # 非欧洲市场：TED 没有数据
+        if country:
+            conditions.append(f"buyer-country={country}")
+        body = json.dumps(
+            {"query": " AND ".join(conditions), "fields": list(self.FIELDS), "limit": 25, "scope": "ACTIVE"}
+        ).encode()
+        result = await safe_fetch(
+            self.URL,
+            method="POST",
+            content=body,
+            headers={"Content-Type": "application/json", "User-Agent": BOT_UA},
+            max_bytes=4_000_000,
+            timeout=25.0,
+        )
+        if result.status_code != 200:
+            raise RuntimeError(f"ted status {result.status_code}")
+        out: list[RawSignal] = []
+        for notice in json.loads(result.content).get("notices", []):
+            number = str(notice.get("publication-number", ""))
+            if not number:
+                continue
+            countries = notice.get("buyer-country") or []
+            country_name = TED_COUNTRY_NAMES.get(countries[0] if countries else "", market)
+            deadline = _ted_text(notice.get("deadline-receipt-tender-date-lot"))[:10]
+            buyer = _ted_text(notice.get("buyer-name"))
+            title = _ted_text(notice.get("notice-title"))
+            description = _ted_text(notice.get("description-lot"))
+            snippet = (
+                f"Tender notice. Buyer: {buyer} ({country_name}). "
+                + (f"Deadline {deadline}. " if deadline else "")
+                + description[:1600]
+            )
+            out.append(
+                RawSignal(
+                    self.key,
+                    f"https://ted.europa.eu/en/notice/-/detail/{number}",
+                    f"Tender: {title} ({country_name})"[:500],
+                    snippet[:2000],
+                    _parse_date(_ted_text(notice.get("publication-date"))[:10]),
+                    {"query": query, "market": country_name, "buyer": buyer, "ted_number": number},
+                )
+            )
+        return out
+
+
 # ── RSS（公开招标公告、行业新闻）──────────────────────────────────────
 
 
@@ -342,15 +472,8 @@ class FakeSearch:
 
 # ── 注册表 ─────────────────────────────────────────────────────────────
 
-DEFAULT_RSS = [
-    {
-        "key": "ted_rss",
-        "url": "https://ted.europa.eu/api/v3.0/notices/search/rss",
-        "kind": "tender",
-        "label": "欧盟 TED 招标",
-        "terms_note": "欧盟官方公开招标数据（TED），按其开放数据条款使用；只读取 RSS 公告。",
-    },
-]
+# 额外的 RSS 源通过 RSS_SOURCES 配置（TED 改用官方检索 API，见 TedSearch）
+DEFAULT_RSS: list[dict[str, str]] = []
 
 
 def connectors() -> dict[str, Connector]:
@@ -365,6 +488,7 @@ def build_connectors() -> dict[str, Connector]:
     if settings.search_api_key and settings.search_api_provider != "none":
         key = settings.search_api_key.get_secret_value()
         out["web_search"] = SerpApiSearch(key) if settings.search_api_provider == "serpapi" else BingSearch(key)
+    out["ted"] = TedSearch()
     for item in [*DEFAULT_RSS, *settings.rss_sources]:
         if item.get("key") and item.get("url"):
             out[item["key"]] = RssSource(

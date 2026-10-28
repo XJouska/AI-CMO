@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 RUN_JOB = "leads.watch_run"
 INTENT_TERMS = ["RFQ", "tender", "looking for supplier", "distributor wanted", "request for quotation"]
 LEAD_TYPES = ("tender", "rfq", "buyer_intent", "prospect")
-SOURCE_TRUST = {"web_search": 60, "ted_rss": 95, "site_inquiry": 100}
+SOURCE_TRUST = {"web_search": 60, "ted": 95, "ted_rss": 95, "site_inquiry": 100}
 
 
 # ── 预算 ───────────────────────────────────────────────────────────────

@@ -222,19 +222,72 @@ async def test_search_api_connectors_use_safe_fetch(monkeypatch) -> None:
     assert serp[0].url == "https://b.example"
 
 
+async def test_ted_search(monkeypatch) -> None:
+    """TED 官方检索：按产品词 + 国家 + 发布日期组装查询；多语言字段优先取英文；非欧洲市场不请求。"""
+    import json
+
+    import httpx
+
+    from app.core.security import ssrf
+
+    calls = []
+    body = {
+        "notices": [
+            {
+                "publication-number": "720402-2026",
+                "notice-title": {"deu": "Deutschland – Armaturen", "eng": "Germany – Taps, cocks and valves"},
+                "buyer-name": {"deu": ["Hamburger Energiewerke GmbH"]},
+                "buyer-country": ["DEU"],
+                "description-lot": {"deu": ["Lieferung von Kugelhähnen DN 80 bis DN 500"]},
+                "deadline-receipt-tender-date-lot": ["2026-11-20+01:00"],
+                "publication-date": "2026-10-19+02:00",
+            },
+            {"notice-title": {"eng": "no number"}},
+        ]
+    }
+
+    async def fake_fetch(url, **kwargs):
+        calls.append((url, kwargs))
+        return ssrf.FetchResult(url=url, status_code=200, headers=httpx.Headers(), content=json.dumps(body).encode())
+
+    monkeypatch.setattr(conn, "safe_fetch", fake_fetch)
+    ted = conn.TedSearch()
+    items = await ted.search('"ball valve" tender Germany', "Germany", NOW)
+    query = json.loads(calls[0][1]["content"])["query"]
+    assert query == 'FT~"ball valve" AND PD>=20261027 AND buyer-country=DEU'
+    assert calls[0][1]["method"] == "POST"
+    assert len(items) == 1
+    item = items[0]
+    assert item.url == "https://ted.europa.eu/en/notice/-/detail/720402-2026"
+    assert item.title == "Tender: Germany – Taps, cocks and valves (Germany)"
+    assert "Hamburger Energiewerke GmbH" in item.snippet and "Deadline 2026-11-20" in item.snippet
+    assert await ted.search('"ball valve" tender', "United States", NOW) == []
+    assert len(calls) == 1
+    await ted.search('"ball valve" tender', "", NOW)
+    assert "buyer-country" not in json.loads(calls[-1][1]["content"])["query"]
+
+    async def failing(url, **kwargs):
+        return ssrf.FetchResult(url=url, status_code=429, headers=httpx.Headers(), content=b"")
+
+    monkeypatch.setattr(conn, "safe_fetch", failing)
+    with pytest.raises(RuntimeError, match="ted status 429"):
+        await ted.search('"x" tender', "", NOW)
+    assert conn._ted_text(["a"]) == "a" and conn._ted_text(None) == ""
+
+
 def test_build_connectors_from_settings(monkeypatch) -> None:
     from pydantic import SecretStr
 
     from app.core.config import get_settings
 
     settings = get_settings()
-    assert set(conn.build_connectors()) == {"ted_rss"}  # 未配置搜索 API 时只启用公开 RSS
+    assert set(conn.build_connectors()) == {"ted"}  # 未配置搜索 API 时只启用公开的 TED 招标检索
     monkeypatch.setattr(settings, "search_api_key", SecretStr("k"))
     monkeypatch.setattr(settings, "search_api_provider", "serpapi")
     monkeypatch.setattr(settings, "rss_sources", [{"key": "news", "url": "https://n.example/rss"}])
     built = conn.build_connectors()
     assert isinstance(built["web_search"], conn.SerpApiSearch)
-    assert set(built) == {"web_search", "ted_rss", "news"}
+    assert set(built) == {"web_search", "ted", "news"}
 
 
 # ── 流水线（端到端，假数据源 + 假 LLM）────────────────────────────────
