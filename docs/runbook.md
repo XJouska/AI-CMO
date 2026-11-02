@@ -126,6 +126,9 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml --
 > 新版容器 `aicmo-v2-*` 仍在运行，只监听 127.0.0.1，公网访问不到。新版 Nginx 配置保存在 `/var/backups/aicmo-legacy/nginx-ai-cmo.conf.v2`，
 > 重新切到新版时：`cp /var/backups/aicmo-legacy/nginx-ai-cmo.conf.v2 /www/server/panel/vhost/nginx/ai-cmo.conf && nginx -t && nginx -s reload`，
 > 再停掉旧前后端容器。下面是切换到新版时的记录。
+>
+> **临时预览入口（2026-11-02）**：`http://43.160.243.154/`（直接用服务器 IP，HTTP）反代到新版 web 容器，供确认新版界面。
+> 配置在 `ai-cmo.conf` 末尾「新版预览（临时）」一段；正式切换后删除该段。改动前的配置备份为 `/var/backups/aicmo-legacy/nginx-ai-cmo.conf.before-preview`。
 
 本服务器的 80 / 443 由宝塔面板管理的宿主 Nginx 占用（同机还托管 vidsnap、wordscene 等站点），因此**没有启用** `docker-compose.prod.yml` 中的 Caddy，而是由宿主 Nginx 反代到新版容器：
 
