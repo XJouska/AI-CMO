@@ -150,3 +150,17 @@ describe('路由守卫', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/assistant'))
   })
 })
+
+describe('没有企业的运营人员', () => {
+  it('侧边栏只显示可用入口（运营工作台），并提示如何进入客户企业；不会出现点了被跳回的菜单', async () => {
+    server.on('GET', '/auth/me', { ...DEMO_USER, is_staff: true, companies: [] })
+    window.localStorage.removeItem('aicmo.company')
+    const { router } = renderRoutes('/ops')
+    const nav = await screen.findByRole('navigation', { name: '主导航' })
+    await waitFor(() => expect(within(nav).getAllByRole('link').map((a) => a.textContent?.trim())).toEqual(['运营工作台', '客户列表']))
+    expect(within(nav).queryByRole('link', { name: '助手' })).toBeNull()
+    fireEvent.click(within(nav).getByRole('link', { name: '客户列表' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/ops/customers'))
+    expect(screen.getAllByRole('link', { name: 'AI-CMO' })[0].getAttribute('href')).toBe('/ops')
+  })
+})

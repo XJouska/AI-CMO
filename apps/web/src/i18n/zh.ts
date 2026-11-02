@@ -37,6 +37,7 @@ export const zh = {
     light: '浅色模式',
     dark: '深色模式',
     newLeads: (n: number) => `${n} 条新商机`,
+    noCompanyHint: '助手、商机、官网需要先进入一家企业：在客户列表中选择企业，点「进入企业代操作」。',
   },
   home: {
     eyebrow: '为外贸工厂打造的 AI 获客系统',

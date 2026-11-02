@@ -996,3 +996,13 @@
 .site-logo--inverse img {
   box-shadow: 0 0 0 1px rgb(255 255 255 / 0.25);
 }
+
+.sidebar__hint {
+  border: 1px dashed var(--c-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--c-text-3);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+}

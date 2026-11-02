@@ -92,13 +92,16 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
   const companies = session.user?.companies ?? []
   const isStaff = Boolean(session.user?.is_staff)
 
-  const items: NavItem[] = [...MAIN_NAV, ...(isStaff ? [{ id: 'ops', path: '/ops', label: t.ops.section, icon: ShieldCheck }] : [])]
+  const hasCompany = Boolean(session.company)
+  // 助手 / 商机 / 官网 / 我的都属于某个企业；没有企业时（例如尚未进入客户企业的运营人员）不显示，避免点击后被跳回
+  const items: NavItem[] = [...(hasCompany ? MAIN_NAV : []), ...(isStaff ? [{ id: 'ops', path: '/ops', label: t.ops.section, icon: ShieldCheck }] : [])]
+  const home = hasCompany ? '/assistant' : isStaff ? '/ops' : '/onboarding/company'
 
   return (
     <div className="sidebar">
       {inDrawer ? null : (
         <div className="sidebar__brand">
-          <NavLink aria-label={BRAND.name} className="sidebar__logo" to="/assistant">
+          <NavLink aria-label={BRAND.name} className="sidebar__logo" end to={home}>
             <img alt="" height={28} src={logoUrl} width={28} />
             <span className="sidebar__label">{BRAND.name}</span>
           </NavLink>
@@ -136,6 +139,12 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
             ) : null}
           </NavLink>
         ))}
+        {!hasCompany && isStaff ? (
+          <p className="sidebar__hint sidebar__label">
+            {t.shell.noCompanyHint}{' '}
+            <NavLink to="/ops/customers">{t.ops.customers}</NavLink>
+          </p>
+        ) : null}
       </nav>
 
       <div className="sidebar__footer">
