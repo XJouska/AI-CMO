@@ -184,3 +184,69 @@ def test_password_hash_helpers() -> None:
     assert not verify_password("factory123", hashed)
     assert not verify_password("Factory123", None)
     assert not verify_password("Factory123", "not-a-hash")
+
+
+def test_legacy_sha256_password_login_upgrades_hash(client, db) -> None:
+    import hashlib
+
+    from app.core.security.crypto import legacy_password_hash
+
+    user = make_user(db, email="old@factory.com")
+    user.password_hash = legacy_password_hash(hashlib.sha256(b"OldPass123").hexdigest())
+    db.flush()
+    assert login(client, "old@factory.com", "WrongPass1").status_code == 401
+    r = login(client, "old@factory.com", "OldPass123")
+    assert r.status_code == 200, r.text
+    db.refresh(user)
+    assert user.password_hash.startswith("$argon2")
+    assert login(client, "old@factory.com", "OldPass123").status_code == 200
+
+
+def test_legacy_hash_helpers() -> None:
+    import hashlib
+
+    from app.core.security.crypto import is_legacy_hash, legacy_password_hash, password_needs_rehash
+
+    wrapped = legacy_password_hash(hashlib.sha256(b"x").hexdigest())
+    assert is_legacy_hash(wrapped)
+    assert password_needs_rehash(wrapped)
+    assert not password_needs_rehash(hash_password("Factory123"))
+    assert not verify_password("x", "legacy-sha256$" + "0" * 63)  # 格式不对时不按旧版哈希处理
+    with pytest.raises(ValueError):
+        legacy_password_hash("not-hex")
+
+
+def test_change_password(client, db) -> None:
+    user = make_user(db)
+    other = make_session(db, user)
+    current = login(client, user.email).json()["token"]
+    headers = {"Authorization": f"Bearer {current}"}
+
+    r = client.post(
+        "/api/v1/auth/password", json={"current_password": "WrongPass1", "new_password": "NewPass123"}, headers=headers
+    )
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "wrong_password"
+    r = client.post(
+        "/api/v1/auth/password", json={"current_password": PASSWORD, "new_password": "abcdefgh"}, headers=headers
+    )
+    assert r.status_code == 422
+    r = client.post(
+        "/api/v1/auth/password", json={"current_password": PASSWORD, "new_password": PASSWORD}, headers=headers
+    )
+    assert r.status_code == 400
+
+    r = client.post(
+        "/api/v1/auth/password", json={"current_password": PASSWORD, "new_password": "NewPass123"}, headers=headers
+    )
+    assert r.status_code == 204
+    # 当前会话保留，其他设备的会话失效
+    assert client.get("/api/v1/auth/me", headers=headers).status_code == 200
+    assert client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {other}"}).status_code == 401
+    assert login(client, user.email).status_code == 401
+    assert login(client, user.email, "NewPass123").status_code == 200
+
+
+def test_change_password_requires_login(client) -> None:
+    r = client.post("/api/v1/auth/password", json={"current_password": "a", "new_password": "NewPass123"})
+    assert r.status_code == 401

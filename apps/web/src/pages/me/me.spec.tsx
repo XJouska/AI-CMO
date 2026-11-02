@@ -122,3 +122,38 @@ describe('成员', () => {
     expect(inviteLink('a/b?c', 'https://app.example')).toBe('https://app.example/invite/a%2Fb%3Fc')
   })
 })
+
+describe('账号安全', () => {
+  it('修改密码：两次输入不一致时提示并置灰；校验强度；提交当前密码与新密码', async () => {
+    server.on('POST', '/auth/password', null, 204)
+    renderRoutes('/me/security')
+    const submit = (await screen.findByRole('button', { name: '修改密码' })) as HTMLButtonElement
+    expect(submit.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('当前密码'), { target: { value: 'OldPass123' } })
+    fireEvent.change(screen.getByLabelText('新密码'), { target: { value: 'abcdefgh' } })
+    fireEvent.change(screen.getByLabelText('再次输入新密码'), { target: { value: 'abcdefgx' } })
+    expect(screen.getByText('两次输入的新密码不一致')).toBeTruthy()
+    expect(submit.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('再次输入新密码'), { target: { value: 'abcdefgh' } })
+    fireEvent.click(submit)
+    expect(await screen.findByText('密码需同时包含字母和数字')).toBeTruthy()
+    expect(server.calls.some((c) => c.path === '/auth/password')).toBe(false)
+
+    fireEvent.change(screen.getByLabelText('新密码'), { target: { value: 'NewPass123' } })
+    fireEvent.change(screen.getByLabelText('再次输入新密码'), { target: { value: 'NewPass123' } })
+    fireEvent.click(submit)
+    expect(await screen.findByText('密码已修改，其他设备需要重新登录')).toBeTruthy()
+    expect(server.calls.find((c) => c.path === '/auth/password')!.body).toEqual({ current_password: 'OldPass123', new_password: 'NewPass123' })
+    expect((screen.getByLabelText('当前密码') as HTMLInputElement).value).toBe('')
+  })
+
+  it('当前密码错误时显示后端提示', async () => {
+    server.on('POST', '/auth/password', { error: { code: 'wrong_password', message: '当前密码不正确' } }, 400)
+    renderRoutes('/me/security')
+    fireEvent.change(await screen.findByLabelText('当前密码'), { target: { value: 'x' } })
+    fireEvent.change(screen.getByLabelText('新密码'), { target: { value: 'NewPass123' } })
+    fireEvent.change(screen.getByLabelText('再次输入新密码'), { target: { value: 'NewPass123' } })
+    fireEvent.click(screen.getByRole('button', { name: '修改密码' }))
+    expect(await screen.findByText('当前密码不正确')).toBeTruthy()
+  })
+})

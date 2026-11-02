@@ -1,5 +1,5 @@
 // 设置中心：「我的」下所有页面共用左侧分组菜单（桌面常驻，窄屏变成横向标签）。
-import { Bell, Building2, CreditCard, FileBarChart, FolderOpen, Mail, Package, Radar, ShieldCheck, Users } from 'lucide-react'
+import { Bell, Building2, CreditCard, FileBarChart, FolderOpen, KeyRound, Mail, Package, Radar, ShieldCheck, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { t } from '@/i18n'
 import { AppPage, type AppPageProps } from './AppPage'
@@ -28,6 +28,7 @@ export const SETTINGS_GROUPS = [
     items: [
       { path: '/me/billing', label: t.me.plan, icon: CreditCard },
       { path: '/me/notifications', label: t.me.notifications, icon: Bell },
+      { path: '/me/security', label: t.me.security, icon: KeyRound },
       { path: '/me/privacy', label: t.me.privacy, icon: ShieldCheck },
     ],
   },

@@ -113,6 +113,7 @@ export const routes: RouteObject[] = [
       { path: '/me/notifications', element: authed(page(extras, 'NotificationsPage')) },
       { path: '/me/notifications/settings', element: authed(page(extras, 'NotificationSettingsPage')) },
       { path: '/me/privacy', element: authed(page(extras, 'PrivacySettingsPage')) },
+      { path: '/me/security', element: authed(page(extras, 'SecurityPage'), false) },
       { path: '/me/profile', element: authed(page(profile, 'ProfilePage')) },
       { path: '/me/profile/:section', element: authed(page(profile, 'ProfileSectionPage')) },
       { path: '/me/products', element: authed(page(products, 'ProductsPage')) },

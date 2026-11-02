@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 import time
 
@@ -21,11 +22,39 @@ def hash_password(password: str) -> str:
     return _hasher.hash(password)
 
 
+_LEGACY_SHA256 = re.compile(r"^legacy-sha256\$([0-9a-f]{64})$")
+
+
+def legacy_password_hash(raw_sha256_hex: str) -> str:
+    """把旧版网站的密码哈希（无盐 SHA-256）包装成可识别的格式，只用于迁移老用户。"""
+    if not re.fullmatch(r"[0-9a-f]{64}", raw_sha256_hex):
+        raise ValueError("不是 SHA-256 十六进制摘要")
+    return f"legacy-sha256${raw_sha256_hex}"
+
+
+def is_legacy_hash(password_hash: str | None) -> bool:
+    return bool(password_hash and _LEGACY_SHA256.match(password_hash))
+
+
 def verify_password(password: str, password_hash: str | None) -> bool:
+    legacy = _LEGACY_SHA256.match(password_hash or "")
+    if legacy:
+        # 旧版哈希：校验通过后由登录接口立即升级为 argon2
+        digest = hashlib.sha256(password.encode()).hexdigest()
+        return hmac.compare_digest(digest, legacy.group(1))
     try:
         return _hasher.verify(password_hash or _DUMMY_HASH, password) and password_hash is not None
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
+
+
+def password_needs_rehash(password_hash: str) -> bool:
+    if is_legacy_hash(password_hash):
+        return True
+    try:
+        return _hasher.check_needs_rehash(password_hash)
+    except InvalidHashError:
+        return True
 
 
 def new_token() -> str:

@@ -137,6 +137,8 @@ export const api = {
   login: (body: { email: string; password: string }) => apiFetch<SessionOut>('/auth/login', { method: 'POST', body }),
   me: () => apiFetch<User>('/auth/me'),
   logout: () => apiFetch<void>('/auth/logout', { method: 'POST' }),
+  changePassword: (body: { current_password: string; new_password: string }) =>
+    apiFetch<void>('/auth/password', { method: 'POST', body }),
 
   createCompany: (body: { name_cn: string; name_en: string }) =>
     apiFetch<CompanyBrief & { plan: string }>('/companies', { method: 'POST', body }),

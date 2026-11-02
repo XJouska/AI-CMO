@@ -12,8 +12,15 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.db import get_db, utcnow
 from app.core.deps import AuthContext, get_auth
-from app.core.errors import ConflictError, RateLimitedError, ServiceUnavailableError, UnauthorizedError
-from app.core.security.crypto import hash_password, ip_hash, new_token, token_hash, verify_password
+from app.core.errors import AppError, ConflictError, RateLimitedError, ServiceUnavailableError, UnauthorizedError
+from app.core.security.crypto import (
+    hash_password,
+    ip_hash,
+    new_token,
+    password_needs_rehash,
+    token_hash,
+    verify_password,
+)
 from app.modules.auth.models import LoginAttempt, User
 from app.modules.auth.models import Session as UserSession
 from app.modules.companies.models import Company, CompanyMember
@@ -37,6 +44,22 @@ class RegisterIn(BaseModel):
 class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+
+
+def _password_strength(value: str) -> str:
+    if value.isdigit() or value.isalpha():
+        raise ValueError("密码需同时包含字母和数字")
+    return value
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def _strength(cls, value: str) -> str:
+        return _password_strength(value)
 
 
 class CompanyBrief(BaseModel):
@@ -157,6 +180,9 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)) -> Ses
 
     user.failed_login_count = 0
     user.locked_until = None
+    # 旧版网站迁移过来的账号首次登录时，把密码升级为 argon2
+    if password_needs_rehash(user.password_hash):
+        user.password_hash = hash_password(body.password)
     out = _open_session(db, user, request)
     db.commit()
     return out
@@ -165,6 +191,29 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)) -> Ses
 @router.get("/me", response_model=UserOut)
 def me(auth: AuthContext = Depends(get_auth), db: Session = Depends(get_db)) -> UserOut:
     return user_out(db, auth.user)
+
+
+@router.post("/password", status_code=204)
+def change_password(
+    body: ChangePasswordIn, auth: AuthContext = Depends(get_auth), db: Session = Depends(get_db)
+) -> Response:
+    """修改密码：校验当前密码；成功后注销该账号的其他所有会话，保留当前会话。"""
+    user = db.scalar(select(User).where(User.id == auth.user.id).with_for_update())
+    assert user is not None
+    if not verify_password(body.current_password, user.password_hash):
+        raise AppError("当前密码不正确", code="wrong_password")
+    if body.current_password == body.new_password:
+        raise AppError("新密码不能与当前密码相同", code="same_password")
+    user.password_hash = hash_password(body.new_password)
+    user.failed_login_count = 0
+    user.locked_until = None
+    db.execute(
+        update(UserSession)
+        .where(UserSession.user_id == user.id, UserSession.id != auth.session.id, UserSession.revoked_at.is_(None))
+        .values(revoked_at=utcnow())
+    )
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/logout", status_code=204)

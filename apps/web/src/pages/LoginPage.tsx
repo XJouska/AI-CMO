@@ -13,7 +13,7 @@ import { Button, PasswordField, TextField, useToast } from '@/ui'
 type Mode = 'login' | 'register'
 
 export function nextPathAfterAuth(session: SessionOut, from: string | undefined): string {
-  if (session.user.companies.length === 0) return '/onboarding/company'
+  if (session.user.companies.length === 0) return session.user.is_staff ? '/ops' : '/onboarding/company'
   return from && from.startsWith('/') && !from.startsWith('//') ? from : '/assistant'
 }
 

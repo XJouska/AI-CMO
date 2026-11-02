@@ -141,7 +141,7 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml --
 | 环境文件 | `deploy/.env.v2`（权限 600，不入库）；启动：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env.v2 -p aicmo-v2 up -d --build` |
 | 模型 | OpenAI 兼容接口（`LLM_API_BASE` / `LLM_MODEL` 来自旧版 `.env` 的 QWEN_* 配置） |
 | 商机数据源 | 欧盟 TED 官方检索 API（免密钥）；未配置搜索 API |
-| 运营账号 | `lixin.time@gmail.com`（staff），初始密码见服务器 `/root/aicmo-staff-account.txt`（权限 600），首次登录后修改 |
+| 运营账号 | `lixin.time@gmail.com`（staff）。2026-11-02 起密码与旧版网站相同（首次登录后自动升级为 argon2）；登录后可在「我的 → 账号安全」修改 |
 | 备份 | cron 每日 03:00 `deploy/backup.sh` → `/var/backups/aicmo-v2`；每周日 04:00 恢复演练；密钥 `/root/.aicmo-backup.key`（**请另行离线保存**） |
 | 旧版 | 前后端容器 `ai-cmo-frontend-1`、`ai-cmo-backend-1` 已停止且不自动重启；旧数据库 `ai-cmo-db-1`（5434）保留运行；切换前的全量导出：`/var/backups/aicmo-legacy/legacy-db-*.sql.gz` |
 
@@ -159,3 +159,18 @@ nginx -t && nginx -s reload
 1. DNSPod 为 `aicmo.site` 添加记录：主机记录 `*.sites`，类型 A，记录值 `43.160.243.154`
 2. HTTPS（可选）：用 DNS 验证签发 `*.sites.aicmo.site` 泛域名证书（certbot + DNSPod 插件，需要 DNSPod API 密钥），然后把 `ai-cmo.conf` 中客户官网的 server 改为 443 并把 `.env.v2` 的 `SITES_SCHEME` 改为 `https`
 3. 客户自定义域名：为每个已验证的域名签发证书后，在 `ai-cmo.conf` 中加入对应的 `server_name`
+
+## 11. 旧版网站账号迁移
+
+旧版网站的密码是无盐 SHA-256。`backend/scripts/migrate_legacy_users.py` 把它包装成 `legacy-sha256$<hex>` 写入新版，
+老用户可以用原来的密码登录，首次登录成功后自动升级为 argon2。旧版管理员在新版设为运营人员。
+
+```bash
+# 演练（只打印将要做的变更）
+docker exec -i -e LEGACY_DATABASE_URL="postgresql+psycopg://ai_cmo:<旧库密码>@172.18.0.1:5434/ai_cmo" -w /app \
+  aicmo-v2-api-1 python - --dry-run < backend/scripts/migrate_legacy_users.py
+# 正式执行：去掉 --dry-run；--only EMAIL 只处理指定账号；--replace-password EMAIL 覆盖新版已存在账号的密码
+```
+
+2026-11-02 已执行：`--only lixin.time@gmail.com --replace-password lixin.time@gmail.com`。其余 7 个旧账号尚未迁移，
+正式切换到新版时再执行一次（不带 `--only`）。

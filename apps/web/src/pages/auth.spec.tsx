@@ -75,3 +75,12 @@ describe('登录 / 注册（规范 form-validation-timing）', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding/company'))
   })
 })
+
+describe('登录后的去向', () => {
+  it('没有企业的运营人员进入运营工作台', async () => {
+    const { nextPathAfterAuth } = await import('./LoginPage')
+    const staff = { token: 't', expires_at: '', user: { ...DEMO_USER, companies: [], is_staff: true } }
+    expect(nextPathAfterAuth(staff, undefined)).toBe('/ops')
+    expect(nextPathAfterAuth({ ...staff, user: { ...staff.user, is_staff: false } }, undefined)).toBe('/onboarding/company')
+  })
+})

@@ -1,5 +1,5 @@
 // 工作台布局：左侧边栏（桌面，可折叠）+ 内容区。宽度 < 768px 时侧边栏收进抽屉，由页面顶栏的菜单按钮打开。
-import { Building2, ChevronsUpDown, Globe, LogOut, MessageSquare, Moon, PanelLeftClose, PanelLeftOpen, ShieldCheck, Sun, Target, UserRound, type LucideIcon } from 'lucide-react'
+import { Building2, ChevronsUpDown, Globe, KeyRound, LogOut, MessageSquare, Moon, PanelLeftClose, PanelLeftOpen, ShieldCheck, Sun, Target, UserRound, type LucideIcon } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '@/api/endpoints'
@@ -151,6 +151,7 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
             <span className="sidebar__user-name">{session.user?.name || session.user?.email}</span>
             {session.user?.name ? <span className="sidebar__user-email">{session.user.email}</span> : null}
           </span>
+          <IconButton className="sidebar__label" icon={KeyRound} label={t.me.security} onClick={() => navigate('/me/security')} size="sm" />
           <IconButton className="sidebar__label" icon={LogOut} label={t.me.logout} onClick={() => setLoggingOut(true)} size="sm" />
         </div>
       </div>

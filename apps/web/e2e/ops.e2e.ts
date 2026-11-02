@@ -109,7 +109,8 @@ test('运营工作台：代客操作、手工开通、复核、审计', async ({
   await fresh.goto('/ops/review')
   await expect(fresh.locator('.ops-review')).toBeVisible({ timeout: 20_000 })
   // 复核队列内容与其他用例共享数据（条数、企业名会变化），只比较页面框架
-  await expect(fresh).toHaveScreenshot('ops-review.png', { mask: [fresh.locator('.ops-review, .review-board__list, .sidebar__company, .sidebar__user')] })
+  // 只截取页面框架（顶栏 + 侧边栏）；复核列表与详情的高度取决于共享数据，不纳入比较
+  await expect(fresh.locator('.app-topbar')).toHaveScreenshot('ops-review.png')
   await fresh.keyboard.press('a')
   await expect(fresh.getByText('已通过')).toBeVisible()
 

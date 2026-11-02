@@ -715,6 +715,7 @@ export const zh = {
     notifications: '通知',
     notificationSettings: '通知设置',
     privacy: '数据与隐私',
+    security: '账号安全',
     unread: (n: number) => (n ? `${n} 条未读` : '全部已读'),
     plan: '套餐与用量',
     planValue: '试用',
@@ -728,6 +729,17 @@ export const zh = {
   },
   login: {
     title: '登录',
+  },
+  security: {
+    title: '账号安全',
+    desc: '修改登录密码。修改成功后，其他设备上的登录会失效。',
+    account: '登录邮箱',
+    current: '当前密码',
+    newPassword: '新密码',
+    confirm: '再次输入新密码',
+    mismatch: '两次输入的新密码不一致',
+    submit: '修改密码',
+    changed: '密码已修改，其他设备需要重新登录',
   },
   errors: {
     network: '网络连接失败，请稍后重试',

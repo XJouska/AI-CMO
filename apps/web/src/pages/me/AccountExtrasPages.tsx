@@ -1,4 +1,4 @@
-// 「我的」中的：套餐与用量、通知列表、通知设置、数据与隐私；公开的隐私政策 / 用户协议 / 联系人删除请求页。
+// 「我的」中的：套餐与用量、通知列表、通知设置、账号安全、数据与隐私；公开的隐私政策 / 用户协议 / 联系人删除请求页。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCircle2, Download, FileJson, FileSpreadsheet, FileText, Settings2, ShieldAlert } from 'lucide-react'
 import { useState } from 'react'
@@ -8,11 +8,12 @@ import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
 import { SettingsPage } from '@/layout/SettingsPage'
-import { isEmail } from '@/lib/validation'
+import { api } from '@/api/endpoints'
+import { isEmail, passwordProblem } from '@/lib/validation'
 import { billingApi, complianceApi, notificationsApi, usageText, yuan, type PrefsOut } from '@/ops/api'
 import { shortTime } from '@/outreach/api'
 import { useSession } from '@/session/session'
-import { Button, Card, CardHeader, ConfirmDialog, cx, ListGroup, ListRow, Progress, Quote, Switch, Tag, Text, TextArea, TextField, useToast } from '@/ui'
+import { Button, Card, CardHeader, ConfirmDialog, cx, ListGroup, ListRow, PasswordField, Progress, Quote, Switch, Tag, Text, TextArea, TextField, useToast } from '@/ui'
 
 // ── 套餐与用量 ─────────────────────────────────────────────────────────
 
@@ -285,6 +286,59 @@ export function PrivacySettingsPage() {
           </Card>
         ) : null}
       </div>
+    </SettingsPage>
+  )
+}
+
+// ── 账号安全 ───────────────────────────────────────────────────────────
+
+export function SecurityPage() {
+  const toast = useToast()
+  const showError = useErrorToast()
+  const session = useSession()
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const mismatch = confirm !== '' && confirm !== next
+  const complete = current !== '' && next !== '' && confirm !== '' && !mismatch
+  const change = useMutation({
+    mutationFn: () => api.changePassword({ current_password: current, new_password: next }),
+    onSuccess: () => {
+      setCurrent('')
+      setNext('')
+      setConfirm('')
+      toast.show(t.security.changed)
+    },
+    onError: showError,
+  })
+  function submit() {
+    if (!complete || change.isPending) return
+    const problem = passwordProblem(next)
+    if (problem === 'tooShort') return toast.show(t.auth.passwordTooShort)
+    if (problem === 'needMix') return toast.show(t.auth.passwordNeedMix)
+    change.mutate()
+  }
+  return (
+    <SettingsPage description={t.security.desc} title={t.security.title} width="narrow">
+      <Card padding="lg">
+        <form
+          className="ui-form-stack"
+          onSubmit={(event) => {
+            event.preventDefault()
+            submit()
+          }}
+        >
+          <TextField autoComplete="username" disabled label={t.security.account} onChange={() => {}} value={session.user?.email ?? ''} />
+          <PasswordField autoComplete="current-password" label={t.security.current} maxLength={128} onChange={setCurrent} value={current} />
+          <PasswordField autoComplete="new-password" hint={t.auth.newPasswordPlaceholder} label={t.security.newPassword} maxLength={128} onChange={setNext} value={next} />
+          <PasswordField autoComplete="new-password" error={mismatch ? t.security.mismatch : undefined} label={t.security.confirm} maxLength={128} onChange={setConfirm} value={confirm} />
+          <div className="ui-form-actions">
+            <Button disabled={!complete} loading={change.isPending} type="submit" variant="primary">
+              {t.security.submit}
+            </Button>
+          </div>
+        </form>
+      </Card>
     </SettingsPage>
   )
 }

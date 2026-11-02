@@ -221,6 +221,7 @@ ROUTES: list[Route] = [
     Route("GET", "/api/v1/auth/me", "auth"),
     Route("POST", "/api/v1/auth/logout", "auth"),
     Route("POST", "/api/v1/auth/logout-all", "auth"),
+    Route("POST", "/api/v1/auth/password", "auth", body={"current_password": "x", "new_password": "NewPass123"}),
     # 企业
     Route("POST", "/api/v1/companies", "auth", body={"name_cn": "攻击者工厂"}),
     Route("GET", "/api/v1/companies", "auth"),
