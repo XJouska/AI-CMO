@@ -1305,8 +1305,11 @@
 .review-board {
   display: grid;
   gap: var(--sp-6);
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: 340px minmax(0, 1fr);
+  margin: 0 auto;
+  max-width: calc(var(--content-max) + 2 * var(--sp-8));
   padding: var(--sp-6) var(--sp-8) var(--sp-12);
+  width: 100%;
 }
 
 .review-board__list {

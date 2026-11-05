@@ -39,12 +39,14 @@ describe('工作台布局', () => {
   it('运营菜单只对运营人员显示', async () => {
     const first = renderRoutes('/assistant')
     await screen.findAllByRole('navigation', { name: '主导航' })
-    expect(within(sidebar()).queryByRole('link', { name: '运营工作台' })).toBeNull()
+    expect(within(sidebar()).queryByRole('link', { name: '客户列表' })).toBeNull()
     first.unmount()
 
     server.on('GET', '/auth/me', { ...DEMO_USER, is_staff: true })
     renderRoutes('/assistant')
-    expect(await within(await screen.findByRole('navigation', { name: '主导航' })).findByRole('link', { name: '运营工作台' })).toBeTruthy()
+    const nav = await screen.findByRole('navigation', { name: '主导航' })
+    expect(await within(nav).findByRole('link', { name: '客户列表' })).toBeTruthy()
+    expect(within(nav).getByText('运营')).toBeTruthy()
   })
 
   it('手机宽度：顶栏菜单按钮打开抽屉导航，选择后关闭', async () => {
@@ -152,15 +154,21 @@ describe('路由守卫', () => {
 })
 
 describe('没有企业的运营人员', () => {
-  it('侧边栏只显示可用入口（运营工作台），并提示如何进入客户企业；不会出现点了被跳回的菜单', async () => {
-    server.on('GET', '/auth/me', { ...DEMO_USER, is_staff: true, companies: [] })
+  it('侧边栏只显示运营菜单，并提示如何进入客户企业；没有页面内的第二列导航', async () => {
+    server
+      .on('GET', '/auth/me', { ...DEMO_USER, is_staff: true, companies: [] })
+      .on('GET', /^\/ops\/customers/, [])
     window.localStorage.removeItem('aicmo.company')
     const { router } = renderRoutes('/ops')
-    const nav = await screen.findByRole('navigation', { name: '主导航' })
-    await waitFor(() => expect(within(nav).getAllByRole('link').map((a) => a.textContent?.trim())).toEqual(['运营工作台', '客户列表']))
-    expect(within(nav).queryByRole('link', { name: '助手' })).toBeNull()
-    fireEvent.click(within(nav).getByRole('link', { name: '客户列表' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/ops/customers'))
-    expect(screen.getAllByRole('link', { name: 'AI-CMO' })[0].getAttribute('href')).toBe('/ops')
+    const nav = await screen.findByRole('navigation', { name: '主导航' })
+    expect(within(nav).getAllByRole('link').map((a) => a.textContent?.trim())).toEqual(['客户列表', '复核队列', '审计日志', '数据源监控', '成本看板', '评测集', '联系人删除请求'])
+    expect(within(nav).queryByRole('link', { name: '助手' })).toBeNull()
+    expect(screen.getByText(/要使用助手、商机和官网/)).toBeTruthy()
+    // 全站只有侧边栏一列导航
+    expect(screen.getAllByRole('navigation').filter((n) => n.closest('[role="dialog"]') === null)).toHaveLength(1)
+    fireEvent.click(within(nav).getByRole('link', { name: '审计日志' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/ops/audit'))
+    expect(screen.getAllByRole('link', { name: 'AI-CMO' })[0].getAttribute('href')).toBe('/ops/customers')
   })
 })

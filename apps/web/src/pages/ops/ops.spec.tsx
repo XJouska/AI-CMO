@@ -228,11 +228,12 @@ describe('运营工作台', () => {
     await waitFor(() => expect(server.calls.find((c) => c.path === '/ops/leads/l1/review')?.body).toEqual({ decision: 'rejected' }))
   })
 
-  it('「我的」中运营人员可见运营工作台入口', async () => {
+  it('运营人员的运营菜单在侧边栏中，「我的」页面不再重复显示', async () => {
     server.on('GET', '/auth/me', STAFF).on('GET', '/billing/usage', USAGE).on('GET', '/notifications', []).on('GET', '/watches', []).on('GET', '/mail-accounts', [])
     const { router } = renderRoutes('/me')
     expect(await screen.findByText('获客版')).toBeTruthy()
-    fireEvent.click(screen.getAllByText('运营工作台').at(-1)!)
-    await waitFor(() => expect(router.state.location.pathname).toBe('/ops'))
+    expect(within(screen.getByRole('main')).queryByText('运营工作台')).toBeNull()
+    fireEvent.click(within(screen.getByRole('navigation', { name: '主导航' })).getByRole('link', { name: '复核队列' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/ops/review'))
   })
 })

@@ -17,15 +17,13 @@ export interface AppPageProps {
   actions?: ReactNode
   /** 内容宽度：default 1120px，narrow 720px，full 铺满（页面自行布局） */
   width?: 'default' | 'narrow' | 'full'
-  /** 左侧二级导航（桌面显示） */
-  aside?: ReactNode
   /** 标题下方的工具条（例如分类标签） */
   toolbar?: ReactNode
   className?: string
   children: ReactNode
 }
 
-export function AppPage({ title, documentTitle, description, back, actions, width = 'default', aside, toolbar, className, children }: AppPageProps) {
+export function AppPage({ title, documentTitle, description, back, actions, width = 'default', toolbar, className, children }: AppPageProps) {
   const navigate = useNavigate()
   const { openNav } = useShellNav()
   const docTitle = documentTitle ?? (typeof title === 'string' ? title : '')
@@ -35,7 +33,7 @@ export function AppPage({ title, documentTitle, description, back, actions, widt
   }, [docTitle])
 
   return (
-    <div className={cx('app-page', `app-page--${width}`, aside ? 'has-aside' : undefined, className)}>
+    <div className={cx('app-page', `app-page--${width}`, className)}>
       <header className="app-topbar">
         <div className="app-topbar__inner">
           <IconButton className="app-topbar__menu" icon={Menu} label={t.shell.menu} onClick={openNav} />
@@ -56,7 +54,6 @@ export function AppPage({ title, documentTitle, description, back, actions, widt
         {toolbar ? <div className="app-topbar__toolbar">{toolbar}</div> : null}
       </header>
       <div className="app-page__body">
-        {aside ? <aside className="app-page__aside">{aside}</aside> : null}
         <main className="app-page__content">{children}</main>
       </div>
     </div>

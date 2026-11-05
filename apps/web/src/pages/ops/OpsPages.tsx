@@ -1,40 +1,22 @@
 // 运营工作台（staff）：客户列表 / 详情（代客操作、手工开通）、复核队列（两栏 + 键盘快捷键）、审计日志、数据源、成本、评测、联系人删除请求。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ClipboardCheck, Coins, Database, FlaskConical, History, Play, Search, Users, UserX, X } from 'lucide-react'
+import { Check, ClipboardCheck, Database, Play, Search, Users, UserX, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { t } from '@/i18n'
-import { SubNav } from '@/layout/AppLayout'
 import { AppPage, type AppPageProps } from '@/layout/AppPage'
 import { opsApi, pct, usageText, yuan, type ReviewItem } from '@/ops/api'
 import { shortTime } from '@/outreach/api'
 import { useSession } from '@/session/session'
 import { Button, Card, CardHeader, cx, Heading, KeyValue, ListGroup, ListRow, Quote, Stat, Switch, Tag, TextArea, TextField, useToast } from '@/ui'
 
-const OPS_NAV = [
-  {
-    items: [
-      { path: '/ops', label: t.ops.overview, icon: ClipboardCheck, end: true },
-      { path: '/ops/customers', label: t.ops.customers, icon: Users },
-      { path: '/ops/review', label: t.ops.review, icon: Check },
-      { path: '/ops/audit', label: t.ops.audit, icon: History },
-      { path: '/ops/sources', label: t.ops.sources, icon: Database },
-      { path: '/ops/costs', label: t.ops.costs, icon: Coins },
-      { path: '/ops/evals', label: t.ops.evals, icon: FlaskConical },
-      { path: '/ops/data-requests', label: t.ops.dataRequests, icon: UserX },
-    ],
-  },
-]
-
 function OpsPage({ children, ...props }: Omit<AppPageProps, 'aside'> & { children: ReactNode }) {
   const session = useSession()
   if (!session.user?.is_staff) return <Navigate replace to="/me" />
   return (
-    <AppPage {...props} aside={<SubNav groups={OPS_NAV} label={t.ops.section} />}>
-      {children}
-    </AppPage>
+    <AppPage {...props}>{children}</AppPage>
   )
 }
 
@@ -57,22 +39,7 @@ function DataTable({ head, children, className }: { head: ReactNode[]; children:
 }
 
 export function OpsHomePage() {
-  const navigate = useNavigate()
-  const items = OPS_NAV[0].items.slice(1)
-  return (
-    <OpsPage title={t.ops.section}>
-      <div className="grid-3 ops-home">
-        {items.map((item) => (
-          <button className="ops-tile" key={item.path} onClick={() => navigate(item.path)} type="button">
-            <span aria-hidden className="ops-tile__icon">
-              <item.icon size={20} />
-            </span>
-            <span className="ops-tile__label">{item.label}</span>
-          </button>
-        ))}
-      </div>
-    </OpsPage>
-  )
+  return <Navigate replace to="/ops/customers" />
 }
 
 // ── 客户 ───────────────────────────────────────────────────────────────

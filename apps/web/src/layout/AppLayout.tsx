@@ -1,6 +1,6 @@
 // 工作台布局：左侧边栏（桌面，可折叠）+ 内容区。宽度 < 768px 时侧边栏收进抽屉，由页面顶栏的菜单按钮打开。
-import { Building2, ChevronsUpDown, Globe, KeyRound, LogOut, MessageSquare, Moon, PanelLeftClose, PanelLeftOpen, ShieldCheck, Sun, Target, UserRound, type LucideIcon } from 'lucide-react'
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Building2, ChevronsUpDown, KeyRound, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from 'lucide-react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '@/api/endpoints'
 import { useTheme } from '@/app/theme'
@@ -10,20 +10,9 @@ import { t } from '@/i18n'
 import { useLeadBadge } from '@/leads/badge'
 import { useSession } from '@/session/session'
 import { ChoiceMenu, ConfirmDialog, CountBadge, cx, Drawer, IconButton, useToast } from '@/ui'
+import { MAIN_NAV, OPS_NAV, type NavItem } from './nav'
 
-export interface NavItem {
-  id: string
-  path: string
-  label: string
-  icon: LucideIcon
-}
-
-export const MAIN_NAV: readonly NavItem[] = [
-  { id: 'assistant', path: '/assistant', label: t.tabs.assistant, icon: MessageSquare },
-  { id: 'leads', path: '/leads', label: t.tabs.leads, icon: Target },
-  { id: 'site', path: '/site', label: t.tabs.site, icon: Globe },
-  { id: 'me', path: '/me', label: t.tabs.me, icon: UserRound },
-]
+export { MAIN_NAV, OPS_NAV, type NavItem } from './nav'
 
 const COLLAPSE_KEY = 'aicmo.sidebar.collapsed'
 
@@ -94,8 +83,11 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
 
   const hasCompany = Boolean(session.company)
   // 助手 / 商机 / 官网 / 我的都属于某个企业；没有企业时（例如尚未进入客户企业的运营人员）不显示，避免点击后被跳回
-  const items: NavItem[] = [...(hasCompany ? MAIN_NAV : []), ...(isStaff ? [{ id: 'ops', path: '/ops', label: t.ops.section, icon: ShieldCheck }] : [])]
-  const home = hasCompany ? '/assistant' : isStaff ? '/ops' : '/onboarding/company'
+  const groups: { title?: string; items: readonly NavItem[] }[] = [
+    ...(hasCompany ? [{ items: MAIN_NAV }] : []),
+    ...(isStaff ? [{ title: t.ops.group, items: OPS_NAV }] : []),
+  ]
+  const home = hasCompany ? '/assistant' : isStaff ? '/ops/customers' : '/onboarding/company'
 
   return (
     <div className="sidebar">
@@ -128,23 +120,23 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
       ) : null}
 
       <nav aria-label={t.tabs.ariaLabel} className="sidebar__nav">
-        {items.map((item) => (
-          <NavLink className={({ isActive }) => cx('sidebar__link', isActive && 'is-active')} key={item.id} title={collapsed ? item.label : undefined} to={item.path}>
-            <item.icon aria-hidden size={18} />
-            <span className="sidebar__label">{item.label}</span>
-            {item.id === 'leads' && newLeads > 0 ? (
-              <span className="sidebar__badge">
-                <CountBadge count={newLeads} label={t.shell.newLeads(newLeads)} />
-              </span>
-            ) : null}
-          </NavLink>
+        {groups.map((group, index) => (
+          <div className="sidebar__group" key={group.title ?? index}>
+            {group.title ? <div className="sidebar__group-title sidebar__label">{group.title}</div> : null}
+            {group.items.map((item) => (
+              <NavLink className={({ isActive }) => cx('sidebar__link', isActive && 'is-active')} key={item.id} title={collapsed ? item.label : undefined} to={item.path}>
+                <item.icon aria-hidden size={18} />
+                <span className="sidebar__label">{item.label}</span>
+                {item.id === 'leads' && newLeads > 0 ? (
+                  <span className="sidebar__badge">
+                    <CountBadge count={newLeads} label={t.shell.newLeads(newLeads)} />
+                  </span>
+                ) : null}
+              </NavLink>
+            ))}
+          </div>
         ))}
-        {!hasCompany && isStaff ? (
-          <p className="sidebar__hint sidebar__label">
-            {t.shell.noCompanyHint}{' '}
-            <NavLink to="/ops/customers">{t.ops.customers}</NavLink>
-          </p>
-        ) : null}
+        {!hasCompany && isStaff ? <p className="sidebar__hint sidebar__label">{t.shell.noCompanyHint}</p> : null}
       </nav>
 
       <div className="sidebar__footer">
@@ -196,25 +188,5 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
         title={t.me.logoutConfirm}
       />
     </div>
-  )
-}
-
-/** 供页面使用的二级导航（设置中心、运营工作台的左栏）。 */
-export function SubNav({ label, groups }: { label: string; groups: { title?: string; items: { path: string; label: string; icon?: LucideIcon; end?: boolean; badge?: ReactNode }[] }[] }) {
-  return (
-    <nav aria-label={label} className="subnav">
-      {groups.map((group, index) => (
-        <div className="subnav__group" key={group.title ?? index}>
-          {group.title ? <div className="subnav__title">{group.title}</div> : null}
-          {group.items.map((item) => (
-            <NavLink className={({ isActive }) => cx('subnav__link', isActive && 'is-active')} end={item.end} key={item.path} to={item.path}>
-              {item.icon ? <item.icon aria-hidden size={16} /> : null}
-              <span>{item.label}</span>
-              {item.badge}
-            </NavLink>
-          ))}
-        </div>
-      ))}
-    </nav>
   )
 }

@@ -1,6 +1,6 @@
 // 「我的」概览：企业资料、获客工具、账户三组入口卡片；切换企业、退出登录。
 import { useQuery } from '@tanstack/react-query'
-import { Building2, LogOut, ShieldCheck } from 'lucide-react'
+import { Building2, LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/endpoints'
@@ -76,12 +76,6 @@ export function MePage() {
             </ListGroup>
           ))}
         </div>
-
-        {session.user?.is_staff ? (
-          <ListGroup title={t.ops.section}>
-            <ListRow icon={ShieldCheck} onClick={() => navigate('/ops')} title={t.ops.section} />
-          </ListGroup>
-        ) : null}
 
         <div className="row-between me-foot">
           <span className="muted">{`${BRAND.name} ${BRAND.version}`}</span>

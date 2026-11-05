@@ -1,9 +1,9 @@
-// 设置中心：「我的」下所有页面共用左侧分组菜单（桌面常驻，窄屏变成横向标签）。
+// 「我的」下的设置页：与其他页面相同的单列布局，顶栏左侧返回「我的」。
+// 分组配置也用于「我的」概览页的入口卡片。
 import { Bell, Building2, CreditCard, FileBarChart, FolderOpen, KeyRound, Mail, Package, Radar, ShieldCheck, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { t } from '@/i18n'
 import { AppPage, type AppPageProps } from './AppPage'
-import { SubNav } from './AppLayout'
 
 export const SETTINGS_GROUPS = [
   {
@@ -34,9 +34,9 @@ export const SETTINGS_GROUPS = [
   },
 ]
 
-export function SettingsPage({ children, ...props }: Omit<AppPageProps, 'aside'> & { children: ReactNode }) {
+export function SettingsPage({ children, back = '/me', width = 'narrow', ...props }: AppPageProps & { children: ReactNode }) {
   return (
-    <AppPage {...props} aside={<SubNav groups={SETTINGS_GROUPS} label={t.me.settingsNav} />} width={props.width ?? 'default'}>
+    <AppPage {...props} back={back} width={width}>
       {children}
     </AppPage>
   )

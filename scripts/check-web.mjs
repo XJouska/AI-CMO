@@ -60,7 +60,20 @@ async function scanSources() {
   for (const dir of SOURCE_DIRS) files.push(...(await listFiles(dir, (name) => SOURCE_EXT.test(name))))
   files.push(path.join(webRoot, 'index.html'))
   for (const file of files) {
-    const lines = (await readFile(file, 'utf8')).split('\n')
+    const content = await readFile(file, 'utf8')
+    // CSS：选择器列表以逗号结尾后紧跟空行，会把下一条规则误并进来（曾导致整个顶栏被隐藏）
+    if (file.endsWith('.css')) {
+      const dangling = /,[ \t]*\n[ \t]*\n/.exec(content)
+      if (dangling) fail(`CSS 选择器后有多余的逗号：${path.relative(repoRoot, file)}:${content.slice(0, dangling.index).split('\n').length}`)
+      let depth = 0
+      for (const ch of content) {
+        if (ch === '{') depth += 1
+        if (ch === '}') depth -= 1
+        if (depth < 0) break
+      }
+      if (depth !== 0) fail(`CSS 花括号不配对：${path.relative(repoRoot, file)}`)
+    }
+    const lines = content.split('\n')
     lines.forEach((line, index) => {
       for (const rule of RULES) {
         if (rule.pattern.test(line)) fail(`${rule.name}：${path.relative(repoRoot, file)}:${index + 1}`)

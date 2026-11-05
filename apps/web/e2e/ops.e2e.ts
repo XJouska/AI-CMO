@@ -80,10 +80,10 @@ test('运营工作台：代客操作、手工开通、复核、审计', async ({
   await staffLogin(fresh, staff.Authorization.replace('Bearer ', ''))
   // 预置运营账号在不同用例间共享（可能已以运营身份加入过其他企业），直接进入运营工作台
   await fresh.goto('/ops')
-  await expect(fresh.getByRole('button', { name: '客户列表' })).toBeVisible()
+  // 运营入口直接进入客户列表；运营菜单只在侧边栏中出现一次，页面内没有第二列导航
+  await expect(fresh).toHaveURL(/\/ops\/customers$/)
+  await expect(fresh.locator('.app-page__aside, .subnav')).toHaveCount(0)
   await expectNoFallback(fresh)
-  await expect(fresh).toHaveScreenshot('ops-home.png', { mask: [fresh.locator('.sidebar__company, .sidebar__user')] })
-  await fresh.getByRole('button', { name: '客户列表' }).click()
   await fresh.getByLabel('搜索企业').fill('运营演示工厂')
   const row = fresh.locator(`[data-company-id="${customer.companyId}"]`)
   await expect(row).toBeVisible()
