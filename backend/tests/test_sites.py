@@ -14,7 +14,7 @@ from PIL import Image
 from sqlalchemy import select
 
 from app.core.jobs import run_pending
-from app.modules.sites import domains, render, service
+from app.modules.sites import domains, render, service, styles
 from app.modules.sites.content import SiteContent, fact_check, known_facts
 from app.modules.sites.health import check_content, score
 from app.modules.sites.models import Notification, Site, SiteInquiry
@@ -359,7 +359,12 @@ def test_render_templates_and_products() -> None:
             "certificates": {"items": ["ISO 9001"]},
         }
     )
-    for template in ("industrial", "building", "consumer"):
+    # 旧模板 key 映射到新版式；每种版式都能渲染，且只有一个 h1
+    cases = [(t, None) for t in ("industrial", "building", "consumer")] + [
+        ("industrial", {"layout": layout})
+        for layout in ("heavy", "precision", "building", "consumer", "heritage", "tech")
+    ]
+    for template, style in cases:
         ctx = render.RenderContext(
             content=content,
             template=template,
@@ -368,13 +373,16 @@ def test_render_templates_and_products() -> None:
             inquiry_action="/__inquiry/s",
             images={},
             products={"p1": {"specs": {"Size": "DN50"}, "moq": "10", "lead_time": "", "applications": []}},
+            style=style or {},
         )
         pages = render.render_pages(ctx)
         assert set(pages) == {"index.html", "products/ball-valve.html", "products/ball-valve-2.html", "thank-you.html"}
-        assert f"tpl-{template}" in pages["index.html"]
+        layout = (style or {}).get("layout") or styles.LEGACY_TEMPLATE[template]
+        assert f'class="ly-{layout} ' in pages["index.html"]
         assert pages["index.html"].count("<h1") == 1
         assert "DN50" in pages["products/ball-valve.html"]
         assert 'href="../assets/site.css"' in pages["products/ball-valve.html"]
+        assert 'href="../assets/theme.css"' in pages["products/ball-valve.html"]
         assert 'action="/__inquiry/s"' in pages["index.html"]
         assert 'name="website"' in pages["index.html"]  # 蜜罐字段
 
@@ -415,7 +423,7 @@ def test_publish_writes_static_site_and_switches_atomically(client, db, sites_di
     assert live.is_symlink()
     first_target = os.readlink(live)
     files = {str(p.relative_to(live)) for p in Path(live).rglob("*") if p.is_file()}
-    assert {"index.html", "thank-you.html", "sitemap.xml", "robots.txt", "assets/site.css"} <= files
+    assert {"index.html", "thank-you.html", "sitemap.xml", "robots.txt", "assets/site.css", "assets/theme.css"} <= files
     webps = sorted(f for f in files if f.endswith(".webp"))
     assert [w.rsplit("-", 1)[1] for w in webps] == ["1200.webp", "480.webp", "960.webp"]  # 不放大原图
     index = (live / "index.html").read_text()
@@ -520,7 +528,7 @@ def test_inquiry_flow_creates_record_and_notification(client, db) -> None:
     assert inquiry.status == "new"
     assert len(inquiry.ip_hash) == 64 and "203.0.113" not in inquiry.ip_hash
     note = db.scalar(select(Notification).where(Notification.company_id == tenant.company.id))
-    assert note.title == "新询盘：Buyer GmbH"
+    assert note.title == "网站收到询价：Buyer GmbH"
     notifications = client.get("/api/v1/notifications", headers=tenant.headers).json()
     assert notifications[0]["read"] is False
     client.post(f"/api/v1/notifications/{notifications[0]['id']}/read", headers=tenant.headers)

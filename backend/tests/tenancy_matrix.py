@@ -188,6 +188,15 @@ def _ops(db: Session, victim: Tenant) -> dict[str, str]:
     }
 
 
+def _task(db: Session, victim: Tenant) -> dict[str, str]:
+    from app.modules.service.models import ServiceTask
+
+    task = ServiceTask(company_id=victim.company.id, kind="organize")
+    db.add(task)
+    db.flush()
+    return {"task_id": str(task.id)}
+
+
 def png_bytes() -> bytes:
     from PIL import Image
 
@@ -400,6 +409,23 @@ ROUTES: list[Route] = [
     # 公开：联系人删除请求（限流 + 蜜罐）、政策版本
     Route("POST", "/api/v1/public/data-requests", "public"),
     Route("GET", "/api/v1/public/policies", "public"),
+    # 代运营服务：客户
+    Route("GET", "/api/v1/service/overview", "company"),
+    Route("POST", "/api/v1/service/onboarding", "company", body={"style_choice": "heavy"}),
+    Route("POST", "/api/v1/service/requests", "company", body={"text": "把首页标题改大一点"}),
+    Route("POST", "/api/v1/service/approve-site", "company"),
+    Route("GET", "/api/v1/site-styles", "auth"),
+    # 联系话术包与联系状态
+    Route("GET", "/api/v1/leads/{lead_id}/contact-kit", "company", _lead),
+    Route("POST", "/api/v1/leads/{lead_id}/contact-kit", "company", _lead),
+    Route("POST", "/api/v1/leads/{lead_id}/contact-state", "company", _lead, {"state": "contacted"}),
+    # 代运营服务：运营
+    Route("GET", "/api/v1/ops/tasks", "staff"),
+    Route("PATCH", "/api/v1/ops/tasks/{task_id}", "staff", _task, {"status": "done"}),
+    Route("GET", "/api/v1/ops/customers/{company_id}/workbench", "staff", _ops),
+    Route("POST", "/api/v1/ops/customers/{company_id}/request-review", "staff", _ops),
+    Route("POST", "/api/v1/ops/customers/{company_id}/start-buyers", "staff", _ops),
+    Route("PUT", "/api/v1/ops/customers/{company_id}/site-style", "staff", _ops, {"layout": "heavy"}),
     # 运营工作台
     Route("GET", "/api/v1/ops/customers", "staff"),
     Route("GET", "/api/v1/ops/customers/{company_id}", "staff", _ops),

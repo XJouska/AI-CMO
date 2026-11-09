@@ -17,7 +17,7 @@ import re
 import shutil
 import tempfile
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -28,6 +28,7 @@ from markupsafe import Markup
 from PIL import Image
 
 from app.core.config import get_settings
+from app.modules.sites import styles
 from app.modules.sites.content import SiteContent
 
 TEMPLATES_DIR = Path(os.environ.get("SITE_TEMPLATES_DIR") or Path(__file__).resolve().parents[4] / "site-templates")
@@ -95,6 +96,8 @@ class RenderContext:
     products: dict[str, dict[str, Any]]  # product_id → 产品数据（规格等）
     preview: bool = False
     turnstile_sitekey: str = ""
+    style: dict[str, Any] = field(default_factory=dict)
+    logo: ImageRef | None = None
 
 
 def _org_ld(ctx: RenderContext) -> dict[str, Any]:
@@ -153,15 +156,28 @@ def _product_items(ctx: RenderContext) -> list[dict[str, Any]]:
     return items
 
 
+def resolved_style(ctx: RenderContext) -> dict[str, Any]:
+    return styles.normalize(ctx.style, ctx.template)
+
+
+def theme_css(ctx: RenderContext) -> str:
+    return styles.css_vars(resolved_style(ctx))
+
+
 def _common(ctx: RenderContext, root: str) -> dict[str, Any]:
     c = ctx.content
+    style = resolved_style(ctx)
+    inline = (TEMPLATES_DIR / "assets" / "site.css").read_text() + "\n" + styles.css_vars(style) if ctx.preview else ""
     return {
         "content": c,
         "seo": c.seo,
         "template": ctx.template,
+        "style": style,
+        "logo": ctx.logo,
         "root": root,
         "preview": ctx.preview,
-        "inline_css": Markup((TEMPLATES_DIR / "assets" / "site.css").read_text()) if ctx.preview else "",  # noqa: S704
+        # 样式只来自模板文件与已校验的颜色值（styles.normalize 只允许预设值和 #rrggbb）
+        "inline_css": Markup(inline) if ctx.preview else "",  # noqa: S704
         "year": datetime.now(UTC).year,
         "inquiry_action": ctx.inquiry_action,
         "turnstile_sitekey": ctx.turnstile_sitekey,
@@ -182,7 +198,7 @@ def render_pages(ctx: RenderContext) -> dict[str, str]:
         page_description=description,
         canonical=ctx.base_url,
         json_ld=json_ld({"@context": "https://schema.org", "@graph": [_org_ld(ctx)]}),
-        section_order=SECTION_ORDER.get(ctx.template, SECTION_ORDER["industrial"]),
+        section_order=styles.section_order(resolved_style(ctx)),
         about_body=sanitize_rich(c.about.body),
         faq_items=[{"q": item.q, "a": sanitize_rich(item.a)} for item in c.faq.items],
         factory_images=[ctx.images[i] for i in c.factory.image_asset_ids if i in ctx.images],
@@ -262,7 +278,12 @@ def safe_host(host: str) -> str:
 
 
 def write_version(
-    site_id: uuid.UUID, version_id: uuid.UUID, pages: dict[str, str], images: dict[str, bytes], base_url: str
+    site_id: uuid.UUID,
+    version_id: uuid.UUID,
+    pages: dict[str, str],
+    images: dict[str, bytes],
+    base_url: str,
+    theme: str = "",
 ) -> Path:
     """把渲染结果写入 versions/{site_id}/{version_id}/（先写临时目录再整体改名）。"""
     root = output_root()
@@ -277,6 +298,7 @@ def write_version(
             path.write_text(html, encoding="utf-8")
         (tmp / "assets" / "img").mkdir(parents=True, exist_ok=True)
         shutil.copyfile(TEMPLATES_DIR / "assets" / "site.css", tmp / "assets" / "site.css")
+        (tmp / "assets" / "theme.css").write_text(theme, encoding="utf-8")
         for name, data in images.items():
             if not re.fullmatch(r"[0-9a-f]{32}-\d+\.webp", name):
                 raise ValueError("invalid image name")

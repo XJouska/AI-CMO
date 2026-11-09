@@ -20,6 +20,8 @@ class Site(IdMixin, TimestampMixin, Base):
         ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     template_key: Mapped[str] = mapped_column(String(32), nullable=False, default="industrial")
+    # 网站风格：{layout, palette: {primary, accent, ink, bg}, font, radius, image}；见 sites/styles.py
+    style: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")  # draft/published/suspended
     subdomain: Mapped[str] = mapped_column(String(63), nullable=False, unique=True)
     custom_domain: Mapped[str | None] = mapped_column(String(253), unique=True)

@@ -45,6 +45,7 @@ from app.modules.outreach.models import (
     OutreachDraft,
     WeeklyReport,
 )
+from app.modules.service.models import ServiceProfile, ServiceTask
 from app.modules.sites.models import Notification, Site, SiteHealthReport, SiteInquiry, SiteVersion
 
 __all__ = [
@@ -78,6 +79,8 @@ __all__ = [
     "Plan",
     "Product",
     "ProfileExtraction",
+    "ServiceProfile",
+    "ServiceTask",
     "Session",
     "Signal",
     "Site",

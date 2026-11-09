@@ -1,18 +1,62 @@
 {% extends "base.html.j2" %}
 {% block main %}
-<section class="hero">
+{# 首屏：按版式切换写法 #}
+{% set hero_image = factory_images[0] if factory_images else (product_items[0].image if product_items and product_items[0].image else none) %}
+{% if style.layout in ("heavy", "tech") %}
+<section class="hero hero-cover{% if hero_image %} has-image{% endif %}">
+  {% if hero_image %}<img class="hero-bg" src="{{ hero_image.src }}" srcset="{{ hero_image.srcset }}" sizes="100vw" alt="" width="1600" height="900">{% endif %}
+  <div class="wrap hero-inner">
+    <h1>{{ content.hero.headline or content.company_name }}</h1>
+    {% if content.hero.subheadline %}<p class="lead">{{ content.hero.subheadline }}</p>{% endif %}
+    <div class="hero-actions"><a class="button" href="#contact">{{ content.hero.cta }}</a><a class="button ghost" href="#products">View Products</a></div>
+    {% if content.factory.stats %}
+    <dl class="hero-stats">{% for stat in content.factory.stats[:4] %}<div><dd>{{ stat.value }}</dd><dt>{{ stat.label }}</dt></div>{% endfor %}</dl>
+    {% endif %}
+  </div>
+</section>
+{% elif style.layout in ("precision", "consumer") %}
+<section class="hero hero-split">
+  <div class="wrap split-row">
+    <div>
+      <h1>{{ content.hero.headline or content.company_name }}</h1>
+      {% if content.hero.subheadline %}<p class="lead">{{ content.hero.subheadline }}</p>{% endif %}
+      <div class="hero-actions"><a class="button" href="#contact">{{ content.hero.cta }}</a></div>
+      {% if content.certificates.items %}<ul class="hero-badges">{% for item in content.certificates.items[:4] %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% if hero_image %}<div class="hero-media"><img src="{{ hero_image.src }}" srcset="{{ hero_image.srcset }}" sizes="(max-width: 760px) 100vw, 50vw" alt="{{ content.company_name }}" width="960" height="720"></div>{% endif %}
+  </div>
+</section>
+{% else %}
+<section class="hero hero-band">
   <div class="wrap">
+    {% if style.layout == "heritage" and content.factory.stats %}<p class="eyebrow">{{ content.factory.stats[0].label }} {{ content.factory.stats[0].value }}</p>{% endif %}
     <h1>{{ content.hero.headline or content.company_name }}</h1>
     {% if content.hero.subheadline %}<p class="lead">{{ content.hero.subheadline }}</p>{% endif %}
     <a class="button" href="#contact">{{ content.hero.cta }}</a>
   </div>
+  {% if hero_image %}<div class="wrap"><img class="band-image" src="{{ hero_image.src }}" srcset="{{ hero_image.srcset }}" sizes="100vw" alt="{{ content.company_name }}" width="1600" height="700"></div>{% endif %}
 </section>
+{% endif %}
 
 {% for key in section_order %}
 {% if key == "products" and product_items %}
-<section id="products" class="section">
+<section id="products" class="section products">
   <div class="wrap">
     <h2>{{ content.products.title }}</h2>
+    {% if style.layout == "precision" %}
+    <div class="product-rows">
+      {% for item in product_items %}
+      <article class="product-row">
+        {% if item.image %}<img src="{{ item.image.src }}" srcset="{{ item.image.srcset }}" sizes="(max-width: 700px) 100vw, 240px" alt="{{ item.name }}" loading="lazy" width="480" height="360">{% endif %}
+        <div>
+          <h3><a href="{{ root }}products/{{ item.slug }}.html">{{ item.name }}</a></h3>
+          {% if item.summary %}<p>{{ item.summary }}</p>{% endif %}
+          {% if item.specs %}<dl class="mini-specs">{% for k, v in item.specs.items() %}{% if loop.index <= 4 %}<div><dt>{{ k }}</dt><dd>{{ v }}</dd></div>{% endif %}{% endfor %}</dl>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
     <div class="grid">
       {% for item in product_items %}
       <article class="card">
@@ -22,10 +66,11 @@
       </article>
       {% endfor %}
     </div>
+    {% endif %}
   </div>
 </section>
 {% elif key == "about" and (content.about.body or content.about.highlights) %}
-<section id="about" class="section alt">
+<section id="about" class="section alt about">
   <div class="wrap two-col">
     <div>
       <h2>{{ content.about.title }}</h2>
@@ -39,18 +84,18 @@
   </div>
 </section>
 {% elif key == "factory" and (content.factory.body or content.factory.stats or factory_images) %}
-<section id="factory" class="section">
+<section id="factory" class="section factory">
   <div class="wrap">
     <h2>{{ content.factory.title }}</h2>
-    {% if content.factory.stats %}
+    {% if content.factory.stats and style.layout not in ("heavy", "tech") %}
     <dl class="stats">
       {% for stat in content.factory.stats %}<div><dt>{{ stat.label }}</dt><dd>{{ stat.value }}</dd></div>{% endfor %}
     </dl>
     {% endif %}
-    {% if content.factory.body %}<p>{{ content.factory.body }}</p>{% endif %}
+    {% if content.factory.body %}<p class="factory-body">{{ content.factory.body }}</p>{% endif %}
     {% if factory_images %}
-    <div class="gallery">
-      {% for image in factory_images %}<img src="{{ image.src }}" srcset="{{ image.srcset }}" sizes="(max-width: 700px) 100vw, 25vw" alt="{{ content.company_name }} factory" loading="lazy" width="480" height="360">{% endfor %}
+    <div class="gallery{% if style.layout in ('heavy', 'building') %} gallery-mosaic{% endif %}">
+      {% for image in factory_images %}<img src="{{ image.src }}" srcset="{{ image.srcset }}" sizes="(max-width: 700px) 100vw, 33vw" alt="{{ content.company_name }} factory" loading="lazy" width="480" height="360">{% endfor %}
     </div>
     {% endif %}
   </div>

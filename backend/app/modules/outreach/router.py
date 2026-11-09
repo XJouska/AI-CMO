@@ -824,3 +824,128 @@ def unsubscribe(
         ),
         headers={"Cache-Control": "no-store"},
     )
+
+
+# ── 联系话术包（按联系方式，中英文对照）───────────────────────────────
+
+
+class KitItemOut(BaseModel):
+    id: str
+    channel: str
+    channel_label: str
+    target: str
+    subject: str
+    body: str
+    subject_zh: str
+    body_zh: str
+    open_link: str
+    flags: list[dict[str, Any]]
+    created_at: str
+
+
+class KitResponse(BaseModel):
+    lead_id: str
+    channels: list[str]
+    items: list[KitItemOut]
+    contact_state: str
+
+
+def _kit_item(d: OutreachDraft, buyer: Any) -> KitItemOut:
+    from app.modules.outreach import kit
+
+    target = kit.contact_target(buyer, d.channel) or (d.to_email if d.channel == "email" else "")
+    return KitItemOut(
+        id=str(d.id),
+        channel=d.channel,
+        channel_label=kit.CHANNELS[d.channel]["label"],
+        target=target,
+        subject=d.subject,
+        body=d.body,
+        subject_zh=d.subject_zh,
+        body_zh=d.body_zh,
+        open_link=kit.open_link(d.channel, target, d.subject, d.body),
+        flags=d.flags,
+        created_at=d.created_at.isoformat(),
+    )
+
+
+# 客户可标记的联系状态 → 跟进阶段
+CONTACT_STATES = {"contacted": "contacted", "replied": "replied", "not_interested": "lost"}
+
+
+def _contact_state(stage: str) -> str:
+    if stage in ("lost", "invalid"):
+        return "not_interested"
+    if stage in ("new", "viewed"):
+        return "none"
+    if stage == "contacted":
+        return "contacted"
+    return "replied"
+
+
+def _kit_response(db: Session, lead: Lead) -> KitResponse:
+    from app.modules.leads.models import Buyer
+    from app.modules.outreach import kit
+
+    buyer = db.get(Buyer, lead.buyer_id) if lead.buyer_id else None
+    pipe = db.scalar(select(LeadPipeline).where(LeadPipeline.lead_id == lead.id))
+    return KitResponse(
+        lead_id=str(lead.id),
+        channels=kit.available_channels(buyer),
+        items=[_kit_item(d, buyer) for d in kit.latest_kit(db, lead.id)],
+        contact_state=_contact_state(pipe.stage if pipe else "new"),
+    )
+
+
+@router.get("/leads/{lead_id}/contact-kit", response_model=KitResponse)
+def get_contact_kit(
+    lead_id: uuid.UUID, scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)
+) -> KitResponse:
+    lead = _own_lead(db, scope, lead_id)
+    return _kit_response(db, lead)
+
+
+@router.post("/leads/{lead_id}/contact-kit", response_model=KitResponse, status_code=201)
+async def create_contact_kit(
+    lead_id: uuid.UUID, scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)
+) -> KitResponse:
+    from app.modules.outreach import kit
+
+    lead = _own_lead(db, scope, lead_id)
+    if _version_count(db, lead.id) >= MAX_DRAFT_VERSIONS * 5:
+        raise AppError("这个买家的话术版本太多了", code="draft_limit")
+    await kit.build_kit(db, lead, scope.user)
+    db.commit()
+    return _kit_response(db, lead)
+
+
+class ContactStateIn(BaseModel):
+    state: Literal["contacted", "replied", "not_interested"]
+
+
+@router.post("/leads/{lead_id}/contact-state", response_model=KitResponse)
+def set_contact_state(
+    lead_id: uuid.UUID,
+    body: ContactStateIn,
+    scope: CompanyScope = Depends(current_company),
+    db: Session = Depends(get_db),
+) -> KitResponse:
+    """老板标记：已联系 / 对方回复了 / 没兴趣。按跟进阶段规则推进（不倒退；已结束的可重新打开为已联系）。"""
+    lead = _own_lead(db, scope, lead_id)
+    target = CONTACT_STATES[body.state]
+    pipe = service.get_pipeline(db, lead)
+    if pipe.stage != target and _contact_state(pipe.stage) != body.state:
+        if target in service.allowed_next(pipe.stage):
+            service.change_stage(
+                db,
+                lead,
+                target,
+                user_id=scope.user.id,
+                lost_reason="other" if target == "lost" else "",
+            )
+        elif body.state == "contacted":
+            pass  # 已经在更靠后的阶段（例如已回复），不倒退
+        else:
+            raise AppError("这个状态现在不能修改", code="invalid_stage_transition", status_code=409)
+    db.commit()
+    return _kit_response(db, lead)

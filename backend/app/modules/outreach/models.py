@@ -60,6 +60,9 @@ class OutreachDraft(IdMixin, TimestampMixin, Base):
     to_email: Mapped[str] = mapped_column(String(254), nullable=False, default="")
     subject: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # 中文对照（给老板看懂自己发出去的内容；不发送）
+    subject_zh: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    body_zh: Mapped[str] = mapped_column(Text, nullable=False, default="")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")  # draft / approved / sent
     flags: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)  # 事实校验结果

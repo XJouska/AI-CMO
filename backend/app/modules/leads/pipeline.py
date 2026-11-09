@@ -227,6 +227,36 @@ def find_or_create_buyer(
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _PHONE = re.compile(r"\+?\d[\d\s().-]{7,18}\d")
+# 企业官网上公开的 WhatsApp 链接、LinkedIn 公司主页、询价 / 联系表单页面
+_WHATSAPP = re.compile(r"(?:wa\.me/|api\.whatsapp\.com/send\?phone=)\+?(\d{8,15})", re.I)
+_LINKEDIN = re.compile(r"https?://(?:[a-z]{2,3}\.)?linkedin\.com/company/([A-Za-z0-9_-]{2,100})/?", re.I)
+_HREF = re.compile(r"""<a\b[^>]*href=["']([^"'#][^"']{0,300})["'][^>]*>(.{0,200}?)</a>""", re.I | re.S)
+_FORM_WORDS = re.compile(r"contact|inquir|enquir|quote|rfq|get-in-touch", re.I)
+
+
+def extract_channels(html: str, base_url: str, domain: str) -> dict[str, Any]:
+    """从买家官网首页中抽取除邮箱 / 电话以外的公开联系渠道（只取企业自己公开的入口）。"""
+    from urllib.parse import urljoin, urlsplit
+
+    out: dict[str, Any] = {}
+    wa = list(dict.fromkeys(_WHATSAPP.findall(html)))[:2]
+    if wa:
+        out["whatsapp"] = [f"+{n}" for n in wa]
+    li = _LINKEDIN.search(html)
+    if li:
+        out["linkedin"] = f"https://www.linkedin.com/company/{li.group(1)}"
+    for href, label in _HREF.findall(html):
+        text = re.sub(r"<[^>]+>", " ", label)
+        if not (_FORM_WORDS.search(href) or _FORM_WORDS.search(text)):
+            continue
+        url = urljoin(base_url, href.strip())
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        if parts.scheme not in ("http", "https") or not (host == domain or host.endswith(f".{domain}")):
+            continue
+        out["form_url"] = url[:300]
+        break
+    return out
 
 
 def _contacts_from_signal(buyer: Buyer, text: str) -> None:
@@ -262,7 +292,8 @@ async def enrich_buyer(buyer: Buyer, budget: RunBudget) -> None:
         logger.info("enrich %s failed: %s", buyer.domain, type(exc).__name__)
         buyer.enriched_at = utcnow()
         return
-    text = re.sub(r"<[^>]+>", " ", page.text)[:200_000]
+    html = page.text[:400_000]
+    text = re.sub(r"<[^>]+>", " ", html)[:200_000]
     emails = [
         e for e in dict.fromkeys(_EMAIL.findall(text)) if scoring.registrable_domain(e.split("@")[1]) == buyer.domain
     ]
@@ -272,6 +303,7 @@ async def enrich_buyer(buyer: Buyer, budget: RunBudget) -> None:
     phones = list(dict.fromkeys(p.strip() for p in _PHONE.findall(text)))[:2]
     if phones:
         contacts["phones"] = phones
+    contacts.update(extract_channels(html, url, buyer.domain))
     contacts["source"] = url
     buyer.public_contacts = contacts
     buyer.enriched_at = utcnow()
@@ -296,9 +328,9 @@ def _notify(db: Session, company_id: uuid.UUID, count: int) -> None:
         Notification(
             company_id=company_id,
             kind="new_leads",
-            title=f"发现 {count} 条新商机",
-            body="已完成复核，可在「商机」中查看",
-            link="/leads",
+            title=f"找到 {count} 个新的海外买家",
+            body="每个买家都附上了联系话术，去「海外买家」里看看",
+            link="/buyers",
         )
     )
 

@@ -47,7 +47,7 @@ from app.modules.companies.profile import (
     get_or_create_profile,
     refresh_completeness,
 )
-from app.modules.companies.uploads import ALLOWED_KINDS, display_name, process_upload
+from app.modules.companies.uploads import ALLOWED_KINDS, IMAGE_ONLY_KINDS, display_name, process_upload
 
 router = APIRouter(tags=["companies"])
 
@@ -637,7 +637,7 @@ async def upload_asset(
         raise AppError("不支持的资料类型", code="invalid_kind")
     limit = get_settings().max_upload_bytes
     processed = process_upload(await _read_limited(file, limit), limit)
-    if kind == "image" and not processed.mime.startswith("image/"):
+    if kind in IMAGE_ONLY_KINDS and not processed.mime.startswith("image/"):
         raise AppError("请上传图片文件", code="unsupported_file", status_code=415)
     key = f"{scope.company_id}/{uuid.uuid4().hex}"
     providers.storage().put(key, processed.data)

@@ -45,6 +45,9 @@ class CustomerOut(BaseModel):
     valid_rate: float | None
     last_active_at: str | None
     operator_joined: bool
+    stage: str = "start"
+    waiting_on: str = "customer"
+    open_tasks: int = 0
 
 
 def _customer_rows(db: Session, staff: User, company_ids: list[uuid.UUID] | None = None) -> list[CustomerOut]:
@@ -101,8 +104,20 @@ def _customer_rows(db: Session, staff: User, company_ids: list[uuid.UUID] | None
             select(CompanyMember.company_id).where(CompanyMember.company_id.in_(ids), CompanyMember.user_id == staff.id)
         ).all()
     )
+    from app.modules.service import progress
+    from app.modules.service.models import ServiceTask
+
+    open_tasks = dict(
+        db.execute(
+            select(ServiceTask.company_id, func.count())
+            .where(ServiceTask.company_id.in_(ids), ServiceTask.status.in_(("open", "doing")))
+            .group_by(ServiceTask.company_id)
+        ).all()
+    )
     out = []
     for c in companies:
+        snap = progress.snapshot(db, c)
+        stage = progress.stage_of(snap)
         ent = billing.entitlement(db, c.id)
         total, useful = feedback.get(c.id, (0, 0))
         last = active.get(c.id)
@@ -121,6 +136,9 @@ def _customer_rows(db: Session, staff: User, company_ids: list[uuid.UUID] | None
                 valid_rate=round(int(useful or 0) / total, 3) if total else None,
                 last_active_at=last.isoformat() if last else None,
                 operator_joined=c.id in joined,
+                stage=stage,
+                waiting_on="team" if open_tasks.get(c.id) else progress.waiting_on(stage, snap),
+                open_tasks=open_tasks.get(c.id, 0),
             )
         )
     return out

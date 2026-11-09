@@ -14,7 +14,18 @@ from pypdf.errors import PdfReadError
 
 from app.core.errors import AppError
 
-ALLOWED_KINDS = ("image", "certificate", "catalog", "pdf")
+ALLOWED_KINDS = (
+    "image",
+    "certificate",
+    "catalog",
+    "pdf",
+    # 客户按类别上传的资料（开通向导 / 我的资料）
+    "factory_photo",
+    "product_photo",
+    "business_card",
+    "logo",
+)
+IMAGE_ONLY_KINDS = ("image", "factory_photo", "product_photo", "logo")
 MAX_PDF_PAGES = 60
 MAX_PDF_TEXT = 60_000
 Image.MAX_IMAGE_PIXELS = 40_000_000  # 防解压炸弹

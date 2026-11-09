@@ -510,9 +510,9 @@ def review_lead(
             Notification(
                 company_id=lead.company_id,
                 kind="new_lead",
-                title=f"新商机：{lead.title}"[:120],
+                title=f"新的海外买家：{lead.title}"[:120],
                 body=lead.summary_cn[:200],
-                link=f"/leads/{lead.id}",
+                link=f"/buyers/{lead.id}",
             )
         )
     from app.modules.admin.audit import audit

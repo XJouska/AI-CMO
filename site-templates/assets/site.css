@@ -1,7 +1,9 @@
-/* 客户官网样式（B2B，桌面优先 + 响应式）。与应用的 yb-ui 设计系统无关。
-   三套模板通过 body 上的 tpl-* 类切换主题色与分区风格。 */
+/* 客户官网样式（B2B，桌面优先 + 响应式）。
+   风格由 body 上的类组合决定：版式 ly-*、字体 ft-*、圆角 rd-*、图片处理 im-*；
+   品牌色 --brand / --accent 由每个网站单独生成的 assets/theme.css 提供（从 Logo 提取或按版式默认）。 */
 :root {
-  --brand: #0b4f8a;
+  --brand: #0f4c81;
+  --accent: #00a3e0;
   --brand-ink: #ffffff;
   --ink: #1d232b;
   --muted: #5a6573;
@@ -10,32 +12,80 @@
   --bg-alt: #f5f7fa;
   --radius: 8px;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-head: var(--font);
 }
-.tpl-building { --brand: #8a4b0b; --bg-alt: #f8f5f1; }
-.tpl-consumer { --brand: #0b8a6b; --radius: 14px; --bg-alt: #f1f8f6; }
+
+/* 字体 */
+.ft-serif { --font-head: Georgia, "Times New Roman", "Songti SC", serif; }
+.ft-rounded { --font: "Nunito", "Varela Round", "Trebuchet MS", -apple-system, "Segoe UI", sans-serif; --font-head: var(--font); }
+/* 圆角 */
+.rd-sharp { --radius: 0px; }
+.rd-small { --radius: 6px; }
+.rd-round { --radius: 18px; }
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--bg); line-height: 1.6; }
+h1, h2, h3 { font-family: var(--font-head); }
 img { max-width: 100%; height: auto; display: block; border-radius: var(--radius); }
 a { color: var(--brand); }
 .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+/* 顶栏与导航 */
+.topbar { background: #111; color: #ddd; font-size: 13px; }
+.topbar-row { display: flex; gap: 24px; justify-content: flex-end; min-height: 34px; align-items: center; }
+.topbar a { color: #ddd; text-decoration: none; }
 .site-header { border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 10; }
-.header-row { display: flex; align-items: center; justify-content: space-between; min-height: 64px; gap: 16px; }
-.brand { font-weight: 700; font-size: 18px; color: var(--ink); text-decoration: none; }
-.site-nav { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.header-row { display: flex; align-items: center; justify-content: space-between; min-height: 68px; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--ink); text-decoration: none; font-family: var(--font-head); }
+.brand-logo { height: 36px; width: auto; border-radius: 0; }
+.site-nav { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
 .site-nav a { color: var(--ink); text-decoration: none; font-size: 15px; }
-.site-nav .nav-cta, .button { background: var(--brand); color: var(--brand-ink); padding: 10px 18px; border-radius: var(--radius); text-decoration: none; display: inline-block; border: 0; font: inherit; cursor: pointer; }
-.hero { background: linear-gradient(135deg, var(--brand), #10233a); color: #fff; padding: 96px 0; }
-.hero h1 { font-size: clamp(30px, 4vw, 48px); line-height: 1.15; margin: 0 0 16px; max-width: 820px; }
-.hero .lead { font-size: 19px; max-width: 720px; opacity: .92; }
-.hero .button { background: #fff; color: var(--brand); margin-top: 16px; }
-.section { padding: 72px 0; }
+.site-nav .nav-cta, .button { background: var(--brand); color: var(--brand-ink); padding: 11px 20px; border-radius: var(--radius); text-decoration: none; display: inline-block; border: 0; font: inherit; font-weight: 600; cursor: pointer; }
+.button.ghost { background: transparent; color: inherit; box-shadow: inset 0 0 0 1px currentColor; }
+
+/* 首屏：大图覆盖（重工业 / 科技感） */
+.hero { position: relative; }
+.hero h1 { font-size: clamp(32px, 4.4vw, 54px); line-height: 1.12; margin: 0 0 18px; max-width: 860px; }
+.hero .lead { font-size: 19px; max-width: 720px; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+.hero-cover { background: linear-gradient(135deg, var(--brand), #0b1622); color: #fff; padding: 120px 0 96px; overflow: hidden; }
+.hero-cover .hero-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 0; opacity: .28; }
+.hero-cover .hero-inner { position: relative; }
+.hero-cover .lead { opacity: .92; }
+.hero-cover .button { background: var(--accent); color: #111; }
+.hero-cover .button.ghost { background: transparent; color: #fff; }
+.hero-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 24px; margin: 56px 0 0; max-width: 880px; }
+.hero-stats div { border-left: 3px solid var(--accent); padding-left: 14px; }
+.hero-stats dd { margin: 0; font-size: 30px; font-weight: 800; }
+.hero-stats dt { font-size: 14px; opacity: .8; }
+
+/* 首屏：左文右图（精密制造 / 消费品） */
+.hero-split { padding: 80px 0; background: var(--bg-alt); }
+.split-row { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; align-items: center; }
+.hero-split .lead { color: var(--muted); }
+.hero-media img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.hero-badges { list-style: none; padding: 0; margin: 28px 0 0; display: flex; gap: 10px; flex-wrap: wrap; }
+.hero-badges li { font-size: 13px; font-weight: 700; padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); }
+
+/* 首屏：色带 + 通栏图（建材 / 老牌工厂） */
+.hero-band { padding: 88px 0 0; background: var(--brand); color: #fff; }
+.hero-band .lead { opacity: .9; }
+.hero-band .button { background: #fff; color: var(--brand); margin-top: 12px; }
+.hero-band .band-image { width: 100%; aspect-ratio: 16 / 7; object-fit: cover; margin: 56px 0 -96px; position: relative; box-shadow: 0 24px 48px rgba(0, 0, 0, .18); }
+.hero-band + .section { padding-top: 140px; }
+.eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: 13px; opacity: .85; margin: 0 0 12px; }
+
+/* 分区 */
+.section { padding: 80px 0; }
 .section.alt { background: var(--bg-alt); }
-.section h2 { font-size: 30px; margin: 0 0 28px; }
+.section h2 { font-size: 32px; margin: 0 0 32px; }
 .lead { font-size: 18px; color: var(--muted); }
+/* 深色首屏上的副标题保持可读 */
+.hero-cover .lead, .hero-band .lead { color: rgba(255, 255, 255, .88); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px; }
 .card { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
-.card h3 { margin: 12px 0 8px; font-size: 18px; }
+.card img { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; }
+.card h3 { margin: 14px 0 8px; font-size: 18px; }
 .card h3 a { color: var(--ink); text-decoration: none; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
 .highlights { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
@@ -44,24 +94,90 @@ a { color: var(--brand); }
 .stats div { background: var(--bg-alt); padding: 20px; border-radius: var(--radius); }
 .stats dt { color: var(--muted); font-size: 14px; }
 .stats dd { margin: 4px 0 0; font-size: 26px; font-weight: 700; color: var(--brand); }
-.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 24px; }
+.factory-body { max-width: 820px; font-size: 17px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 24px; }
+.gallery img { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; }
+.gallery-mosaic { grid-template-columns: repeat(4, 1fr); }
+.gallery-mosaic img:first-child { grid-column: span 2; grid-row: span 2; aspect-ratio: auto; height: 100%; }
 .badges { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .badges li { border: 1px solid var(--line); background: var(--bg); padding: 8px 14px; border-radius: 999px; font-weight: 600; }
+
+/* 产品：横排（精密制造） */
+.product-rows { display: grid; gap: 20px; }
+.product-row { display: grid; grid-template-columns: 240px 1fr; gap: 28px; align-items: start; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.product-row img { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; }
+.product-row h3 { margin: 0 0 8px; font-size: 20px; }
+.product-row h3 a { color: var(--ink); text-decoration: none; }
+.mini-specs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 20px; margin: 12px 0 0; font-size: 14px; }
+.mini-specs dt { color: var(--muted); }
+.mini-specs dd { margin: 0; font-weight: 600; }
+
 details { border-bottom: 1px solid var(--line); padding: 16px 0; }
 summary { cursor: pointer; font-weight: 600; }
 .contact-list { list-style: none; padding: 0; display: grid; gap: 8px; }
 .inquiry { background: var(--bg-alt); padding: 24px; border-radius: var(--radius); display: grid; gap: 12px; }
 .inquiry h3 { margin: 0 0 4px; }
 .inquiry label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
-.inquiry input, .inquiry textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+.inquiry input, .inquiry textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: min(var(--radius), 8px); background: #fff; color: var(--ink); }
 .inquiry .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .specs { border-collapse: collapse; width: 100%; margin: 16px 0; }
 .specs th, .specs td { text-align: left; border-bottom: 1px solid var(--line); padding: 8px 4px; }
 .specs th { color: var(--muted); font-weight: 500; width: 40%; }
-.site-footer { border-top: 1px solid var(--line); padding: 32px 0; color: var(--muted); font-size: 14px; }
+.site-footer { border-top: 1px solid var(--line); padding: 40px 0; color: var(--muted); font-size: 14px; }
+.footer-row { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.footer-brand { font-weight: 700; color: var(--ink); font-family: var(--font-head); margin: 0 0 6px; }
+.footer-contact { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+
+/* 版式：重工业 —— 粗标题、方正、深色页脚 */
+.ly-heavy h1, .ly-heavy h2 { text-transform: uppercase; letter-spacing: .02em; font-weight: 800; }
+.ly-heavy .section h2 { border-left: 6px solid var(--accent); padding-left: 14px; }
+.ly-heavy .site-footer { background: #111; color: #bbb; border-top: 0; }
+.ly-heavy .footer-brand { color: #fff; }
+
+/* 版式：精密制造 —— 细线、留白 */
+.ly-precision .section h2 { font-weight: 600; letter-spacing: -.01em; }
+.ly-precision .section h2::after { content: ""; display: block; width: 48px; height: 2px; background: var(--accent); margin-top: 14px; }
+.ly-precision .card { border-color: var(--line); box-shadow: none; }
+
+/* 版式：建材 —— 暖色底 */
+.ly-building { --bg-alt: #f7f2ec; }
+.ly-building .highlights li { border-left-color: var(--accent); }
+
+/* 版式：消费品 —— 明亮、阴影卡片 */
+.ly-consumer { --bg-alt: #f3f8f6; }
+.ly-consumer .card { border: 0; box-shadow: 0 8px 28px rgba(16, 24, 40, .08); }
+.ly-consumer .site-nav .nav-cta, .ly-consumer .button { border-radius: 999px; }
+.ly-consumer .hero-split { background: linear-gradient(180deg, var(--bg-alt), var(--bg)); }
+
+/* 版式：老牌工厂 —— 衬线、居中标题、细边框 */
+.ly-heritage .section h2 { text-align: center; }
+.ly-heritage .section h2::after { content: ""; display: block; width: 72px; height: 1px; background: var(--accent); margin: 16px auto 0; }
+.ly-heritage .hero-band { background: var(--brand); }
+.ly-heritage .badges li { border-color: var(--accent); }
+
+/* 版式：科技感 —— 深色背景 */
+.ly-tech { --bg: #0b0f1a; --bg-alt: #111827; --ink: #e5e7eb; --muted: #9ca3af; --line: #1f2937; }
+.ly-tech .site-header { background: rgba(11, 15, 26, .92); }
+.ly-tech .hero-cover { background: radial-gradient(1200px 600px at 80% -10%, var(--accent), transparent 60%), linear-gradient(135deg, var(--brand), #05070d); }
+.ly-tech .card { background: #0f1525; }
+.ly-tech .inquiry input, .ly-tech .inquiry textarea { background: #0b0f1a; color: var(--ink); }
+.ly-tech .stats dd, .ly-tech a { color: var(--accent); }
+
+/* 图片处理 */
+.im-framed .card img, .im-framed .gallery img, .im-framed .product-row img { padding: 6px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
+.im-duotone .gallery img, .im-duotone .hero-media img { filter: saturate(.7) contrast(1.05); }
+
 @media (max-width: 760px) {
-  .two-col { grid-template-columns: 1fr; gap: 24px; }
-  .hero { padding: 64px 0; }
-  .section { padding: 48px 0; }
+  .two-col, .split-row { grid-template-columns: 1fr; gap: 24px; }
+  .hero-cover { padding: 72px 0 56px; }
+  .hero-split { padding: 48px 0; }
+  .hero-band { padding-top: 56px; }
+  .hero-band .band-image { margin-bottom: -48px; }
+  .hero-band + .section { padding-top: 88px; }
+  .section { padding: 52px 0; }
+  .section h2 { font-size: 26px; }
   .site-nav a:not(.nav-cta) { display: none; }
+  .product-row { grid-template-columns: 1fr; }
+  .gallery-mosaic { grid-template-columns: repeat(2, 1fr); }
+  .topbar { display: none; }
 }

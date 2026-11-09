@@ -10,13 +10,19 @@
   <meta property="og:title" content="{{ page_title }}">
   <meta property="og:description" content="{{ page_description }}">
   <meta property="og:type" content="website">
-  {% if not preview %}<link rel="stylesheet" href="{{ root }}assets/site.css">{% else %}<style>{{ inline_css }}</style>{% endif %}
+  {% if not preview %}<link rel="stylesheet" href="{{ root }}assets/site.css"><link rel="stylesheet" href="{{ root }}assets/theme.css">{% else %}<style>{{ inline_css }}</style>{% endif %}
   <script type="application/ld+json">{{ json_ld }}</script>
 </head>
-<body class="tpl-{{ template }}">
+<body class="ly-{{ style.layout }} ft-{{ style.font }} rd-{{ style.radius }} im-{{ style.image }}">
+  {% if style.layout == "heavy" %}
+  <div class="topbar"><div class="wrap topbar-row">
+    {% if content.contact.email %}<a href="mailto:{{ content.contact.email }}">{{ content.contact.email }}</a>{% endif %}
+    {% if content.contact.phone %}<span>{{ content.contact.phone }}</span>{% endif %}
+  </div></div>
+  {% endif %}
   <header class="site-header">
     <div class="wrap header-row">
-      <a class="brand" href="{{ root }}index.html">{{ content.company_name }}</a>
+      <a class="brand" href="{{ root }}index.html">{% if logo %}<img class="brand-logo" src="{{ logo.src }}" alt="{{ content.company_name }}" width="160" height="40">{% endif %}<span>{{ content.company_name }}</span></a>
       <nav class="site-nav" aria-label="Main">
         <a href="{{ root }}index.html#products">Products</a>
         <a href="{{ root }}index.html#about">About</a>
@@ -29,9 +35,16 @@
     {% block main %}{% endblock %}
   </main>
   <footer class="site-footer">
-    <div class="wrap">
-      <p>&copy; {{ year }} {{ content.company_name }}</p>
-      {% if content.contact.email %}<p><a href="mailto:{{ content.contact.email }}">{{ content.contact.email }}</a></p>{% endif %}
+    <div class="wrap footer-row">
+      <div>
+        <p class="footer-brand">{{ content.company_name }}</p>
+        <p>&copy; {{ year }} {{ content.company_name }}. All rights reserved.</p>
+      </div>
+      <ul class="footer-contact">
+        {% if content.contact.email %}<li><a href="mailto:{{ content.contact.email }}">{{ content.contact.email }}</a></li>{% endif %}
+        {% if content.contact.phone %}<li>{{ content.contact.phone }}</li>{% endif %}
+        {% if content.contact.address %}<li>{{ content.contact.address }}</li>{% endif %}
+      </ul>
     </div>
   </footer>
 </body>

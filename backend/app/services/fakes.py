@@ -273,8 +273,86 @@ def fake_outreach_draft(messages: list[Message]) -> dict[str, Any]:
     return {"subject": f"Re: {need}"[:120], "body": body}
 
 
+def fake_outreach_kit(messages: list[Message]) -> dict[str, Any]:
+    """TEST_MODE：按系统提示中列出的渠道，用输入事实拼出中英文对照话术。"""
+    text = _last_user_text(messages)
+    system = str(messages[0].get("content", "")) if messages else ""
+    channels = re.findall(r"^- (email|whatsapp|phone|linkedin|form):", system, re.M)
+
+    def tag(name: str) -> dict[str, Any]:
+        m = re.search(rf"<{name}>(.*?)</{name}>", text, re.S)
+        try:
+            return json.loads(m.group(1)) if m else {}
+        except ValueError:
+            return {}
+
+    facts, lead = tag("facts"), tag("lead")
+    company = facts.get("company", {}).get("name", "our factory")
+    product = (facts.get("products") or [{}])[0].get("name_en") or "industrial products"
+    need = lead.get("title", "your requirement")
+    signature = facts.get("signature", "")
+    items = []
+    for channel in channels:
+        if channel == "email":
+            email = fake_outreach_draft(messages)
+            items.append(
+                {
+                    "channel": "email",
+                    "subject": email["subject"],
+                    "body": email["body"],
+                    "subject_zh": f"回复：{need}",
+                    "body_zh": f"您好，我们看到贵司的需求「{need}」。我们是{company}，专业生产{product}，"
+                    "可以直接支持这个项目。请发来详细规格和数量，我们一个工作日内回复报价和目录。",
+                }
+            )
+        elif channel == "whatsapp":
+            items.append(
+                {
+                    "channel": "whatsapp",
+                    "body": f"Hi, this is {company}. We make {product} and saw your request: {need}. "
+                    "Could you share the specs and quantity? We can send a quotation within one day.",
+                    "body_zh": f"您好，我们是{company}，生产{product}，看到了您的需求「{need}」。"
+                    "方便发一下规格和数量吗？我们一天内给您报价。",
+                }
+            )
+        elif channel == "phone":
+            items.append(
+                {
+                    "channel": "phone",
+                    "body": f"Hello, this is {signature.splitlines()[0] if signature else 'sales'} from {company}.\n"
+                    f"- We manufacture {product}.\n- We saw your request: {need}.\n"
+                    "- We can send samples and a quotation.\nAsk: Who handles purchasing for this project?\n"
+                    "Close: May I email you our catalogue?",
+                    "body_zh": f"您好，我是{company}的业务。\n- 我们生产{product}。\n- 看到了您的需求「{need}」。\n"
+                    "- 可以寄样品并报价。\n提问：这个项目的采购由谁负责？\n结尾：我可以把产品目录发到您邮箱吗？",
+                }
+            )
+        elif channel == "linkedin":
+            items.append(
+                {
+                    "channel": "linkedin",
+                    "body": f"Hi, I'm with {company}, a manufacturer of {product}. Saw your request ({need[:60]}) "
+                    "and would be glad to connect.",
+                    "body_zh": f"您好，我在{company}工作，我们生产{product}。看到贵司的需求，希望能和您建立联系。",
+                }
+            )
+        elif channel == "form":
+            items.append(
+                {
+                    "channel": "form",
+                    "body": f"Dear team, we are {company}, a manufacturer of {product}. Regarding your request "
+                    f"({need}), we can supply directly from our factory. Please let us know the specifications "
+                    "and quantity, and we will reply with a quotation and catalogue within one working day.",
+                    "body_zh": f"您好，我们是{company}，生产{product}。关于贵司的需求「{need}」，我们可以工厂直供。"
+                    "请告知规格和数量，我们一个工作日内回复报价和目录。",
+                }
+            )
+    return {"items": items}
+
+
 DEFAULT_RESPONDERS: dict[str, Responder] = {
     "outreach.draft": fake_outreach_draft,
+    "outreach.kit": fake_outreach_kit,
     "leads.analyze": fake_leads_analyze,
     "profile.extract": fake_profile_extract,
     "assistant.chat": fake_assistant_chat,

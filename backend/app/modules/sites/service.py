@@ -282,9 +282,50 @@ def start_generation(db: Session, company: Company, user_id: uuid.UUID, template
         if template not in TEMPLATES:
             raise AppError("不支持的模板", code="invalid_template")
         site.template_key = template
+    if not site.style:
+        site.style = initial_style(db, company)
     _start_task(site, "generate", ["collect", "write", "check"])
     enqueue(db, GEN_JOB, {"site_id": str(site.id), "user_id": str(user_id)}, company_id=company.id)
     return site
+
+
+def attach_uploaded_photos(db: Session, company_id: uuid.UUID, content: SiteContent) -> None:
+    """客户按类别上传的照片直接用在网站上：工厂照片 → 工厂分区（首屏也会用第一张），
+    证书照片 → 资质分区，产品照片 → 依次补给还没有图片的产品。"""
+
+    def ids(kind: str, limit: int) -> list[str]:
+        rows = db.scalars(
+            select(Asset.id)
+            .where(Asset.company_id == company_id, Asset.kind == kind, Asset.mime.startswith("image/"))
+            .order_by(Asset.created_at)
+            .limit(limit)
+        ).all()
+        return [str(i) for i in rows]
+
+    if not content.factory.image_asset_ids:
+        content.factory.image_asset_ids = ids("factory_photo", 8)
+    if not content.certificates.image_asset_ids:
+        content.certificates.image_asset_ids = ids("certificate", 12)
+    photos = iter(ids("product_photo", 30))
+    for item in content.products.items:
+        if not item.image_asset_id:
+            item.image_asset_id = next(photos, "")
+
+
+def initial_style(db: Session, company: Company) -> dict[str, Any]:
+    """按客户在开通向导中选的风格和上传的 Logo 确定网站风格（与其他客户去重）。"""
+    from app.modules.service.models import ServiceProfile
+    from app.modules.sites import styles
+
+    profile = db.get(ServiceProfile, company.id)
+    logo = latest_logo(db, company.id)
+    data = None
+    if logo is not None:
+        try:
+            data = providers.storage().get(logo.storage_key)
+        except OSError:
+            data = None
+    return styles.choose_style(db, company.id, profile.style_choice if profile else "", data)
 
 
 @job_handler(GEN_JOB)
@@ -314,6 +355,7 @@ async def handle_generate(db: Session, job: Job) -> None:
         raise RetryableJobError(f"site generation failed: {type(exc).__name__}") from exc
     _step(site, "write", "done")
     _step(site, "check", "running")
+    attach_uploaded_photos(db, company.id, content)
     flags = fact_check(content, known_facts(profile, products))
     new_version(db, site, content, flags, note="AI 生成", user_id=uuid.UUID(job.payload["user_id"]))
     _step(site, "check", "done")
@@ -422,6 +464,9 @@ def collect_images(db: Session, site: Site, content: SiteContent, *, preview: bo
     """收集内容中引用的图片（只限本企业的图片资料）。发布时生成 WebP 多尺寸；预览时使用签名链接。"""
     ids = {item.image_asset_id for item in content.products.items if item.image_asset_id}
     ids |= set(content.factory.image_asset_ids) | set(content.certificates.image_asset_ids)
+    logo = latest_logo(db, site.company_id)
+    if logo is not None:
+        ids.add(str(logo.id))
     valid: list[Asset] = []
     for raw in ids:
         try:
@@ -452,11 +497,21 @@ def collect_images(db: Session, site: Site, content: SiteContent, *, preview: bo
     return refs, files
 
 
+def latest_logo(db: Session, company_id: uuid.UUID) -> Asset | None:
+    return db.scalar(
+        select(Asset)
+        .where(Asset.company_id == company_id, Asset.kind == "logo", Asset.mime.startswith("image/"))
+        .order_by(Asset.created_at.desc())
+        .limit(1)
+    )
+
+
 def render_context(
     db: Session, site: Site, version: SiteVersion, *, preview: bool
 ) -> tuple[render.RenderContext, dict]:
     content = SiteContent.model_validate(version.content)
     refs, files = collect_images(db, site, content, preview=preview)
+    logo = latest_logo(db, site.company_id)
     products = {
         str(p.id): {"specs": p.specs, "moq": p.moq, "lead_time": p.lead_time, "applications": p.applications}
         for p in db.scalars(select(Product).where(Product.company_id == site.company_id))
@@ -470,6 +525,8 @@ def render_context(
         images=refs,
         products=products,
         preview=preview,
+        style=site.style or {},
+        logo=refs.get(str(logo.id)) if logo is not None else None,
     )
     return ctx, files
 
@@ -518,7 +575,9 @@ def handle_publish(db: Session, job: Job) -> None:
     _, files = collect_images(db, site, ctx.content, preview=False)
     _step(site, "images", "done")
     _step(site, "publish", "running")
-    target = render.write_version(site.id, version.id, _resolve_roots(pages), files, ctx.base_url)
+    target = render.write_version(
+        site.id, version.id, _resolve_roots(pages), files, ctx.base_url, theme=render.theme_css(ctx)
+    )
     render.activate(site_hosts(site), target)
     site.published_version_id = version.id
     site.published_at = utcnow()

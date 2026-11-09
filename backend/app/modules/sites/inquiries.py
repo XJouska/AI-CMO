@@ -143,7 +143,7 @@ def spam_score(form: InquiryForm) -> int:
 
 
 def notify_members(db: Session, site: Site, inquiry: SiteInquiry) -> None:
-    title = f"新询盘：{inquiry.company_name or inquiry.name}"
+    title = f"网站收到询价：{inquiry.company_name or inquiry.name}"
     body = f"{inquiry.country} · {inquiry.product_ref}".strip(" ·")[:200] or inquiry.message[:120]
     db.add(
         Notification(
@@ -151,7 +151,7 @@ def notify_members(db: Session, site: Site, inquiry: SiteInquiry) -> None:
             kind="site_inquiry",
             title=title[:120],
             body=body,
-            link=f"/site/inquiries/{inquiry.id}",
+            link="/my-site",
         )
     )
 
