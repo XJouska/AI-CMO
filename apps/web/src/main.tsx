@@ -7,6 +7,7 @@ import './ui/ui.css'
 import './app/app.css'
 import './pages/home.css'
 import './pages/pages.css'
+import './pages/customer/customer.css'
 import { App } from './app/App'
 
 const root = document.getElementById('root')

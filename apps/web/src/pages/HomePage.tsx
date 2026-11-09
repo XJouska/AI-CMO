@@ -19,7 +19,7 @@ export function HomePage() {
     document.title = `${BRAND.name} · ${BRAND.tagline}`
   }, [])
 
-  if (session.token) return <Navigate replace to="/assistant" />
+  if (session.token) return <Navigate replace to="/home" />
 
   return (
     <div className="home">

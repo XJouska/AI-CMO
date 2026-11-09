@@ -10,9 +10,9 @@ import { t } from '@/i18n'
 import { useLeadBadge } from '@/leads/badge'
 import { useSession } from '@/session/session'
 import { ChoiceMenu, ConfirmDialog, CountBadge, cx, Drawer, IconButton, useToast } from '@/ui'
-import { MAIN_NAV, OPS_NAV, type NavItem } from './nav'
+import { MAIN_NAV, OPERATOR_NAV, OPS_NAV, type NavItem } from './nav'
 
-export { MAIN_NAV, OPS_NAV, type NavItem } from './nav'
+export { MAIN_NAV, OPERATOR_NAV, OPS_NAV, type NavItem } from './nav'
 
 const COLLAPSE_KEY = 'aicmo.sidebar.collapsed'
 
@@ -82,12 +82,14 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
   const isStaff = Boolean(session.user?.is_staff)
 
   const hasCompany = Boolean(session.company)
-  // 助手 / 商机 / 官网 / 我的都属于某个企业；没有企业时（例如尚未进入客户企业的运营人员）不显示，避免点击后被跳回
+  // 客户的四个入口都属于某个企业；没有企业时（例如尚未进入客户企业的运营人员）不显示，避免点击后被跳回。
+  // 运营进入企业代操作时，额外显示一组高级工具（客户看不到）。
   const groups: { title?: string; items: readonly NavItem[] }[] = [
     ...(hasCompany ? [{ items: MAIN_NAV }] : []),
+    ...(hasCompany && isStaff ? [{ title: t.ops.operatorGroup, items: OPERATOR_NAV }] : []),
     ...(isStaff ? [{ title: t.ops.group, items: OPS_NAV }] : []),
   ]
-  const home = hasCompany ? '/assistant' : isStaff ? '/ops/customers' : '/onboarding/company'
+  const home = hasCompany ? '/home' : isStaff ? '/ops/customers' : '/start'
 
   return (
     <div className="sidebar">
@@ -127,7 +129,7 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
               <NavLink className={({ isActive }) => cx('sidebar__link', isActive && 'is-active')} key={item.id} title={collapsed ? item.label : undefined} to={item.path}>
                 <item.icon aria-hidden size={18} />
                 <span className="sidebar__label">{item.label}</span>
-                {item.id === 'leads' && newLeads > 0 ? (
+                {item.id === 'buyers' && newLeads > 0 ? (
                   <span className="sidebar__badge">
                     <CountBadge count={newLeads} label={t.shell.newLeads(newLeads)} />
                   </span>
@@ -152,7 +154,7 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
             <span className="sidebar__user-name">{session.user?.name || session.user?.email}</span>
             {session.user?.name ? <span className="sidebar__user-email">{session.user.email}</span> : null}
           </span>
-          <IconButton className="sidebar__label" icon={KeyRound} label={t.me.security} onClick={() => navigate('/me/security')} size="sm" />
+          <IconButton className="sidebar__label" icon={KeyRound} label={t.me.security} onClick={() => navigate('/account/security')} size="sm" />
           <IconButton className="sidebar__label" icon={LogOut} label={t.me.logout} onClick={() => setLoggingOut(true)} size="sm" />
         </div>
       </div>
@@ -164,7 +166,7 @@ function SidebarContent({ collapsed, inDrawer, onToggleCollapsed }: { collapsed:
         onSelect={(index) => {
           setSwitching(false)
           const target = companies[index]
-          if (!target) return navigate('/onboarding/company')
+          if (!target) return navigate('/start')
           if (target.id !== session.company?.id) {
             session.selectCompany(target.id)
             toast.show(t.company.switched(target.name_cn))

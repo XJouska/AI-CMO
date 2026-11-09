@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { completeProfile, expectNoFallback, signUp, staffHeaders, watchPageErrors } from './helpers'
+import { completeProfile, expectNoFallback, signUp, staffHeaders, watchPageErrors, signUpAsOperator } from './helpers'
 
 // 计划 07：套餐与用量、通知设置、数据与隐私、公开政策页、运营工作台（代客操作 + 手工开通 + 复核 + 审计），
 // 以及 Light / Dark 主题的关键页面截图基线。
@@ -15,19 +15,22 @@ async function staffLogin(page: Page, token: string) {
   }, token)
 }
 
-test('套餐与用量、通知设置、数据与隐私', async ({ page, request }) => {
+test('客户：我的套餐、消息设置；运营：数据与隐私', async ({ page, request, browser, baseURL }) => {
   const errors = watchPageErrors(page)
-  await signUp(page, request)
-  await page.goto('/me')
-  await expect(page.getByText('试用版')).toBeVisible()
-  await page.getByRole('main').getByRole('button', { name: /套餐与用量/ }).click()
-  await expect(page).toHaveURL(/\/me\/billing$/)
+  const account = await signUp(page, request)
+  await request.post('/api/v1/service/onboarding', {
+    headers: { Authorization: `Bearer ${account.token}`, 'X-Company-Id': account.companyId! },
+    data: { style_choice: 'heavy' },
+  })
+  await page.goto('/materials')
+  await page.getByRole('main').getByRole('button', { name: /我的套餐/ }).click()
+  await expect(page).toHaveURL(/\/account\/billing$/)
   await expect(page.getByText('本月商机')).toBeVisible()
   await expect(page.getByText('获客版', { exact: false }).first()).toBeVisible()
   await expectNoFallback(page)
   await expect(page).toHaveScreenshot('billing.png', { mask: [page.getByText(/^有效期至/)] })
 
-  await page.goto('/me/notifications')
+  await page.goto('/account/notifications')
   await expect(page.getByText('暂无通知')).toBeVisible()
   await page.getByRole('button', { name: '通知设置' }).click()
   const toggle = page.locator('[data-channel="email"] [data-group="report"] [role="switch"]')
@@ -39,12 +42,17 @@ test('套餐与用量、通知设置、数据与隐私', async ({ page, request 
   await expectNoFallback(page)
   await expect(page).toHaveScreenshot('notification-settings.png', { mask: [page.getByText(/^邮件发送到/)] })
 
-  await page.goto('/me/privacy')
-  await expect(page.getByText('导出企业数据（JSON）')).toBeVisible()
-  const download = page.waitForEvent('download')
-  await page.getByText('导出商机列表（CSV）').click()
+  // 数据导出与注销由运营代客操作
+  const opContext = await browser.newContext({ baseURL, viewport: page.viewportSize()!, locale: 'zh-CN', acceptDownloads: true })
+  const op = await opContext.newPage()
+  await signUpAsOperator(op, request)
+  await op.goto('/me/privacy')
+  await expect(op.getByText('导出企业数据（JSON）')).toBeVisible()
+  const download = op.waitForEvent('download')
+  await op.getByText('导出商机列表（CSV）').click()
   expect((await download).suggestedFilename()).toMatch(/^leads-\d{8}\.csv$/)
-  await expect(page).toHaveScreenshot('privacy-settings.png', { mask: [page.getByText(/^请输入企业名/)] })
+  await expect(op).toHaveScreenshot('privacy-settings.png', { mask: [op.getByText(/^请输入企业名/)] })
+  await opContext.close()
   expect(errors).toEqual([])
 })
 
@@ -90,6 +98,10 @@ test('运营工作台：代客操作、手工开通、复核、审计', async ({
   await expectNoFallback(fresh)
   await row.click()
 
+  // 五步工作台
+  await expect(fresh.getByText('1. 客户资料')).toBeVisible()
+  await expect(fresh.getByText('5. 找买家')).toBeVisible()
+
   // 手工开通获客版
   await fresh.getByLabel('到账金额（元，可选）').fill('1999')
   await fresh.getByLabel('备注（如转账流水号）').fill('对公转账 E2E')
@@ -101,7 +113,7 @@ test('运营工作台：代客操作、手工开通、复核、审计', async ({
   await fresh.getByRole('button', { name: '进入企业代操作' }).click()
   await expect(fresh.getByText('已以运营身份进入，所有操作会记录为「运营代操作」')).toBeVisible()
   await fresh.getByRole('button', { name: '切换到该企业' }).click()
-  await expect(fresh).toHaveURL(/\/assistant$/)
+  await expect(fresh).toHaveURL(/\/home$/)
   await fresh.goto('/me/billing')
   await expect(fresh.getByText('获客版').first()).toBeVisible()
 
@@ -124,6 +136,66 @@ test('运营工作台：代客操作、手工开通、复核、审计', async ({
   expect(staffErrors).toEqual([])
 })
 
+test('代运营全流程：客户提交资料 → 运营生成网站并发给客户 → 客户提修改 → 再确认上线', async ({ page, request, browser, baseURL }) => {
+  test.setTimeout(90_000)
+  const errors = watchPageErrors(page)
+  const companyName = `全流程工厂${Date.now()}`
+  const marker = `主做球阀-${Date.now()}`
+  const customer = await signUp(page, request, { company: companyName })
+  const headers = await completeProfile(request, customer.token, customer.companyId!)
+  await request.post('/api/v1/service/onboarding', { headers, data: { style_choice: 'heritage', note: marker } })
+
+  // 运营：待办里有「整理资料」，进入客户工作台生成网站并发给客户
+  const staff = await staffHeaders(request)
+  const staffContext = await browser.newContext({ baseURL, viewport: page.viewportSize()!, locale: 'zh-CN' })
+  const op = await staffContext.newPage()
+  const opErrors = watchPageErrors(op)
+  await staffLogin(op, staff.Authorization.replace('Bearer ', ''))
+  await op.goto('/ops/tasks')
+  const task = op.locator('.task-row', { hasText: marker })
+  await expect(task).toBeVisible()
+  await expect(task).toContainText('整理资料')
+  await expectNoFallback(op)
+  await task.getByRole('button', { name: companyName }).click()
+  await expect(op).toHaveURL(new RegExp(`/ops/customers/${customer.companyId}$`))
+  await op.locator('[data-step="site"]').getByRole('button', { name: '生成网站' }).click()
+  await expect(op.locator('[data-step="site"]').getByRole('button', { name: '重新生成' })).toBeVisible({ timeout: 25_000 })
+  await op.getByRole('button', { name: '发给客户确认' }).click()
+  await expect(op.getByText('已发给客户确认，客户会收到通知')).toBeVisible()
+
+  // 客户：首页提示去看网站 → 我的网站：预览、提修改意见
+  await page.goto('/home')
+  await expect(page.getByRole('heading', { name: '网站做好了，请你看一看' })).toBeVisible()
+  await page.getByRole('button', { name: '去看网站' }).click()
+  await expect(page).toHaveURL(/\/my-site$/)
+  await expect(page.locator('.site-preview iframe')).toBeVisible()
+  await expect(page.locator('main')).not.toContainText(/档案|完整度|监控|商机|助手|模板|发布|版本/)
+  await page.getByRole('button', { name: '我要修改' }).click()
+  await page.getByLabel('修改意见').fill('首页大图换成车间照片')
+  await page.getByRole('button', { name: '提交' }).click()
+  await expect(page.getByText('已收到你的修改意见，我们改好后会再请你看')).toBeVisible()
+  await expect(page.getByText('我们正在按你的意见修改，改好后会通知你')).toBeVisible()
+
+  // 运营：待办出现「修改网站」，改好后再次发给客户
+  await op.goto('/ops/tasks')
+  await expect(op.locator('.task-row', { hasText: '首页大图换成车间照片' })).toContainText('修改网站')
+  await op.goto(`/ops/customers/${customer.companyId}`)
+  await op.getByRole('button', { name: '发给客户确认' }).click()
+  await expect(op.getByText('已发给客户确认，客户会收到通知')).toBeVisible()
+
+  // 客户：确认上线 → 网站已上线
+  await page.goto('/my-site')
+  await page.getByRole('button', { name: '确认上线' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '确认上线' }).click()
+  await expect(page.getByText('已确认，网站正在上线，几分钟后就能打开')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '网站已上线' })).toBeVisible({ timeout: 20_000 })
+  await page.goto('/home')
+  await expect(page.getByRole('list', { name: '服务进度' }).locator('[aria-current="step"]')).toContainText('网站已上线')
+  await staffContext.close()
+  expect(errors).toEqual([])
+  expect(opErrors).toEqual([])
+})
+
 test.describe('Dark 主题截图基线', () => {
   test.use({ colorScheme: 'dark' })
 
@@ -133,8 +205,12 @@ test.describe('Dark 主题截图基线', () => {
     await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await expect(page).toHaveScreenshot('dark-login.png')
-    await signUp(page, request)
-    for (const path of ['/assistant', '/leads', '/site', '/me', '/me/billing', '/me/notifications/settings']) {
+    const account = await signUp(page, request)
+    await request.post('/api/v1/service/onboarding', {
+      headers: { Authorization: `Bearer ${account.token}`, 'X-Company-Id': account.companyId! },
+      data: { style_choice: 'heavy' },
+    })
+    for (const path of ['/home', '/my-site', '/buyers', '/materials', '/account/billing', '/account/notifications/settings']) {
       await page.goto(path)
       await page.waitForLoadState('networkidle')
       await expectNoFallback(page)

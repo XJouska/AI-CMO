@@ -207,3 +207,22 @@
 | 设置中心左侧分组菜单；运营后台表格 + 两栏复核 | 通过 | `me.spec.tsx`、`ops.spec.tsx`、`ops.e2e.ts` |
 | 深浅色主题：默认跟随系统，可手动切换并记住 | 通过 | `shell.spec.tsx`；`dark-*.png` |
 | 测试 | 通过 | 组件测试 89 项；E2E 48 项（两种宽度）；`check:web` 通过；本机新版容器冒烟通过 |
+
+## 代运营定位重做（2026-11-09）
+
+定位：客户（工厂老板）只做两件事——上传资料、看结果；建网站、找买家、写话术由运营团队在后台完成。
+
+| 验收项 | 结果 | 依据 |
+|---|---|---|
+| 客户端只有四个入口：首页 / 我的网站 / 海外买家 / 我的资料 | 通过 | `shell.spec.tsx`、`shell.e2e.ts` |
+| 客户页面不出现行话（档案、完整度、监控、商机、助手、模板、发布、版本、SMTP 等） | 通过 | `check-web.mjs`「客户页面用语检查」；e2e 逐页断言 |
+| AI 助手、网站编辑、找买家设置、发信邮箱等只对运营开放，客户访问回到首页 | 通过 | `RequireStaff`；`shell.spec.tsx`、`shell.e2e.ts` |
+| 三步开通向导，每步标明「第 X 步，共 3 步」；分类上传含说明、清单、手机拍照 | 通过 | `accounts.e2e.ts`（含截图基线） |
+| 首页：服务进度（五个阶段）、下一步卡片、本周结果 | 通过 | `shell.spec.tsx`、`test_service.py` |
+| 我的网站：制作中 / 待确认（预览、确认上线、我要修改）/ 已上线 | 通过 | `ops.e2e.ts` 代运营全流程 |
+| 运营：待办任务、客户列表「进行到哪一步 / 卡在谁那里」、客户五步工作台 | 通过 | `ops.e2e.ts`、`ops.spec.tsx`、`test_service.py` |
+| 官网 6 套版式 + 从 Logo 取色 + 字体 / 圆角 / 图片处理；同版式同主色自动错开；运营可调 | 通过 | `test_service.py`（取色、防注入、去重、预览类名）、`test_sites.py` |
+| 生成网站时直接使用客户上传的工厂 / 产品 / 证书照片 | 通过 | `test_service.py::test_generated_site_uses_uploaded_photos` |
+| 买家联系方式补充 WhatsApp、LinkedIn、官网询价页（只取买家自己域名下的入口） | 通过 | `test_service.py::test_extract_channels_only_from_buyer_domain` |
+| 每种联系方式一份话术，英文 + 中文对照；复制英文、一键打开（mailto / wa.me / tel / https） | 通过 | `test_service.py`、`leads.e2e.ts` |
+| 客户标记联系进展：已联系 / 对方回复了 / 没兴趣（不倒退） | 通过 | `test_service.py`、`leads.e2e.ts` |

@@ -49,6 +49,50 @@ export async function signUp(
   return { email, password, token, companyId }
 }
 
+/**
+ * 运营代操作：注册客户企业（接口），预置运营账号加入该企业，浏览器以运营身份登录并选中该企业。
+ * AI 助手、网站编辑、找买家设置、开发信等工具只对运营开放，相关用例都用这个入口。
+ */
+export async function signUpAsOperator(
+  page: Page,
+  request: APIRequestContext,
+  options: { company?: string; name?: string } = {},
+): Promise<TestAccount & { staffToken: string }> {
+  counter += 1
+  const email = `e2e-${Date.now()}-${counter}-${Math.random().toString(36).slice(2, 7)}@example.com`
+  const password = 'Factory123'
+  const registered = await request.post('/api/v1/auth/register', { data: { email, password, name: options.name ?? '王总' } })
+  expect(registered.ok()).toBeTruthy()
+  const { token } = await registered.json()
+  const created = await request.post('/api/v1/companies', {
+    data: { name_cn: options.company ?? '宁波演示阀门厂', name_en: '' },
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  expect(created.ok()).toBeTruthy()
+  const companyId: string = (await created.json()).id
+  const staff = await staffHeaders(request)
+  const joined = await request.post(`/api/v1/ops/customers/${companyId}/join`, { headers: staff })
+  expect(joined.ok()).toBeTruthy()
+  const staffToken = staff.Authorization.replace('Bearer ', '')
+  await page.addInitScript(
+    ([t, c]) => {
+      if (window.top !== window) return
+      try {
+        if (!window.sessionStorage.getItem('e2e-init')) {
+          window.localStorage.setItem('aicmo.token', t)
+          window.localStorage.setItem('aicmo.company', c)
+          window.sessionStorage.setItem('e2e-init', '1')
+        }
+      } catch {
+        // 无存储权限的上下文
+      }
+    },
+    [staffToken, companyId] as const,
+  )
+  // 用例用客户 token 调接口准备数据（完善工厂信息等）
+  return { email, password, token, companyId, staffToken }
+}
+
 /** 页面不得出现脚本错误、控制台错误（含失败的网络请求）与降级渲染。 */
 export function watchPageErrors(page: Page, { allowHttpErrors = false } = {}): string[] {
   const errors: string[] = []

@@ -71,6 +71,9 @@ export interface CustomerOut {
   valid_rate: number | null
   last_active_at: string | null
   operator_joined: boolean
+  stage: string
+  waiting_on: 'customer' | 'team' | 'none'
+  open_tasks: number
 }
 
 export interface AuditOut {

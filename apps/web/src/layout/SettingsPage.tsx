@@ -2,6 +2,7 @@
 // 分组配置也用于「我的」概览页的入口卡片。
 import { Bell, Building2, CreditCard, FileBarChart, FolderOpen, KeyRound, Mail, Package, Radar, ShieldCheck, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { t } from '@/i18n'
 import { AppPage, type AppPageProps } from './AppPage'
 
@@ -34,9 +35,12 @@ export const SETTINGS_GROUPS = [
   },
 ]
 
-export function SettingsPage({ children, back = '/me', width = 'narrow', ...props }: AppPageProps & { children: ReactNode }) {
+export function SettingsPage({ children, back, width = 'narrow', ...props }: AppPageProps & { children: ReactNode }) {
+  // 客户从「我的资料」进入账号页（/account/*），运营从工厂信息（/me）进入
+  const { pathname } = useLocation()
+  const target = back ?? (pathname.startsWith('/account') ? '/materials' : '/me')
   return (
-    <AppPage {...props} back={back} width={width}>
+    <AppPage {...props} back={target} width={width}>
       {children}
     </AppPage>
   )

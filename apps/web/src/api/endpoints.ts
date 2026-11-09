@@ -80,7 +80,7 @@ export interface Product {
 
 export type ProductInput = Omit<Product, 'id' | 'source'>
 
-export type AssetKind = 'image' | 'certificate' | 'catalog' | 'pdf'
+export type AssetKind = 'image' | 'certificate' | 'catalog' | 'pdf' | 'factory_photo' | 'product_photo' | 'business_card' | 'logo'
 
 export interface Asset {
   id: string

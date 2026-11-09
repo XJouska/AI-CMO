@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LeadOut } from '@/leads/api'
 import type { DraftOut, FollowUpOut, MailAccountOut, PipelineOut } from '@/outreach/api'
 import { describeActivity, localInputToIso } from '@/outreach/api'
-import { demoProfile, DEMO_USER, installFakeServer, signedIn, type FakeServer } from '@/test/fakeServer'
+import { demoProfile, installFakeServer, signedIn, type FakeServer, OPERATOR_USER } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 
 let server: FakeServer
@@ -112,7 +112,7 @@ const ACCOUNT: MailAccountOut = {
 
 beforeEach(() => {
   server = installFakeServer()
-  server.on('GET', '/auth/me', DEMO_USER).on('GET', '/profile', demoProfile())
+  server.on('GET', '/auth/me', OPERATOR_USER).on('GET', '/profile', demoProfile())
   signedIn()
 })
 

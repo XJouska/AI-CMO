@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { demoProfile, DEMO_USER, hangingSse, installFakeServer, signedIn, sseBody, type FakeServer } from '@/test/fakeServer'
+import { demoProfile, hangingSse, installFakeServer, signedIn, sseBody, type FakeServer, OPERATOR_USER } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 import { WEAK_NETWORK_MS } from './useConversation'
 import { welcomeSuggestions } from './suggestions'
@@ -15,7 +15,7 @@ let server: FakeServer
 beforeEach(() => {
   server = installFakeServer()
   server
-    .on('GET', '/auth/me', DEMO_USER)
+    .on('GET', '/auth/me', OPERATOR_USER)
     .on('GET', '/profile', demoProfile({ completeness: 30 }))
     .on('POST', '/assistant/conversations', { id: 'c1', title: '', updated_at: '' })
     .on('GET', '/assistant/conversations', [])

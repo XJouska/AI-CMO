@@ -85,6 +85,48 @@ export const DEMO_USER = {
   companies: [{ id: 'c1', name_cn: '宁波阀门厂', name_en: '', role: 'owner' as const }],
 }
 
+/** 运营人员代操作某家企业（AI 助手、网站编辑、找买家设置等工具只对运营开放）。 */
+export const OPERATOR_USER = {
+  ...DEMO_USER,
+  email: 'ops@aicmo.site',
+  name: '运营小李',
+  is_staff: true,
+  companies: [{ id: 'c1', name_cn: '宁波阀门厂', name_en: '', role: 'operator' as const }],
+}
+
+const CATEGORIES = [
+  { key: 'factory_photo', label: '工厂和车间照片', required: true, images_only: true },
+  { key: 'product_photo', label: '产品照片', required: true, images_only: true },
+  { key: 'catalog', label: '产品目录或说明书', required: false, images_only: false },
+  { key: 'certificate', label: '证书', required: false, images_only: false },
+  { key: 'business_card', label: '名片', required: true, images_only: false },
+  { key: 'logo', label: 'Logo', required: false, images_only: true },
+]
+
+const STAGE_KEYS = ['materials', 'building', 'review', 'live', 'buyers'] as const
+const STAGE_LABELS = ['资料已收到', '网站制作中', '网站待你确认', '网站已上线', '正在找买家']
+
+/** 客户服务进度（/service/overview）。 */
+export function demoOverview(overrides: Record<string, unknown> = {}) {
+  const stage = (overrides.stage as string) ?? 'materials'
+  const current = STAGE_KEYS.indexOf(stage as (typeof STAGE_KEYS)[number])
+  return {
+    stage,
+    stages: STAGE_KEYS.map((key, i) => ({ key, label: STAGE_LABELS[i], state: i < current ? 'done' : i === current ? 'current' : 'todo' })),
+    next: { title: '资料已收到，我们正在整理', body: '我们会在 3 个工作日内做好你的英文网站，做好后通知你。', action: '', link: '' },
+    materials: {},
+    missing: [],
+    categories: CATEGORIES,
+    style_choice: 'heavy',
+    site_url: '',
+    week: { buyers_week: 0, buyers_total: 0, inquiries_week: 0 },
+    build_days: 3,
+    submitted: true,
+    revising: false,
+    ...overrides,
+  }
+}
+
 export function demoProfile(overrides: Record<string, unknown> = {}) {
   return {
     company_id: 'c1',

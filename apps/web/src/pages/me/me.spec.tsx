@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Profile } from '@/api/endpoints'
-import { demoProfile, DEMO_USER, installFakeServer, signedIn, type FakeServer } from '@/test/fakeServer'
+import { demoProfile, installFakeServer, signedIn, type FakeServer, OPERATOR_USER } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 import { inviteLink } from './AccountPages'
 import { fromDraft, toDraft } from './ProductPages'
@@ -11,7 +11,7 @@ let server: FakeServer
 
 beforeEach(() => {
   server = installFakeServer()
-  server.on('GET', '/auth/me', DEMO_USER).on('GET', '/profile', demoProfile())
+  server.on('GET', '/auth/me', OPERATOR_USER).on('GET', '/profile', demoProfile())
   signedIn()
 })
 
@@ -32,8 +32,8 @@ describe('「我的」Tab', () => {
 
   it('切换企业', async () => {
     const two = {
-      ...DEMO_USER,
-      companies: [...DEMO_USER.companies, { id: 'c2', name_cn: '温州泵业', name_en: '', role: 'member' as const }],
+      ...OPERATOR_USER,
+      companies: [...OPERATOR_USER.companies, { id: 'c2', name_cn: '温州泵业', name_en: '', role: 'member' as const }],
     }
     server.on('GET', '/auth/me', two)
     renderRoutes('/me')

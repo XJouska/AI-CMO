@@ -18,6 +18,10 @@ const KIND_LABEL: Record<AssetKind, string> = {
   certificate: t.assets.kindCertificate,
   catalog: t.assets.kindCatalog,
   pdf: t.assets.kindPdf,
+  factory_photo: '工厂照片',
+  product_photo: '产品照片',
+  business_card: '名片',
+  logo: 'Logo',
 }
 const UPLOAD_KINDS: AssetKind[] = ['certificate', 'catalog', 'image']
 
@@ -213,7 +217,7 @@ export function InviteAcceptPage() {
       await session.refresh()
       session.selectCompany(company.id)
       toast.show(t.invite.joined(company.name_cn))
-      navigate('/assistant', { replace: true })
+      navigate('/home', { replace: true })
     },
     onError: showError,
   })

@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { leadsQuery, type LeadOut, type WatchOut } from '@/leads/api'
-import { demoProfile, DEMO_USER, installFakeServer, signedIn, type FakeServer } from '@/test/fakeServer'
+import { demoProfile, installFakeServer, signedIn, type FakeServer, OPERATOR_USER } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 import { safeExternal } from './LeadPages'
 
@@ -51,7 +51,7 @@ const activeWatch: WatchOut = {
 
 beforeEach(() => {
   server = installFakeServer()
-  server.on('GET', '/auth/me', DEMO_USER).on('GET', '/profile', demoProfile())
+  server.on('GET', '/auth/me', OPERATOR_USER).on('GET', '/profile', demoProfile())
   signedIn()
 })
 

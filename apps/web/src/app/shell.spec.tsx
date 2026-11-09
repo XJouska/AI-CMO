@@ -1,14 +1,23 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { MAIN_NAV } from '@/layout/AppLayout'
-import { demoProfile, DEMO_USER, installFakeServer, signedIn, type FakeServer } from '@/test/fakeServer'
+import { demoOverview, demoProfile, DEMO_USER, installFakeServer, OPERATOR_USER, signedIn, type FakeServer } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 
 let server: FakeServer
 
+// 客户页面上不应该出现的词（老板看不懂的说法）
+const JARGON = /档案|完整度|监控|商机|助手|模板|发布|版本|SMTP/
+
 beforeEach(() => {
   server = installFakeServer()
-  server.on('GET', '/auth/me', DEMO_USER).on('GET', '/profile', demoProfile()).on('GET', '/assistant/conversations', [])
+  server
+    .on('GET', '/auth/me', DEMO_USER)
+    .on('GET', '/profile', demoProfile())
+    .on('GET', '/service/overview', demoOverview())
+    .on('GET', '/assets', [])
+    .on('GET', '/notifications', [])
+    .on('GET', /^\/leads\?/, { items: [], total: 0, new_count: 0, today_count: 0 })
   signedIn()
 })
 
@@ -16,51 +25,58 @@ function sidebar() {
   return screen.getAllByRole('navigation', { name: '主导航' })[0]
 }
 
-describe('工作台布局', () => {
-  it('侧边栏显示「助手 / 商机 / 官网 / 我的」，没有手机外壳和设计包品牌字样', async () => {
-    renderRoutes('/assistant')
+describe('客户工作台布局', () => {
+  it('侧边栏只有「首页 / 我的网站 / 海外买家 / 我的资料」，没有手机外壳和设计包品牌字样', async () => {
+    renderRoutes('/home')
     await screen.findAllByRole('navigation', { name: '主导航' })
-    expect(within(sidebar()).getAllByRole('link').map((a) => a.textContent?.trim())).toEqual(['助手', '商机', '官网', '我的'])
+    expect(within(sidebar()).getAllByRole('link').map((a) => a.textContent?.trim())).toEqual(['首页', '我的网站', '海外买家', '我的资料'])
     expect(document.body.textContent).not.toMatch(/\u5143\u5b9d/)
     expect(document.querySelector('[class*="yb-"]')).toBeNull()
-    expect(document.querySelector('.app-canvas, .page-tabbar')).toBeNull()
   })
 
-  it('点击侧边栏切换路由，当前页面高亮', async () => {
-    const { router } = renderRoutes('/assistant')
-    await screen.findAllByRole('navigation', { name: '主导航' })
+  it('点击侧边栏切换路由，当前页面高亮；每个页面都没有行话', async () => {
+    const { router } = renderRoutes('/home')
+    await screen.findByText('服务进度')
+    expect(document.body.textContent).not.toMatch(JARGON)
     for (const item of MAIN_NAV.slice(1)) {
       fireEvent.click(within(sidebar()).getByRole('link', { name: item.label }))
       await waitFor(() => expect(router.state.location.pathname).toBe(item.path))
       expect(within(sidebar()).getByRole('link', { name: item.label }).getAttribute('aria-current')).toBe('page')
+      await waitFor(() => expect(document.querySelector('.ui-spinner')).toBeNull())
+      expect(document.body.textContent).not.toMatch(JARGON)
     }
   })
 
-  it('运营菜单只对运营人员显示', async () => {
-    const first = renderRoutes('/assistant')
-    await screen.findAllByRole('navigation', { name: '主导航' })
-    expect(within(sidebar()).queryByRole('link', { name: '客户列表' })).toBeNull()
-    first.unmount()
+  it('客户打开运营工具（助手、网站编辑、找买家设置）会回到首页', async () => {
+    const { router } = renderRoutes('/assistant')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/home'))
+    await act(() => router.navigate('/site'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/home'))
+    await act(() => router.navigate('/me/watches'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/home'))
+  })
 
-    server.on('GET', '/auth/me', { ...DEMO_USER, is_staff: true })
-    renderRoutes('/assistant')
+  it('运营代操作时额外显示「代操作工具」和运营菜单', async () => {
+    server.on('GET', '/auth/me', OPERATOR_USER).on('GET', '/assistant/conversations', [])
+    renderRoutes('/home')
     const nav = await screen.findByRole('navigation', { name: '主导航' })
-    expect(await within(nav).findByRole('link', { name: '客户列表' })).toBeTruthy()
-    expect(within(nav).getByText('运营')).toBeTruthy()
+    expect(await within(nav).findByRole('link', { name: 'AI 助手' })).toBeTruthy()
+    expect(within(nav).getByText('代操作工具')).toBeTruthy()
+    expect(within(nav).getByRole('link', { name: '待办任务' })).toBeTruthy()
   })
 
   it('手机宽度：顶栏菜单按钮打开抽屉导航，选择后关闭', async () => {
-    const { router } = renderRoutes('/assistant')
+    const { router } = renderRoutes('/home')
     await screen.findAllByRole('navigation', { name: '主导航' })
     fireEvent.click(screen.getByRole('button', { name: '菜单' }))
     const drawer = await screen.findByRole('dialog', { name: '菜单' })
-    fireEvent.click(within(drawer).getByRole('link', { name: '商机' }))
-    await waitFor(() => expect(router.state.location.pathname).toBe('/leads'))
+    fireEvent.click(within(drawer).getByRole('link', { name: '海外买家' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/buyers'))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: '菜单' })).toBeNull())
   })
 
   it('深浅色切换写入 <html data-theme> 并记住选择', async () => {
-    renderRoutes('/assistant')
+    renderRoutes('/home')
     await screen.findAllByRole('navigation', { name: '主导航' })
     const before = document.documentElement.dataset.theme
     fireEvent.click(screen.getAllByRole('button', { name: before === 'dark' ? '浅色模式' : '深色模式' })[0])
@@ -68,110 +84,112 @@ describe('工作台布局', () => {
     expect(window.localStorage.getItem('aicmo.theme')).toBe(document.documentElement.dataset.theme)
   })
 
-  it('商机页未开启监控时引导创建；官网页在档案不足时引导完善档案', async () => {
-    server
-      .on('GET', '/site', null)
-      .on('GET', '/watches', [])
-      .on('GET', /^\/leads\?/, { items: [], total: 0, new_count: 0, today_count: 0 })
-    const { router } = renderRoutes('/leads')
-    expect(await screen.findByText('还没有开启商机监控')).toBeTruthy()
-    await act(() => router.navigate('/site'))
-    fireEvent.click(await screen.findByRole('button', { name: '先完善企业档案' }))
-    expect(router.state.location.pathname).toBe('/me/profile')
-  })
-
-  it('Toast 3 秒后自动消失（同一时间只显示一条）', async () => {
-    server.on('POST', '/assistant/conversations', { error: { code: 'internal_error', message: '' } }, 500)
-    renderRoutes('/assistant')
-    const input = (await screen.findByRole('textbox', { name: '给助手发消息' })) as HTMLTextAreaElement
-    fireEvent.change(input, { target: { value: '找德国的阀门买家' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByText('服务暂时不可用，请稍后重试')).toBeTruthy()
-    expect(input.value).toBe('')
-    const shownAt = Date.now()
-    await waitFor(() => expect(screen.queryByText('服务暂时不可用，请稍后重试')).toBeNull(), { timeout: 4500 })
-    expect(Date.now() - shownAt).toBeGreaterThanOrEqual(2500)
-  })
-
   it('请求携带登录 token 与当前企业头', async () => {
-    renderRoutes('/me')
-    await screen.findAllByText('完整度 0%')
-    const profileCall = server.calls.find((call) => call.path === '/profile')!
-    expect(profileCall.headers.get('Authorization')).toBe('Bearer test-token')
-    expect(profileCall.headers.get('X-Company-Id')).toBe('c1')
+    renderRoutes('/home')
+    await screen.findByText('服务进度')
+    const call = server.calls.find((c) => c.path === '/service/overview')!
+    expect(call.headers.get('Authorization')).toBe('Bearer test-token')
+    expect(call.headers.get('X-Company-Id')).toBe('c1')
+  })
+})
+
+describe('客户首页', () => {
+  it('显示服务进度、下一步要做的事和这周的结果；按钮跳到对应页面', async () => {
+    server.on(
+      'GET',
+      '/service/overview',
+      demoOverview({
+        stage: 'materials',
+        missing: ['product_photo'],
+        next: { title: '还差：产品照片', body: '补齐后我们就能开始做网站。', action: '去上传', link: '/materials' },
+      }),
+    )
+    const { router } = renderRoutes('/home')
+    const track = await screen.findByRole('list', { name: '服务进度' })
+    expect(within(track).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1资料已收到', '2网站制作中', '3网站待你确认', '4网站已上线', '5正在找买家'])
+    expect(within(track).getByText('资料已收到').closest('li')?.getAttribute('aria-current')).toBe('step')
+    expect(screen.getByRole('heading', { name: '还差：产品照片' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '去上传' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/materials'))
+  })
+
+  it('只需等待时说明「不用做什么」', async () => {
+    server.on('GET', '/service/overview', demoOverview({ stage: 'building', next: { title: '你的英文网站正在制作', body: '预计 3 个工作日内完成', action: '', link: '' } }))
+    renderRoutes('/home')
+    expect(await screen.findByText('你现在不用做什么，等我们的通知就行。')).toBeTruthy()
+  })
+
+  it('还没走完开通向导时直接进入向导', async () => {
+    server.on('GET', '/service/overview', demoOverview({ stage: 'start', submitted: false }))
+    const { router } = renderRoutes('/home')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/start'))
   })
 })
 
 describe('公开首页', () => {
-  it('未登录访问首页展示营销内容与注册 / 登录入口；已登录访问首页进入助手', async () => {
+  it('未登录访问首页展示营销内容与注册 / 登录入口；已登录访问首页进入工作台首页', async () => {
     window.localStorage.clear()
     const first = renderRoutes('/')
     expect(await screen.findByRole('heading', { level: 1, name: '帮工厂找到海外买家' })).toBeTruthy()
-    // 第一次来的人能看懂：得到什么 + 一个具体例子 + 自己要做什么
     expect(screen.getByText('一个英文官网')).toBeTruthy()
-    expect(screen.getByText('每天的采购机会')).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 2, name: '举个例子：一家做阀门的工厂' })).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 2, name: '你要做的事很少' })).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 2, name: '常见问题' })).toBeTruthy()
     expect(screen.queryByRole('navigation', { name: '主导航' })).toBeNull()
     fireEvent.click(within(screen.getByRole('main')).getByRole('button', { name: '登录' }))
     await waitFor(() => expect(first.router.state.location.pathname).toBe('/login'))
     first.unmount()
 
-    window.localStorage.clear()
-    const second = renderRoutes('/')
-    fireEvent.click((await screen.findAllByRole('button', { name: '免费试用 14 天' }))[0])
-    await waitFor(() => expect(second.router.state.location.pathname).toBe('/register'))
-    second.unmount()
-
     signedIn()
     const { router } = renderRoutes('/')
-    await waitFor(() => expect(router.state.location.pathname).toBe('/assistant'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/home'))
   })
 })
 
 describe('路由守卫', () => {
   it('未登录访问应用页跳转到登录页，并记住来源', async () => {
     window.localStorage.clear()
-    const { router } = renderRoutes('/me/products')
+    const { router } = renderRoutes('/materials')
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
-    expect((router.state.location.state as { from: string }).from).toBe('/me/products')
+    expect((router.state.location.state as { from: string }).from).toBe('/materials')
   })
 
-  it('没有企业时进入创建企业页', async () => {
+  it('没有企业时进入开通向导', async () => {
     server.on('GET', '/auth/me', { ...DEMO_USER, companies: [] })
-    const { router } = renderRoutes('/assistant')
-    await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding/company'))
+    const { router } = renderRoutes('/home')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/start'))
+    expect(await screen.findByText('第 1 步，共 3 步')).toBeTruthy()
   })
 
   it('token 失效（401）时清除登录态并回到登录页', async () => {
     server.on('GET', '/auth/me', { error: { code: 'unauthorized', message: '登录已过期' } }, 401)
-    const { router } = renderRoutes('/me')
+    const { router } = renderRoutes('/home')
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(window.localStorage.getItem('aicmo.token')).toBeNull()
   })
 
   it('已登录访问登录页直接进入应用', async () => {
     const { router } = renderRoutes('/login')
-    await waitFor(() => expect(router.state.location.pathname).toBe('/assistant'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/home'))
   })
 })
 
 describe('没有企业的运营人员', () => {
   it('侧边栏只显示运营菜单，并提示如何进入客户企业；没有页面内的第二列导航', async () => {
-    server
-      .on('GET', '/auth/me', { ...DEMO_USER, is_staff: true, companies: [] })
-      .on('GET', /^\/ops\/customers/, [])
+    server.on('GET', '/auth/me', { ...DEMO_USER, is_staff: true, companies: [] }).on('GET', /^\/ops\/customers/, [])
     window.localStorage.removeItem('aicmo.company')
     const { router } = renderRoutes('/ops')
     await waitFor(() => expect(router.state.location.pathname).toBe('/ops/customers'))
     const nav = await screen.findByRole('navigation', { name: '主导航' })
-    expect(within(nav).getAllByRole('link').map((a) => a.textContent?.trim())).toEqual(['客户列表', '复核队列', '审计日志', '数据源监控', '成本看板', '评测集', '联系人删除请求'])
-    expect(within(nav).queryByRole('link', { name: '助手' })).toBeNull()
-    expect(screen.getByText(/要使用助手、商机和官网/)).toBeTruthy()
-    // 全站只有侧边栏一列导航
+    expect(within(nav).getAllByRole('link').map((a) => a.textContent?.trim())).toEqual([
+      '客户列表',
+      '待办任务',
+      '待审核买家',
+      '找买家渠道',
+      'AI 花费',
+      '操作记录',
+      '删除请求',
+    ])
+    expect(within(nav).queryByRole('link', { name: '首页' })).toBeNull()
     expect(screen.getAllByRole('navigation').filter((n) => n.closest('[role="dialog"]') === null)).toHaveLength(1)
-    fireEvent.click(within(nav).getByRole('link', { name: '审计日志' }))
+    fireEvent.click(within(nav).getByRole('link', { name: '操作记录' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/ops/audit'))
     expect(screen.getAllByRole('link', { name: 'AI-CMO' })[0].getAttribute('href')).toBe('/ops/customers')
   })

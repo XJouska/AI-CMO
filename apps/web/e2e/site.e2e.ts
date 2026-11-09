@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test'
-import { completeProfile, expectNoFallback, signUp, watchPageErrors } from './helpers'
+import { completeProfile, expectNoFallback, signUpAsOperator, watchPageErrors } from './helpers'
 
 // 计划 04：官网生成 → 编辑 → 预览 → 发布 → 询盘 → 应用内通知。后端 TEST_MODE（假 LLM），worker 真实处理任务。
 
 test('档案不足时引导完善；生成官网 → 编辑 → 预览 → 发布 → 询盘通知', async ({ page, request }) => {
   const errors = watchPageErrors(page)
-  const account = await signUp(page, request)
+  const account = await signUpAsOperator(page, request)
   await page.goto('/site')
   await expect(page.getByText(/企业档案完整度需要达到 60%/)).toBeVisible()
   await expect(page).toHaveScreenshot('site-need-profile.png')
@@ -55,12 +55,12 @@ test('档案不足时引导完善；生成官网 → 编辑 → 预览 → 发�
   await expect(page).toHaveScreenshot('site-inquiry.png', { mask: [page.getByText(/\d{4}-\d{2}-\d{2}/)] })
 
   const notifications = await (await request.get('/api/v1/notifications', { headers })).json()
-  expect(notifications[0].title).toBe('新询盘：Buyer GmbH')
+  expect(notifications[0].title).toBe('网站收到询价：Buyer GmbH')
   expect(errors).toEqual([])
 })
 
 test('版本回滚与健康检查', async ({ page, request }) => {
-  const account = await signUp(page, request)
+  const account = await signUpAsOperator(page, request)
   const headers = await completeProfile(request, account.token, account.companyId!)
   await request.post('/api/v1/site/generate', { headers, data: {} })
   await expect.poll(async () => (await (await request.get('/api/v1/site', { headers })).json()).task.status, { timeout: 20_000 }).toBe('idle')

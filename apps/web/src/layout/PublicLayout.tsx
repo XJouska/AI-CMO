@@ -41,7 +41,7 @@ export function PublicLayout() {
             ))}
             <div className="site-nav__actions">
               {signedIn ? (
-                <Button onClick={() => navigate('/assistant')} variant="primary">
+                <Button onClick={() => navigate('/home')} variant="primary">
                   {t.home.enterApp}
                 </Button>
               ) : (

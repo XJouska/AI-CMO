@@ -53,13 +53,13 @@ describe('登录 / 注册（规范 form-validation-timing）', () => {
     fireEvent.change(input('邮箱'), { target: { value: ' boss@factory.com ' } })
     fireEvent.change(input('密码'), { target: { value: 'Factory123' } })
     fireEvent.keyDown(input('密码'), { key: 'Enter' })
-    await waitFor(() => expect(router.state.location.pathname).toBe('/assistant'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/home'))
     expect(window.localStorage.getItem('aicmo.token')).toBe('tok')
     expect(window.localStorage.getItem('aicmo.company')).toBe('c1')
     expect(server.calls[0].body).toEqual({ email: 'boss@factory.com', password: 'Factory123' })
   })
 
-  it('注册校验密码强度，新用户进入创建企业页', async () => {
+  it('注册校验密码强度，新用户进入开通向导', async () => {
     const fresh = { ...DEMO_USER, companies: [] }
     server.on('POST', '/auth/register', { token: 'tok', expires_at: '', user: fresh }).on('GET', '/auth/me', fresh)
     const { router } = renderRoutes('/register')
@@ -72,7 +72,7 @@ describe('登录 / 注册（规范 form-validation-timing）', () => {
 
     fireEvent.change(input('密码'), { target: { value: 'Factory123' } })
     fireEvent.click(primary('注册'))
-    await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding/company'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/start'))
   })
 })
 
@@ -81,6 +81,6 @@ describe('登录后的去向', () => {
     const { nextPathAfterAuth } = await import('./LoginPage')
     const staff = { token: 't', expires_at: '', user: { ...DEMO_USER, companies: [], is_staff: true } }
     expect(nextPathAfterAuth(staff, undefined)).toBe('/ops')
-    expect(nextPathAfterAuth({ ...staff, user: { ...staff.user, is_staff: false } }, undefined)).toBe('/onboarding/company')
+    expect(nextPathAfterAuth({ ...staff, user: { ...staff.user, is_staff: false } }, undefined)).toBe('/start')
   })
 })

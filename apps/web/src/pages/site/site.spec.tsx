@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { SiteContent, SiteOut, SiteVersionOut } from '@/site/api'
 import { flagsFor, sectionData, sectionDraft, sectionSummary } from '@/site/model'
-import { demoProfile, DEMO_USER, installFakeServer, signedIn, type FakeServer } from '@/test/fakeServer'
+import { demoProfile, installFakeServer, signedIn, type FakeServer, OPERATOR_USER } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 
 let server: FakeServer
@@ -57,7 +57,7 @@ const draft: SiteVersionOut = {
 beforeEach(() => {
   server = installFakeServer()
   server
-    .on('GET', '/auth/me', DEMO_USER)
+    .on('GET', '/auth/me', OPERATOR_USER)
     .on('GET', '/profile', demoProfile({ completeness: 30 }))
     .on('GET', /^\/site\/inquiries\?limit=\d+$/, [
       { id: 'i1', name: 'John', email: 'j@b.example', company_name: '<b>Buyer</b> GmbH', country: 'Germany', product_ref: 'Ball Valve', message: '<script>alert(1)</script> quote please', status: 'new', created_at: '2026-10-27T09:00:00' },

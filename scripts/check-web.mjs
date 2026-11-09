@@ -22,6 +22,39 @@ const RULES = [
   { name: 'eval / new Function', pattern: /\beval\s*\(|new\s+Function\s*\(/ },
 ]
 
+// 客户（工厂老板）看到的页面不出现行话：只检查字符串字面量和 JSX 文本，不检查注释和标识符。
+const CUSTOMER_FILES = [
+  'src/i18n/customer.ts',
+  'src/pages/customer/StartPage.tsx',
+  'src/pages/customer/HomePage.tsx',
+  'src/pages/customer/MySitePage.tsx',
+  'src/pages/customer/BuyersPages.tsx',
+  'src/pages/customer/MaterialsPage.tsx',
+  'src/service/components.tsx',
+  'src/layout/StartLayout.tsx',
+]
+const CUSTOMER_JARGON = /档案|完整度|监控|商机|助手|模板|发布|版本|SMTP|询盘|开发信|复核/
+
+/** 去掉注释，只保留字符串字面量与 JSX 文本中的中文。 */
+function customerVisibleText(source) {
+  const noComments = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
+  const texts = []
+  for (const m of noComments.matchAll(/'([^'\n]*)'|"([^"\n]*)"|`([^`]*)`|>([^<>{}]+)</g)) texts.push(m[1] ?? m[2] ?? m[3] ?? m[4] ?? '')
+  return texts.join('\n')
+}
+
+async function scanCustomerCopy() {
+  console.log('\n▶ 客户页面用语检查')
+  for (const rel of CUSTOMER_FILES) {
+    const file = path.join(webRoot, rel)
+    const text = customerVisibleText(await readFile(file, 'utf8'))
+    for (const line of text.split('\n')) {
+      const hit = CUSTOMER_JARGON.exec(line)
+      if (hit) fail(`客户页面出现行话「${hit[0]}」：${rel}：${line.trim().slice(0, 60)}`)
+    }
+  }
+}
+
 let failed = false
 function fail(message) {
   console.error(`✗ ${message}`)
@@ -116,6 +149,7 @@ async function scanDist() {
 }
 
 await scanSources()
+await scanCustomerCopy()
 run('单元测试', process.execPath, ['--test', ...(await listFiles(path.join(webRoot, 'src'), (n) => n.endsWith('.test.ts')))])
 run('类型检查', 'npx', ['tsc', '--noEmit', '-p', 'tsconfig.json'], webRoot)
 run('类型检查（配置与测试）', 'npx', ['tsc', '--noEmit', '-p', 'tsconfig.node.json'], webRoot)

@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test'
-import { expectNoFallback, signUp, watchPageErrors } from './helpers'
+import { expectNoFallback, signUpAsOperator, watchPageErrors } from './helpers'
 
 // 计划 03：AI 获客助手。后端 TEST_MODE 使用规则化的假助手（关键词选择工具），走真实的 SSE、工具、确认链路。
 
 test('对话中提供网址 → 档案变更卡片 → 确认后档案更新', async ({ page, request }) => {
   const errors = watchPageErrors(page)
-  const account = await signUp(page, request)
+  const account = await signUpAsOperator(page, request)
   await page.goto('/assistant')
   await expect(page.getByText(/你好，我是/)).toBeVisible()
   await expect(page).toHaveScreenshot('assistant-welcome.png')
@@ -35,7 +35,7 @@ test('对话中提供网址 → 档案变更卡片 → 确认后档案更新', a
 })
 
 test('结构化回答、追问、刷新后从历史恢复', async ({ page, request }, info) => {
-  await signUp(page, request)
+  await signUpAsOperator(page, request)
   await page.goto('/assistant')
   await page.getByRole('button', { name: /帮我补充企业档案/ }).click()
   await expect(page.getByRole('heading', { name: '档案情况' })).toBeVisible()
@@ -53,7 +53,7 @@ test('结构化回答、追问、刷新后从历史恢复', async ({ page, reque
 })
 
 test('生成中可停止；停止后可重试', async ({ page, request }) => {
-  await signUp(page, request)
+  await signUpAsOperator(page, request)
   let release: () => void = () => {}
   const gate = new Promise<void>((resolve) => {
     release = resolve
@@ -79,7 +79,7 @@ test('生成中可停止；停止后可重试', async ({ page, request }) => {
 })
 
 test('弱网：5 秒无数据显示轻提示，保持输出中', async ({ page, request }) => {
-  await signUp(page, request)
+  await signUpAsOperator(page, request)
   await page.route('**/api/v1/assistant/conversations/*/messages', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
     await new Promise((resolve) => setTimeout(resolve, 8000))

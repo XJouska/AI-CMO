@@ -13,8 +13,8 @@ import { Button, PasswordField, TextField, useToast } from '@/ui'
 type Mode = 'login' | 'register'
 
 export function nextPathAfterAuth(session: SessionOut, from: string | undefined): string {
-  if (session.user.companies.length === 0) return session.user.is_staff ? '/ops' : '/onboarding/company'
-  return from && from.startsWith('/') && !from.startsWith('//') ? from : '/assistant'
+  if (session.user.companies.length === 0) return session.user.is_staff ? '/ops' : '/start'
+  return from && from.startsWith('/') && !from.startsWith('//') ? from : '/home'
 }
 
 export function AuthPage({ mode }: { mode: Mode }) {

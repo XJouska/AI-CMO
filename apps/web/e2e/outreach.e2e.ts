@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
-import { completeProfile, expectNoFallback, signUp, staffHeaders, waitForPendingLeads, watchPageErrors } from './helpers'
+import { completeProfile, expectNoFallback, signUpAsOperator, staffHeaders, waitForPendingLeads, watchPageErrors } from './helpers'
 
 // 计划 06：商机 → 生成开发信 → 确认发送（假 SMTP）→ 自动推进「已联系」→ 记录回复 → 推进阶段 → 下一步提醒（待跟进）→ 周报。
 
@@ -17,7 +17,7 @@ async function approvedLead(request: APIRequestContext, token: string, companyId
 
 test('开发信 → 确认发送 → 跟进阶段 → 待跟进 → 周报', async ({ page, request }) => {
   const errors = watchPageErrors(page)
-  const account = await signUp(page, request)
+  const account = await signUpAsOperator(page, request)
   const { headers, leadId } = await approvedLead(request, account.token, account.companyId!)
 
   // 绑定发信邮箱（假 SMTP；*.example 视为公网地址）
@@ -94,7 +94,7 @@ test('开发信 → 确认发送 → 跟进阶段 → 待跟进 → 周报', asy
 test('未绑定邮箱：复制开发信后标记已发送', async ({ page, request, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   const errors = watchPageErrors(page)
-  const account = await signUp(page, request)
+  const account = await signUpAsOperator(page, request)
   const { leadId } = await approvedLead(request, account.token, account.companyId!)
   await page.goto(`/leads/${leadId}/draft`)
   await expect(page.getByLabel('主题')).toHaveValue(/^Re: /, { timeout: 15_000 })

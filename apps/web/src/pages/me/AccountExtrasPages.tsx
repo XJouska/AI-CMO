@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCircle2, Download, FileJson, FileSpreadsheet, FileText, Settings2, ShieldAlert } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { MarkdownText as PolicyMarkdown } from '@/assistant/MarkdownText'
 import { QueryView } from '@/components/QueryView'
 import { useErrorToast } from '@/feedback/useErrorToast'
@@ -98,6 +98,7 @@ export function BillingPage() {
 
 export function NotificationsPage() {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const session = useSession()
   const queryClient = useQueryClient()
   const list = useQuery({ queryKey: ['notifications', session.company?.id], queryFn: notificationsApi.list })
@@ -110,7 +111,7 @@ export function NotificationsPage() {
   return (
     <SettingsPage
       actions={
-        <Button icon={Settings2} onClick={() => navigate('/me/notifications/settings')} variant="outline">
+        <Button icon={Settings2} onClick={() => navigate(`${pathname.startsWith('/account') ? '/account' : '/me'}/notifications/settings`)} variant="outline">
           {t.notifications.settingsEntry}
         </Button>
       }
@@ -140,10 +141,11 @@ export function NotificationsPage() {
 // ── 通知设置 ───────────────────────────────────────────────────────────
 
 export function NotificationSettingsPage() {
+  const { pathname } = useLocation()
   const session = useSession()
   const prefs = useQuery({ queryKey: ['notification-prefs', session.company?.id], queryFn: notificationsApi.prefs })
   return (
-    <SettingsPage back="/me/notifications" title={t.notifications.settingsTitle}>
+    <SettingsPage back={pathname.startsWith('/account') ? '/account/notifications' : '/me/notifications'} title={t.notifications.settingsTitle}>
       <QueryView query={prefs}>{(data) => <PrefsEditor data={data} />}</QueryView>
     </SettingsPage>
   )
