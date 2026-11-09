@@ -14,7 +14,7 @@ interface QueryLike<T> {
 interface QueryViewProps<T> {
   query: QueryLike<T>
   isEmpty?: (data: T) => boolean
-  empty?: { title: string; desc: string; action?: string; onAction?: () => void; icon?: LucideIcon }
+  empty?: { title: string; desc?: string; action?: string; onAction?: () => void; icon?: LucideIcon }
   children: (data: T) => ReactNode
 }
 

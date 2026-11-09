@@ -121,14 +121,14 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml --
 
 ## 10. 当前生产部署
 
-> **2026-10-28 19:04 已回滚到旧版。** 新版界面要重做成网页形态（不再用手机 App 外壳）。目前线上的 `www.aicmo.site` 是旧版：
-> 宿主 Nginx 指向 9010 / 9011，旧容器由 `/home/ai-cmo-legacy/docker-compose.yml` 管理（`docker compose up -d --no-deps frontend backend`）。
-> 新版容器 `aicmo-v2-*` 仍在运行，只监听 127.0.0.1，公网访问不到。新版 Nginx 配置保存在 `/var/backups/aicmo-legacy/nginx-ai-cmo.conf.v2`，
-> 重新切到新版时：`cp /var/backups/aicmo-legacy/nginx-ai-cmo.conf.v2 /www/server/panel/vhost/nginx/ai-cmo.conf && nginx -t && nginx -s reload`，
-> 再停掉旧前后端容器。下面是切换到新版时的记录。
+> **2026-11-09 17:35 正式切换到新版（网页形态）。** 宿主 Nginx 使用 `/var/backups/aicmo-legacy/nginx-ai-cmo.conf.v2`，
+> 临时 IP 预览入口已删除（`http://43.160.243.154/` 现在 308 跳转到 `https://www.aicmo.site`）。切换前的 Nginx 配置备份为
+> `/var/backups/aicmo-legacy/nginx-ai-cmo.conf.before-cutover-20261109T173318`，旧库导出为 `legacy-db-20261109T173318.sql.gz`。
 >
-> **临时预览入口（2026-11-02）**：`http://43.160.243.154/`（直接用服务器 IP，HTTP）反代到新版 web 容器，供确认新版界面。
-> 配置在 `ai-cmo.conf` 末尾「新版预览（临时）」一段；正式切换后删除该段。改动前的配置备份为 `/var/backups/aicmo-legacy/nginx-ai-cmo.conf.before-preview`。
+> **2026-11-09 17:44 清空测试数据（冷启动）。** 删除了全部 17 家企业（宁波测试阀门、富尔代插秧机、冒烟测试厂、SSE 测试厂）、
+> 18 个测试账号，以及数据源请求记录、登录记录、审计日志。保留的账号：运营 `lixin.time@gmail.com` 和 5 个从旧版迁移的用户
+> （都还没有企业）。清理前的加密备份：`/var/backups/aicmo-v2/aicmo-20261109T094354Z.tar.enc`。
+> 之后对生产跑冒烟测试（`deployed.smoke.ts`）会再创建「冒烟测试厂 / SSE 测试厂」和 `smoke-* / sse-* / e2e-*` 账号，需要时同样清理。
 
 本服务器的 80 / 443 由宝塔面板管理的宿主 Nginx 占用（同机还托管 vidsnap、wordscene 等站点），因此**没有启用** `docker-compose.prod.yml` 中的 Caddy，而是由宿主 Nginx 反代到新版容器：
 
@@ -172,5 +172,5 @@ docker exec -i -e LEGACY_DATABASE_URL="postgresql+psycopg://ai_cmo:<旧库密码
 # 正式执行：去掉 --dry-run；--only EMAIL 只处理指定账号；--replace-password EMAIL 覆盖新版已存在账号的密码
 ```
 
-2026-11-02 已执行：`--only lixin.time@gmail.com --replace-password lixin.time@gmail.com`。其余 7 个旧账号尚未迁移，
-正式切换到新版时再执行一次（不带 `--only`）。
+2026-11-02 已执行：`--only lixin.time@gmail.com --replace-password lixin.time@gmail.com`。
+2026-11-09 切换时执行了全量迁移（不带 `--only`）：新建 6 个，跳过 2 个已存在的。其中 `t@t.com`、`qa@test.com` 是测试账号，已在冷启动清理时删除。

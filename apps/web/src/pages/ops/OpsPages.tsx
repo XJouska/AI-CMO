@@ -55,7 +55,11 @@ export function OpsCustomersPage() {
   }, [q])
   return (
     <OpsPage title={t.ops.customers} toolbar={<TextField aria-label={t.ops.search} fieldClassName="ops-search" maxLength={60} onChange={setQ} placeholder={t.ops.search} prefix={<Search size={16} />} value={q} />}>
-      <QueryView empty={{ title: t.ops.customers, desc: t.common.networkErrorDesc, icon: Users }} isEmpty={(rows) => rows.length === 0} query={customers}>
+      <QueryView
+        empty={query ? { title: t.ops.noCustomersMatch, icon: Users } : { title: t.ops.noCustomersTitle, desc: t.ops.noCustomersDesc, icon: Users }}
+        isEmpty={(rows) => rows.length === 0}
+        query={customers}
+      >
         {(rows) => (
           <DataTable head={[t.ops.colCompany, t.ops.colPlan, t.ops.colProfile, t.ops.colLeads, t.ops.colPending, t.ops.colActive]}>
             {rows.map((c) => (
@@ -450,7 +454,7 @@ export function OpsDataRequestsPage() {
   })
   return (
     <OpsPage title={t.ops.dataRequests}>
-      <QueryView empty={{ title: t.ops.dataRequests, desc: t.privacy.erasureDesc, icon: UserX }} isEmpty={(rows) => rows.length === 0} query={requests}>
+      <QueryView empty={{ title: t.ops.noDataRequests, desc: t.ops.noDataRequestsDesc, icon: UserX }} isEmpty={(rows) => rows.length === 0} query={requests}>
         {(rows) => (
           <div className="ui-list">
             {rows.map((r) => (

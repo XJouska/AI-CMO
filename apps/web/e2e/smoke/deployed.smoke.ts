@@ -40,7 +40,7 @@ test('生产容器：健康检查与安全响应头', async ({ request }) => {
   expect((await request.get('/api/v1/../openapi.json')).status()).not.toBe(200)
 })
 
-test('生产容器：注册、建企业、写档案；未配置 LLM 时 AI 建档给出明确失败原因', async ({ request }) => {
+test('生产容器：注册、建企业、写档案；AI 建档能结束（已配置模型时成功，未配置时给出失败原因）', async ({ request }) => {
   const email = `smoke-${Date.now()}@example.com`
   const reg = await request.post('/api/v1/auth/register', { data: { email, password: 'Factory123', name: 'smoke' } })
   expect(reg.status()).toBe(201)
@@ -58,10 +58,10 @@ test('生产容器：注册、建企业、写档案；未配置 LLM 时 AI 建�
       timeout: 120_000,
       intervals: [2000],
     })
-    .toBe('failed')
+    .toMatch(/^(succeeded|failed)$/)
 })
 
-test('生产容器：助手 SSE 经过 Nginx 不被缓冲；未配置 LLM 时返回明确错误', async ({ request }) => {
+test('生产容器：助手 SSE 经过 Nginx 正常返回事件流', async ({ request }) => {
   const reg = await request.post('/api/v1/auth/register', {
     data: { email: `sse-${Date.now()}@example.com`, password: 'Factory123', name: 'sse' },
   })
@@ -71,8 +71,9 @@ test('生产容器：助手 SSE 经过 Nginx 不被缓冲；未配置 LLM 时返
   const conversation = await (await request.post('/api/v1/assistant/conversations', { data: {}, headers })).json()
   const res = await request.post(`/api/v1/assistant/conversations/${conversation.id}/messages`, { data: { text: '你好' }, headers })
   expect(res.headers()['content-type']).toContain('text/event-stream')
-  expect(res.headers()['x-accel-buffering']).toBe('no')
+  // 宿主 Nginx 会消费 X-Accel-Buffering 头，经过它之后客户端看不到该头，这里只检查事件流本身
   const body = await res.text()
   expect(body).toContain('event: message.start')
-  expect(body).toContain('"code":"llm_not_configured"')
+  // 已配置模型时正常结束；未配置时返回明确错误码
+  expect(body).toMatch(/event: message\.done|"code":"llm_not_configured"/)
 })

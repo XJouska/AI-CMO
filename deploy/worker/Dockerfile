@@ -14,6 +14,7 @@ RUN pip install -r requirements-worker.txt \
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
+COPY evals ./evals
 COPY --from=templates . /app/site-templates
 
 RUN mkdir -p /data/sites /data/storage /data/browser-profile && chown -R app:app /data
