@@ -1,5 +1,5 @@
-// 公开营销首页：首屏、产品示意、核心能力、使用流程、适用企业、常见问题、行动按钮。已登录用户直接进入助手。
-import { ArrowRight, Building2, CalendarClock, Check, ChevronDown, FileText, Globe, Mail, Radar, Sparkles, Target, Users, type LucideIcon } from 'lucide-react'
+// 公开营销首页：用一句大白话说清楚做什么，再用一个具体例子说明「你交什么、得到什么」。已登录用户直接进入工作台。
+import { ArrowRight, Building2, Check, ChevronDown, Globe, Inbox, Mail, Sparkles, Target, UserRound, Users, Bot, type LucideIcon } from 'lucide-react'
 import { useEffect } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { BRAND } from '@/brand'
@@ -7,13 +7,13 @@ import { t } from '@/i18n'
 import { useSession } from '@/session/session'
 import { Button, Tag } from '@/ui'
 
-const FEATURE_ICONS: LucideIcon[] = [Radar, Globe, Mail, CalendarClock]
-const STEP_ICONS: LucideIcon[] = [FileText, Globe, Target]
+const OUTCOME_ICONS: LucideIcon[] = [Globe, Target]
 const AUDIENCE_ICONS: LucideIcon[] = [Building2, Users, Sparkles]
 
 export function HomePage() {
   const session = useSession()
   const navigate = useNavigate()
+  const h = t.home
 
   useEffect(() => {
     document.title = `${BRAND.name} · ${BRAND.tagline}`
@@ -28,77 +28,81 @@ export function HomePage() {
           <div className="home-hero__copy">
             <span className="home-eyebrow">
               <Sparkles aria-hidden size={14} />
-              {t.home.eyebrow}
+              {h.eyebrow}
             </span>
-            <h1 className="home-hero__title">{t.home.headline}</h1>
-            <p className="home-hero__lead">{t.home.subheadline}</p>
+            <h1 className="home-hero__title">{h.headline}</h1>
+            <p className="home-hero__lead">{h.subheadline}</p>
+            <ul className="home-outcomes">
+              {h.outcomes.map((item, index) => {
+                const Icon = OUTCOME_ICONS[index]
+                return (
+                  <li key={item.title}>
+                    <span aria-hidden className="home-outcomes__icon">
+                      <Icon size={18} />
+                    </span>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <p>{item.desc}</p>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
             <div className="home-hero__actions">
               <Button iconRight={ArrowRight} onClick={() => navigate('/register')} size="lg" variant="primary">
-                {t.home.start}
+                {h.start}
               </Button>
-              <Button onClick={() => navigate('/login')} size="lg" variant="outline">
-                {t.home.login}
+              <Button onClick={() => document.getElementById('example')?.scrollIntoView({ behavior: 'smooth' })} size="lg" variant="outline">
+                {h.seeExample}
               </Button>
             </div>
-            <ul className="home-trust">
-              {t.home.trust.map((item) => (
-                <li key={item}>
-                  <Check aria-hidden size={14} />
-                  {item}
-                </li>
-              ))}
-            </ul>
+            <p className="home-hero__login">
+              {h.hasAccount}{' '}
+              <button className="home-link" onClick={() => navigate('/login')} type="button">
+                {h.login}
+              </button>
+            </p>
           </div>
           <ProductMock />
         </div>
       </section>
 
-      <section className="home-section" id="features">
+      <section className="home-section" id="example">
         <div className="site-container">
-          <SectionHead desc={t.home.featuresDesc} title={t.home.featuresTitle} />
-          <div className="home-features">
-            {t.home.features.map((feature, index) => {
-              const Icon = FEATURE_ICONS[index]
-              return (
-                <article className="home-feature" key={feature.title}>
-                  <span aria-hidden className="home-feature__icon">
-                    <Icon size={20} />
-                  </span>
-                  <h3>{feature.title}</h3>
-                  <p>{feature.desc}</p>
-                </article>
-              )
-            })}
-          </div>
+          <SectionHead desc={h.exampleDesc} title={h.exampleTitle} />
+          <ol className="home-timeline">
+            {h.example.map((step, index) => (
+              <li className="home-timeline__item" key={step.when}>
+                <div className="home-timeline__marker">
+                  <span>{index + 1}</span>
+                </div>
+                <div className="home-timeline__body">
+                  <div className="home-timeline__when">{step.when}</div>
+                  <h3>{step.title}</h3>
+                  {step.quote ? <blockquote className="home-timeline__quote">{step.quote}</blockquote> : null}
+                  <p>{step.desc}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
 
       <section className="home-section home-section--tint" id="how">
         <div className="site-container">
-          <SectionHead desc={t.home.stepsDesc} title={t.home.stepsTitle} />
-          <ol className="home-steps">
-            {t.home.steps.map((step, index) => {
-              const Icon = STEP_ICONS[index]
-              return (
-                <li className="home-step" key={step}>
-                  <div className="home-step__top">
-                    <span className="home-step__num">{index + 1}</span>
-                    <Icon aria-hidden size={18} />
-                  </div>
-                  <h3>{t.home.stepTitles[index]}</h3>
-                  <p>{step}</p>
-                </li>
-              )
-            })}
-          </ol>
+          <SectionHead desc={h.splitDesc} title={h.splitTitle} />
+          <div className="home-split">
+            <SplitCard icon={UserRound} items={h.youDo} title={h.youDoTitle} />
+            <SplitCard accent icon={Bot} items={h.weDo} title={h.weDoTitle} />
+          </div>
         </div>
       </section>
 
       <section className="home-section">
         <div className="site-container">
-          <SectionHead desc={t.home.note} title={t.home.audienceTitle} />
+          <SectionHead desc={h.note} title={h.audienceTitle} />
           <div className="home-audience">
-            {t.home.audience.map((item, index) => {
+            {h.audience.map((item, index) => {
               const Icon = AUDIENCE_ICONS[index]
               return (
                 <article className="home-audience__item" key={item.title}>
@@ -116,9 +120,9 @@ export function HomePage() {
 
       <section className="home-section home-section--tint" id="faq">
         <div className="site-container home-faq-wrap">
-          <SectionHead title={t.home.faqTitle} />
+          <SectionHead title={h.faqTitle} />
           <div className="home-faq">
-            {t.home.faq.map((item) => (
+            {h.faq.map((item) => (
               <details className="home-faq__item" key={item.q}>
                 <summary>
                   <span>{item.q}</span>
@@ -135,11 +139,11 @@ export function HomePage() {
         <div className="site-container">
           <div className="home-cta">
             <div>
-              <h2>{t.home.ctaTitle}</h2>
-              <p>{t.home.ctaDesc}</p>
+              <h2>{h.ctaTitle}</h2>
+              <p>{h.ctaDesc}</p>
             </div>
             <Button iconRight={ArrowRight} onClick={() => navigate('/register')} size="lg" variant="primary">
-              {t.home.start}
+              {h.start}
             </Button>
           </div>
         </div>
@@ -157,51 +161,75 @@ function SectionHead({ title, desc }: { title: string; desc?: string }) {
   )
 }
 
-/** 产品界面示意：用组件拼出的商机列表 + 官网状态卡片。 */
+function SplitCard({ title, items, icon: Icon, accent }: { title: string; items: readonly string[]; icon: LucideIcon; accent?: boolean }) {
+  return (
+    <article className={accent ? 'home-split__card is-accent' : 'home-split__card'}>
+      <div className="home-split__head">
+        <span aria-hidden className="home-split__icon">
+          <Icon size={18} />
+        </span>
+        <h3>{title}</h3>
+      </div>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>
+            <Check aria-hidden size={16} />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </article>
+  )
+}
+
+/** 产品示意：用中文展示「每天收到的采购机会」和「已上线的英文官网」，第一次来的人一眼看懂得到什么。 */
 function ProductMock() {
   const mock = t.home.mock
   return (
-    <div aria-hidden className="home-mock">
+    <div aria-label={mock.label} className="home-mock" role="img">
       <div className="home-mock__window">
         <div className="home-mock__bar">
           <span />
           <span />
           <span />
         </div>
-        <div className="home-mock__body">
-          <div className="home-mock__side">
-            <span className="is-active" />
-            <span />
-            <span />
-            <span />
+        <div className="home-mock__main">
+          <div className="home-mock__title">
+            <Target aria-hidden size={16} />
+            {mock.title}
           </div>
-          <div className="home-mock__main">
-            <div className="home-mock__title">
-              <Target size={16} />
-              {mock.title}
-            </div>
-            {mock.items.map((item) => (
-              <div className="home-mock__lead" key={item.title}>
-                <div className="home-mock__lead-top">
-                  <Tag tone="neutral">{item.type}</Tag>
-                  <Tag tone="accent">{`${item.score} 分`}</Tag>
-                </div>
-                <div className="home-mock__lead-title">{item.title}</div>
-                <div className="home-mock__lead-meta">{item.meta}</div>
+          {mock.items.map((item) => (
+            <div className="home-mock__lead" key={item.title}>
+              <div className="home-mock__lead-top">
+                <Tag tone="neutral">{item.type}</Tag>
+                <span className="home-mock__lead-where">{item.where}</span>
+                <Tag tone="success">{item.score}</Tag>
               </div>
-            ))}
-          </div>
+              <div className="home-mock__lead-title">{item.title}</div>
+              <div className="home-mock__lead-meta">{item.meta}</div>
+              {item.reason ? <div className="home-mock__lead-reason">{item.reason}</div> : null}
+              {item.action ? (
+                <div className="home-mock__lead-action">
+                  <Mail aria-hidden size={13} />
+                  {item.action}
+                </div>
+              ) : null}
+            </div>
+          ))}
         </div>
       </div>
       <div className="home-mock__float">
         <span className="home-mock__float-icon">
-          <Globe size={18} />
+          <Globe aria-hidden size={18} />
         </span>
         <div>
           <div className="home-mock__float-title">{mock.site}</div>
           <div className="home-mock__float-meta">
             <Tag tone="success">{mock.siteStatus}</Tag>
-            <span>{mock.health}</span>
+            <span className="home-mock__float-inquiry">
+              <Inbox aria-hidden size={12} />
+              {mock.inquiries}
+            </span>
           </div>
         </div>
       </div>

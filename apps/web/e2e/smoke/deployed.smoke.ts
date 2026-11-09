@@ -13,7 +13,7 @@ test('生产容器：页面加载无 CSP 违规和脚本错误，主导航可切
 
   const home = await page.goto('/')
   expect(home?.headers()['content-security-policy']).toContain("script-src 'self'")
-  await expect(page.getByRole('heading', { level: 1, name: '外贸工厂的 AI 获客助手' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '帮工厂找到海外买家' })).toBeVisible()
   await expect(page.locator('[class*="yb-"]')).toHaveCount(0)
 
   await signUp(page, request, { company: '冒烟测试厂' })

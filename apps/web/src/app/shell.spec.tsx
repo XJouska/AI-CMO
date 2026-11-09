@@ -106,11 +106,15 @@ describe('公开首页', () => {
   it('未登录访问首页展示营销内容与注册 / 登录入口；已登录访问首页进入助手', async () => {
     window.localStorage.clear()
     const first = renderRoutes('/')
-    expect(await screen.findByRole('heading', { level: 1, name: '外贸工厂的 AI 获客助手' })).toBeTruthy()
-    expect(screen.getByText('生成英文品牌官网')).toBeTruthy()
+    expect(await screen.findByRole('heading', { level: 1, name: '帮工厂找到海外买家' })).toBeTruthy()
+    // 第一次来的人能看懂：得到什么 + 一个具体例子 + 自己要做什么
+    expect(screen.getByText('一个英文官网')).toBeTruthy()
+    expect(screen.getByText('每天的采购机会')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: '举个例子：一家做阀门的工厂' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: '你要做的事很少' })).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: '常见问题' })).toBeTruthy()
     expect(screen.queryByRole('navigation', { name: '主导航' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '已有账号？登录' }))
+    fireEvent.click(within(screen.getByRole('main')).getByRole('button', { name: '登录' }))
     await waitFor(() => expect(first.router.state.location.pathname).toBe('/login'))
     first.unmount()
 

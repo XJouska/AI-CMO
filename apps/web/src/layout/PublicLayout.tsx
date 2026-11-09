@@ -20,7 +20,7 @@ export function PublicLayout() {
   useEffect(() => setMenuOpen(false), [location.pathname, location.hash])
 
   const anchors = [
-    { href: '/#features', label: t.home.nav.features },
+    { href: '/#example', label: t.home.nav.features },
     { href: '/#how', label: t.home.nav.how },
     { href: '/#faq', label: t.home.nav.faq },
   ]
