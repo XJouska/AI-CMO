@@ -411,6 +411,7 @@ ROUTES: list[Route] = [
     Route("GET", "/api/v1/public/policies", "public"),
     # 代运营服务：客户
     Route("GET", "/api/v1/service/overview", "company"),
+    Route("POST", "/api/v1/service/business", "company", body={"business": "不锈钢球阀"}),
     Route("POST", "/api/v1/service/onboarding", "company", body={"style_choice": "heavy"}),
     Route("POST", "/api/v1/service/requests", "company", body={"text": "把首页标题改大一点"}),
     Route("POST", "/api/v1/service/approve-site", "company"),

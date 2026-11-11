@@ -1,7 +1,7 @@
 // 海外买家：列表（每个买家一张卡片：哪国、什么公司、要采购什么、为什么适合你、怎么联系）
 // 和详情（每种联系方式一份中英文对照话术 + 复制英文 + 一键打开 + 联系进展标记）。
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AtSign, Briefcase, Copy, ExternalLink, Globe2, MessageCircle, Phone, RefreshCw, Sparkles, type LucideIcon } from 'lucide-react'
+import { AtSign, Briefcase, Copy, ExternalLink, Globe2, MessageCircle, Phone, RefreshCw, Search, Sparkles, type LucideIcon } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { cust } from '@/i18n/customer'
@@ -10,6 +10,7 @@ import { leadsApi, type LeadOut } from '@/leads/api'
 import { useSession } from '@/session/session'
 import { serviceApi, type Channel, type ContactState, type KitItem } from '@/service/api'
 import { useOverview } from '@/service/components'
+import { BuyersTrackCard } from './HomePage'
 import { Button, Card, Centered, cx, EmptyState, ErrorState, Spinner, Tag, useToast } from '@/ui'
 
 const CHANNEL_ICON: Record<Channel, LucideIcon> = {
@@ -52,7 +53,8 @@ export function BuyersPage() {
     },
   })
   const items = list.data?.pages.flatMap((p) => p.items) ?? []
-  const live = overview.data?.stage === 'live' || overview.data?.stage === 'buyers'
+  const state = overview.data?.buyers.state ?? 'none'
+  const emptyDesc = { none: cust.buyers.emptyNone, preparing: cust.buyers.emptyPreparing, searching: cust.buyers.emptySearching, found: cust.buyers.emptySearching, failed: cust.buyers.emptyFailed }[state]
   return (
     <AppPage description={items.length ? cust.buyers.intro : undefined} title={cust.buyers.title} width="narrow">
       {list.isPending ? (
@@ -62,7 +64,16 @@ export function BuyersPage() {
       ) : list.isError ? (
         <ErrorState actionLabel="重新加载" description="请检查网络后重试" onRetry={() => void list.refetch()} title="网络不太顺畅" />
       ) : items.length === 0 ? (
-        <EmptyState description={live ? cust.buyers.emptyLive : cust.buyers.emptyBeforeLive} title={cust.buyers.empty} />
+        <div className="stack-lg">
+          <EmptyState
+            actionLabel={state === 'none' ? cust.buyers.goStart : undefined}
+            description={emptyDesc}
+            icon={Search}
+            onAction={state === 'none' ? () => navigate('/start') : undefined}
+            title={cust.buyers.empty}
+          />
+          {overview.data && state !== 'none' ? <BuyersTrackCard data={overview.data} /> : null}
+        </div>
       ) : (
         <div className="buyer-list">
           {items.map((lead) => (

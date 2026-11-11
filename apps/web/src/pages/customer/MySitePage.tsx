@@ -1,6 +1,6 @@
 // 我的网站：还没开始 / 制作中 / 待你确认（预览 + 确认上线 + 我要修改）/ 已上线（网址 + 询价）。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, ExternalLink, Monitor, PencilLine, Smartphone } from 'lucide-react'
+import { Check, Copy, ExternalLink, ImagePlus, Monitor, PencilLine, Smartphone } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, type Asset } from '@/api/endpoints'
@@ -17,7 +17,7 @@ export function MySitePage() {
   const [publishing, setPublishing] = useState(false)
   const overview = useOverview({ poll: publishing })
   const data = overview.data
-  const isLive = data?.stage === 'live' || data?.stage === 'buyers'
+  const isLive = data?.stage === 'live'
   // 网站上线后停止轮询
   useEffect(() => {
     if (publishing && isLive) setPublishing(false)
@@ -40,7 +40,7 @@ export function MySitePage() {
         ) : (
           <ReviewSite onApproved={() => setPublishing(true)} />
         )
-      ) : data.stage === 'live' || data.stage === 'buyers' ? (
+      ) : data.stage === 'live' ? (
         <LiveSite url={data.site_url} />
       ) : (
         <Building hours={data.build_hours} />
@@ -57,15 +57,26 @@ function NotStarted() {
 }
 
 function Building({ hours }: { hours: number }) {
+  const navigate = useNavigate()
   const overview = useOverview()
   const assets = useAssets()
   const revising = Boolean(overview.data?.revising)
+  const missing = overview.data?.missing ?? []
   return (
     <div className="stack-lg">
       <Card className="cust-next">
         <h2 className="cust-next__title">{revising ? cust.site.changing : cust.site.notReady}</h2>
         {revising ? null : <p className="cust-next__body">{cust.site.notReadyDesc(hours)}</p>}
       </Card>
+      {missing.length ? (
+        <Card className="cust-tip">
+          <h2 className="cust-section-title">{cust.site.addPhotos}</h2>
+          <p className="muted">{cust.site.addPhotosDesc}</p>
+          <Button icon={ImagePlus} onClick={() => navigate('/materials')} variant="secondary">
+            {cust.site.addPhotosAction}
+          </Button>
+        </Card>
+      ) : null}
       <ReceivedMaterials assets={assets.data ?? []} />
     </div>
   )

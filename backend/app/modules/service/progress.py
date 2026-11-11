@@ -1,11 +1,18 @@
 """服务进度：根据资料、网站、买家数据算出客户当前所处阶段，以及「下一步你要做的事」。
 
-阶段（客户首页的进度条）：
+找买家和做网站是两条独立的线：客户只要说清「工厂叫什么、做什么产品」就能开始找买家，不用等网站。
+
+找买家（buyers_state）：
+  preparing  正在整理你的产品      AI 正在把客户的描述整理成英文产品和关键词
+  searching  正在找买家           找买家计划已启用，还没有推送过买家
+  found      已找到 N 个买家
+  failed     需要我们人工处理      AI 没整理出产品（运营会跟进）
+
+网站（stage，客户首页的网站进度条）：
   materials  资料已收到   向导已提交
   building   网站制作中   运营正在整理资料 / 生成网站
   review     网站待你确认 运营已发给客户确认，客户尚未确认
   live       网站已上线   网站已发布
-  buyers     正在找买家   运营已开始为客户找买家
 """
 
 from __future__ import annotations
@@ -25,20 +32,21 @@ from app.modules.leads.models import Lead
 from app.modules.service.models import TASK_KINDS, ServiceProfile, ServiceTask
 from app.modules.sites.models import Site, SiteInquiry
 
-# 资料类别：客户在向导和「我的资料」中按类别上传。required 为建站必需的类别。
+# 资料类别：客户在向导和「我的资料」中按类别上传。全部可选——没有照片也能开始找买家，
+# recommended 的类别会让网站更好看（首页提示「建议补充」，不阻塞任何流程）。
 MATERIAL_CATEGORIES: dict[str, dict[str, Any]] = {
-    "factory_photo": {"label": "工厂和车间照片", "required": True, "images_only": True},
-    "product_photo": {"label": "产品照片", "required": True, "images_only": True},
-    "catalog": {"label": "产品目录或说明书", "required": False, "images_only": False},
-    "certificate": {"label": "证书", "required": False, "images_only": False},
-    "business_card": {"label": "名片", "required": True, "images_only": False},
-    "logo": {"label": "Logo", "required": False, "images_only": True},
+    "product_photo": {"label": "产品照片", "recommended": True, "images_only": True},
+    "factory_photo": {"label": "工厂和车间照片", "recommended": True, "images_only": True},
+    "business_card": {"label": "名片", "recommended": True, "images_only": False},
+    "logo": {"label": "Logo", "recommended": False, "images_only": True},
+    "catalog": {"label": "产品目录或说明书", "recommended": False, "images_only": False},
+    "certificate": {"label": "证书", "recommended": False, "images_only": False},
 }
 
 # 客户可选的网站风格（与官网版式一一对应，见 sites/styles.py）
 STYLE_CHOICES = ("heavy", "precision", "building", "consumer", "heritage", "tech", "own")
 
-STAGES = ("materials", "building", "review", "live", "buyers")
+STAGES = ("materials", "building", "review", "live")
 # 网站制作时间（小时）：AI 在后台生成，运营核对后发给客户，显示在客户首页
 BUILD_HOURS = 2
 
@@ -63,7 +71,8 @@ def material_counts(db: Session, company_id: uuid.UUID) -> dict[str, int]:
 
 
 def missing_materials(counts: dict[str, int]) -> list[str]:
-    return [key for key, meta in MATERIAL_CATEGORIES.items() if meta["required"] and not counts.get(key)]
+    """建议补充、但还没上传的类别（不阻塞流程）。"""
+    return [key for key, meta in MATERIAL_CATEGORIES.items() if meta["recommended"] and not counts.get(key)]
 
 
 def open_task(
@@ -129,10 +138,9 @@ def snapshot(db: Session, company: Company) -> Snapshot:
 
 
 def stage_of(s: Snapshot) -> str:
+    """网站进度。"""
     if s.profile.submitted_at is None:
         return "start"
-    if s.profile.buyers_started_at is not None and s.site is not None and s.site.status == "published":
-        return "buyers"
     if s.site is not None and s.site.status == "published":
         return "live"
     if s.profile.review_requested_at is not None and s.open_revisions == 0:
@@ -142,6 +150,19 @@ def stage_of(s: Snapshot) -> str:
     return "materials"
 
 
+def buyers_state(s: Snapshot, approved_total: int, watch_active: bool) -> str:
+    """找买家进度。"""
+    if approved_total:
+        return "found"
+    if s.profile.quickstart_status == "running":
+        return "preparing"
+    if watch_active:
+        return "searching"
+    if s.profile.quickstart_status == "failed" or s.profile.submitted_at is not None:
+        return "preparing" if s.profile.business else "failed"
+    return "none"
+
+
 def waiting_on(stage: str, s: Snapshot) -> str:
     """当前卡在谁那里：customer（等客户）/ team（等我们）/ none。"""
     if stage == "start":
@@ -149,65 +170,49 @@ def waiting_on(stage: str, s: Snapshot) -> str:
     if stage == "review":
         return "customer"
     if stage in ("materials", "building"):
-        return "customer" if missing_materials(s.counts) and stage == "materials" else "team"
+        return "team"
     return "none"
 
 
-def next_step(stage: str, s: Snapshot) -> dict[str, str]:
-    """「下一步你要做的事」卡片：title / body / action（按钮文字）/ link。action 为空表示客户只需等待。"""
-    missing = missing_materials(s.counts)
+def next_step(stage: str, s: Snapshot, buyers: str = "none") -> dict[str, str]:
+    """「下一步」卡片：title / body / action（按钮文字）/ link。action 为空表示客户只需等待。"""
     if stage == "start":
         return {
             "title": "先告诉我们你的工厂",
-            "body": "只需要 3 步：填工厂名、上传照片、选网站风格。",
+            "body": "填工厂名和做什么产品，我们马上开始帮你找海外买家。",
             "action": "开始",
             "link": "/start",
         }
-    if stage == "building" and s.open_revisions:
-        return {"title": "我们正在按你的意见修改网站", "body": "改好后会再请你看一遍。", "action": "", "link": ""}
-    if missing and stage in ("materials", "building"):
-        names = "、".join(MATERIAL_CATEGORIES[k]["label"] for k in missing)
-        return {
-            "title": f"还差：{names}",
-            "body": "补齐后我们就能开始做网站。用手机直接拍照上传就行。",
-            "action": "去上传",
-            "link": "/materials",
-        }
-    if stage == "materials":
-        return {
-            "title": "资料已收到，我们正在整理",
-            "body": f"我们正在用 AI 做你的英文网站，大约 {BUILD_HOURS} 小时做好，做好后通知你。",
-            "action": "",
-            "link": "",
-        }
-    if stage == "building":
-        if s.open_revisions:
-            return {"title": "我们正在按你的意见修改网站", "body": "改好后会再请你看一遍。", "action": "", "link": ""}
-        return {
-            "title": "你的英文网站正在制作",
-            "body": f"大约 {BUILD_HOURS} 小时做好，做好后会通知你来看。",
-            "action": "",
-            "link": "",
-        }
     if stage == "review":
         return {
-            "title": "网站做好了，请你看一看",
+            "title": "你的英文网站做好了，请看一看",
             "body": "没问题就点「确认上线」；想改哪里，点「我要修改」告诉我们。",
             "action": "去看网站",
             "link": "/my-site",
         }
-    if stage == "live":
+    if buyers == "found":
         return {
-            "title": "网站已上线",
-            "body": "我们正在为你准备找海外买家，找到后会第一时间推送给你。",
-            "action": "看我的网站",
-            "link": "/my-site",
+            "title": "找到海外买家了",
+            "body": "每个买家都写好了中英文的联系话术，复制就能发。",
+            "action": "看买家",
+            "link": "/buyers",
+        }
+    if stage == "building" and s.open_revisions:
+        return {"title": "我们正在按你的意见修改网站", "body": "改好后会再请你看一遍。", "action": "", "link": ""}
+    missing = missing_materials(s.counts)
+    if missing and stage in ("materials", "building"):
+        names = "、".join(MATERIAL_CATEGORIES[k]["label"] for k in missing)
+        return {
+            "title": "补几张照片，网站会更好看",
+            "body": f"建议补充：{names}。找买家不受影响，不用等照片。",
+            "action": "去传照片",
+            "link": "/materials",
         }
     return {
-        "title": "正在为你找海外买家",
-        "body": "每找到一个合适的买家，我们都会附上中英文的联系话术。",
-        "action": "看买家",
-        "link": "/buyers",
+        "title": "我们正在帮你找买家、做网站",
+        "body": f"找到买家会第一时间推送给你；英文网站大约 {BUILD_HOURS} 小时做好，做好后请你确认。",
+        "action": "",
+        "link": "",
     }
 
 

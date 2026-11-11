@@ -49,10 +49,20 @@ class StageOut(BaseModel):
     state: Literal["done", "current", "todo"]
 
 
+class BuyersTrack(BaseModel):
+    state: str  # none / preparing / searching / found / failed
+    found: int
+    products: list[str]
+    markets: list[str]
+    business: str
+    target_markets: str
+
+
 class OverviewOut(BaseModel):
     stage: str
     stages: list[StageOut]
     next: dict[str, str]
+    buyers: BuyersTrack
     materials: dict[str, int]
     missing: list[str]
     categories: list[dict[str, Any]]
@@ -69,7 +79,6 @@ STAGE_LABELS = {
     "building": "网站制作中",
     "review": "网站待你确认",
     "live": "网站已上线",
-    "buyers": "正在找买家",
 }
 
 
@@ -94,17 +103,34 @@ def overview(scope: CompanyScope = Depends(current_company), db: Session = Depen
 
     snap = progress.snapshot(db, scope.company)
     stage = progress.stage_of(snap)
+    week = progress.week_numbers(db, scope.company_id)
+    watch = db.scalar(select(Watch).where(Watch.company_id == scope.company_id, Watch.is_active.is_(True)).limit(1))
+    state = progress.buyers_state(snap, week["buyers_total"], watch is not None)
+    product_names = [
+        cn or en
+        for cn, en in db.execute(
+            select(Product.name_cn, Product.name_en).where(Product.company_id == scope.company_id).limit(8)
+        ).all()
+    ]
     db.commit()
     return OverviewOut(
         stage=stage,
         stages=_stages(stage),
-        next=progress.next_step(stage, snap),
+        next=progress.next_step(stage, snap, state),
+        buyers=BuyersTrack(
+            state=state,
+            found=week["buyers_total"],
+            products=product_names,
+            markets=list(watch.markets) if watch is not None else [],
+            business=snap.profile.business,
+            target_markets=snap.profile.target_markets,
+        ),
         materials=snap.counts,
         missing=progress.missing_materials(snap.counts),
         categories=categories_out(),
         style_choice=snap.profile.style_choice,
         site_url=site_url(snap.site) if snap.site is not None and snap.site.status == "published" else "",
-        week=progress.week_numbers(db, scope.company_id),
+        week=week,
         build_hours=progress.BUILD_HOURS,
         submitted=snap.profile.submitted_at is not None,
         revising=snap.open_revisions > 0,
@@ -114,8 +140,35 @@ def overview(scope: CompanyScope = Depends(current_company), db: Session = Depen
 # ── 客户：开通向导 ─────────────────────────────────────────────────────
 
 
+class BusinessIn(BaseModel):
+    business: str = Field(min_length=2, max_length=1000)
+    target_markets: str = Field(default="", max_length=300)
+
+
+@router.post("/service/business", response_model=OverviewOut)
+def submit_business(
+    body: BusinessIn, scope: CompanyScope = Depends(current_company), db: Session = Depends(get_db)
+) -> OverviewOut:
+    """开通第 1 步：工厂做什么产品、想卖到哪里。提交后 AI 马上整理产品并开始找买家，不需要等网站。"""
+    from app.modules.service import quickstart
+
+    profile = progress.get_or_create(db, scope.company_id)
+    business = body.business.strip()
+    markets = body.target_markets.strip()
+    changed = business != profile.business or markets != profile.target_markets
+    profile.business, profile.target_markets = business, markets
+    profile.submitted_at = profile.submitted_at or utcnow()
+    profile.updated_at = utcnow()
+    if changed or profile.quickstart_status in ("", "failed"):
+        quickstart.start(db, scope.company)
+    progress.open_task(db, scope.company_id, "organize", note=business, user_id=scope.user.id)
+    audit_scope(db, scope, "service.business", target_type="company", target_id=scope.company_id)
+    db.commit()
+    return overview(scope, db)
+
+
 class OnboardingIn(BaseModel):
-    style_choice: Literal["heavy", "precision", "building", "consumer", "heritage", "tech", "own"]
+    style_choice: Literal["heavy", "precision", "building", "consumer", "heritage", "tech", "own"] = "own"
     links: list[str] = Field(default_factory=list, max_length=3)
     note: str = Field(default="", max_length=1000)
 
@@ -147,11 +200,10 @@ def submit_onboarding(
     profile.style_choice = body.style_choice
     profile.existing_links = body.links
     profile.note = body.note.strip()
-    first = profile.submitted_at is None
     profile.submitted_at = profile.submitted_at or utcnow()
     profile.updated_at = utcnow()
-    if first:
-        progress.open_task(db, scope.company_id, "organize", note=profile.note, user_id=scope.user.id)
+    task = progress.open_task(db, scope.company_id, "organize", user_id=scope.user.id)
+    task.note = "\n".join(x for x in (profile.business, profile.note) if x)[:2000]
     audit_scope(db, scope, "service.onboarding", target_type="company", target_id=scope.company_id)
     db.commit()
     return overview(scope, db)
@@ -294,6 +346,10 @@ def update_task(
 
 
 class WorkbenchOut(BaseModel):
+    business: str = ""
+    target_markets: str = ""
+    quickstart_status: str = ""
+    quickstart_error: str = ""
     company_id: str
     name_cn: str
     name_en: str
@@ -358,7 +414,7 @@ def workbench_data(db: Session, company: Company) -> WorkbenchOut:
     has_draft = site is not None and site.draft_version_id is not None
     published = site is not None and site.status == "published"
     steps = [
-        {"key": "materials", "label": "查看客户资料", "done": not progress.missing_materials(snap.counts)},
+        {"key": "materials", "label": "查看客户资料", "done": bool(snap.profile.business) or bool(snap.counts)},
         {"key": "organize", "label": "整理工厂信息和产品", "done": score >= 60 and products > 0},
         {"key": "site", "label": "确定风格并生成网站", "done": has_draft},
         {"key": "review", "label": "发给客户确认", "done": published or snap.profile.review_requested_at is not None},
@@ -369,6 +425,10 @@ def workbench_data(db: Session, company: Company) -> WorkbenchOut:
         },
     ]
     return WorkbenchOut(
+        business=snap.profile.business,
+        target_markets=snap.profile.target_markets,
+        quickstart_status=snap.profile.quickstart_status,
+        quickstart_error=snap.profile.quickstart_error,
         company_id=str(company.id),
         name_cn=company.name_cn,
         name_en=company.name_en,

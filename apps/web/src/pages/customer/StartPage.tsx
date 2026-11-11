@@ -1,7 +1,10 @@
-// 开通向导：第 1 步工厂名 → 第 2 步按类别上传资料 → 第 3 步选网站风格。每一步都标明「第 X 步，共 3 步」。
-// 已有企业的老板再次进入时从第 2 步开始（补传资料 / 改风格）。
+// 开通向导，三步：
+//   第 1 步：工厂名 + 做什么产品 + 想卖到哪里 → 提交后马上开始找买家（不需要网站、不需要照片）
+//   第 2 步：传照片（全部可选，用来做英文网站）
+//   第 3 步：选网站风格（可选）
+// 已有企业的老板再次进入时：已经填过产品就从第 2 步开始。
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Check } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError } from '@/api/client'
@@ -32,53 +35,91 @@ function StepHead({ step, title, desc }: { step: number; title: string; desc: st
 
 export function StartPage() {
   const session = useSession()
-  const [step, setStep] = useState(session.company ? 2 : 1)
+  const overview = useOverview()
+  const [step, setStep] = useState<number | null>(session.company ? null : 1)
   useEffect(() => {
     document.title = `${cust.start.nameTitle} · AI-CMO`
   }, [])
-  // 第 1 步创建企业后，session 刷新完成再进入第 2 步
+  // 已有企业：填过产品的从第 2 步开始，否则从第 1 步（补填产品）
   useEffect(() => {
-    if (step === 1 && session.company) setStep(2)
-  }, [session.company, step])
+    if (step === null && overview.data) setStep(overview.data.buyers.business ? 2 : 1)
+  }, [step, overview.data])
 
+  if (step === null) {
+    return (
+      <Centered>
+        <Spinner />
+      </Centered>
+    )
+  }
   return (
     <div className="wizard">
-      {step === 1 ? <NameStep /> : step === 2 ? <MaterialsStep onNext={() => setStep(3)} /> : <StyleStep onBack={() => setStep(2)} />}
+      {step === 1 ? <BusinessStep onDone={() => setStep(2)} /> : step === 2 ? <MaterialsStep onNext={() => setStep(3)} /> : <StyleStep onBack={() => setStep(2)} />}
     </div>
   )
 }
 
-function NameStep() {
+function BusinessStep({ onDone }: { onDone: () => void }) {
   const session = useSession()
+  const toast = useToast()
   const showError = useErrorToast()
-  const [name, setName] = useState('')
-  const [error, setError] = useState('')
-  const create = useMutation({
-    mutationFn: () => api.createCompany({ name_cn: name.trim(), name_en: '' }),
-    onSuccess: async (company) => {
-      await session.refresh()
-      session.selectCompany(company.id)
+  const queryClient = useQueryClient()
+  const overview = useOverview()
+  const [name, setName] = useState(session.company?.name_cn ?? '')
+  const [business, setBusiness] = useState('')
+  const [markets, setMarkets] = useState('')
+  const [errors, setErrors] = useState<{ name?: string; business?: string }>({})
+  useEffect(() => {
+    if (overview.data?.buyers.business && !business) setBusiness(overview.data.buyers.business)
+    if (overview.data?.buyers.target_markets && !markets) setMarkets(overview.data.buyers.target_markets)
+    // 只在首次拿到数据时回填
+  }, [overview.data?.buyers.business]) // eslint-disable-line
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      if (!session.company) {
+        const company = await api.createCompany({ name_cn: name.trim(), name_en: '' })
+        await session.refresh()
+        session.selectCompany(company.id)
+      }
+      return serviceApi.submitBusiness({ business: business.trim(), target_markets: markets.trim() })
+    },
+    onSuccess: async (data) => {
+      queryClient.setQueryData(['service-overview', session.company?.id], data)
+      await queryClient.invalidateQueries({ queryKey: ['service-overview'] })
+      toast.show(cust.start.buyersStarted)
+      onDone()
     },
     onError: showError,
   })
-  function submit() {
-    if (name.trim().length < 2) return setError(cust.start.nameTooShort)
-    setError('')
-    create.mutate()
+
+  function go() {
+    const next: typeof errors = {}
+    if (!session.company && name.trim().length < 2) next.name = cust.start.nameTooShort
+    if (business.trim().length < 2) next.business = cust.start.businessTooShort
+    setErrors(next)
+    if (!next.name && !next.business) submit.mutate()
   }
+
   return (
     <form
       className="wizard__body"
       onSubmit={(e) => {
         e.preventDefault()
-        submit()
+        go()
       }}
     >
       <StepHead desc={cust.start.nameDesc} step={1} title={cust.start.nameTitle} />
-      <TextField error={error || undefined} label={cust.start.nameLabel} maxLength={100} onChange={setName} placeholder={cust.start.namePlaceholder} value={name} />
+      {session.company ? (
+        <p className="wizard__company">{session.company.name_cn}</p>
+      ) : (
+        <TextField error={errors.name} label={cust.start.nameLabel} maxLength={100} onChange={setName} placeholder={cust.start.namePlaceholder} value={name} />
+      )}
+      <TextArea error={errors.business} hint={cust.start.businessHint} label={cust.start.businessLabel} maxLength={1000} onChange={setBusiness} placeholder={cust.start.businessPlaceholder} rows={3} value={business} />
+      <TextField label={cust.start.marketsLabel} maxLength={300} onChange={setMarkets} placeholder={cust.start.marketsPlaceholder} value={markets} />
       <div className="wizard__actions">
-        <Button disabled={!name.trim()} loading={create.isPending} size="lg" type="submit" variant="primary">
-          {cust.start.next}
+        <Button icon={Check} loading={submit.isPending} size="lg" type="submit" variant="primary">
+          {cust.start.startBuyers}
         </Button>
       </div>
     </form>
@@ -95,18 +136,18 @@ function MaterialsStep({ onNext }: { onNext: () => void }) {
       </Centered>
     )
   }
-  const missing = overview.data.missing.length > 0
+  const any = assets.data.length > 0
   return (
     <div className="wizard__body wizard__body--wide">
       <StepHead desc={cust.start.materialsDesc} step={2} title={cust.start.materialsTitle} />
       <MaterialChecklist categories={overview.data.categories} counts={overview.data.materials} />
       <MaterialList assets={assets.data} categories={overview.data.categories} />
       <div className="wizard__actions wizard__actions--sticky">
-        {missing ? (
+        {any ? null : (
           <Button onClick={onNext} variant="ghost">
             {cust.start.skipForNow}
           </Button>
-        ) : null}
+        )}
         <Button onClick={onNext} size="lg" variant="primary">
           {cust.start.next}
         </Button>
@@ -130,7 +171,7 @@ function StyleStep({ onBack }: { onBack: () => void }) {
   }, [overview.data?.style_choice, choice])
 
   const submit = useMutation({
-    mutationFn: () => serviceApi.submitOnboarding({ style_choice: choice as StyleChoice, links: link.trim() ? [link.trim()] : [], note: note.trim() }),
+    mutationFn: () => serviceApi.submitOnboarding({ style_choice: (choice || 'own') as StyleChoice, links: link.trim() ? [link.trim()] : [], note: note.trim() }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['service-overview'] })
       toast.show(cust.start.submitted)
@@ -154,7 +195,7 @@ function StyleStep({ onBack }: { onBack: () => void }) {
         <Button icon={ArrowLeft} onClick={onBack} variant="ghost">
           {cust.start.prev}
         </Button>
-        <Button disabled={!choice} loading={submit.isPending} onClick={() => submit.mutate()} size="lg" variant="primary">
+        <Button loading={submit.isPending} onClick={() => submit.mutate()} size="lg" variant="primary">
           {cust.start.submit}
         </Button>
       </div>

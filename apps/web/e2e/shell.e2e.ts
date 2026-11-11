@@ -29,9 +29,9 @@ const JARGON = /档案|完整度|监控|商机|助手|模板|发布|版本|SMTP/
 /** 客户已走完开通向导（接口提交），直接进入工作台。 */
 async function onboarded(page: Page, request: APIRequestContext) {
   const account = await signUp(page, request)
-  await request.post('/api/v1/service/onboarding', {
+  await request.post('/api/v1/service/business', {
     headers: { Authorization: `Bearer ${account.token}`, 'X-Company-Id': account.companyId! },
-    data: { style_choice: 'heavy' },
+    data: { business: '不锈钢球阀', target_markets: '德国' },
   })
   return account
 }

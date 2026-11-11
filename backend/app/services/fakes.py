@@ -350,7 +350,44 @@ def fake_outreach_kit(messages: list[Message]) -> dict[str, Any]:
     return {"items": items}
 
 
+def fake_quickstart(messages: list[Message]) -> dict[str, Any]:
+    """TEST_MODE：从「主要产品和业务」中按顿号 / 逗号拆出产品，英文名用常见词表翻译。"""
+    text = _last_user_text(messages)
+    business = m.group(1) if (m := re.search(r"主要产品和业务：(.*)", text)) else ""
+    markets_text = m.group(1) if (m := re.search(r"想卖到哪里：(.*)", text)) else ""
+    words = {
+        "球阀": "Ball Valve",
+        "闸阀": "Gate Valve",
+        "阀门": "Industrial Valve",
+        "水泵": "Water Pump",
+        "泵": "Pump",
+        "法兰": "Flange",
+        "管件": "Pipe Fitting",
+        "电机": "Electric Motor",
+        "钢材": "Steel",
+        "五金": "Hardware",
+    }
+    countries = {
+        "德国": "Germany",
+        "美国": "United States",
+        "波兰": "Poland",
+        "东南亚": "Southeast Asia",
+        "欧洲": "Europe",
+    }
+    products = []
+    for part in re.split(r"[、，,；;和\s]+", business):
+        for cn, en in words.items():
+            if cn in part:
+                name = ("Stainless Steel " if "不锈钢" in part else "") + en
+                products.append({"name_en": name, "name_cn": part.strip()[:20], "keywords_en": [name.lower()]})
+                break
+    markets = [en for cn, en in countries.items() if cn in markets_text]
+    name = m.group(1) if (m := re.search(r"公司名：(.*)", text)) else ""
+    return {"name_en": "Demo Factory Co., Ltd." if name else "", "products": products, "markets": markets}
+
+
 DEFAULT_RESPONDERS: dict[str, Responder] = {
+    "service.quickstart": fake_quickstart,
     "outreach.draft": fake_outreach_draft,
     "outreach.kit": fake_outreach_kit,
     "leads.analyze": fake_leads_analyze,

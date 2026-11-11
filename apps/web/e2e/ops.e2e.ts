@@ -18,9 +18,9 @@ async function staffLogin(page: Page, token: string) {
 test('客户：我的套餐、消息设置；运营：数据与隐私', async ({ page, request, browser, baseURL }) => {
   const errors = watchPageErrors(page)
   const account = await signUp(page, request)
-  await request.post('/api/v1/service/onboarding', {
+  await request.post('/api/v1/service/business', {
     headers: { Authorization: `Bearer ${account.token}`, 'X-Company-Id': account.companyId! },
-    data: { style_choice: 'heavy' },
+    data: { business: '不锈钢球阀', target_markets: '德国' },
   })
   await page.goto('/materials')
   await page.getByRole('main').getByRole('button', { name: /我的套餐/ }).click()
@@ -143,7 +143,8 @@ test('代运营全流程：客户提交资料 → 运营生成网站并发给客
   const marker = `主做球阀-${Date.now()}`
   const customer = await signUp(page, request, { company: companyName })
   const headers = await completeProfile(request, customer.token, customer.companyId!)
-  await request.post('/api/v1/service/onboarding', { headers, data: { style_choice: 'heritage', note: marker } })
+  await request.post('/api/v1/service/business', { headers, data: { business: `不锈钢球阀 ${marker}` } })
+  await request.post('/api/v1/service/onboarding', { headers, data: { style_choice: 'heritage' } })
 
   // 运营：待办里有「整理资料」，进入客户工作台生成网站并发给客户
   const staff = await staffHeaders(request)
@@ -165,7 +166,7 @@ test('代运营全流程：客户提交资料 → 运营生成网站并发给客
 
   // 客户：首页提示去看网站 → 我的网站：预览、提修改意见
   await page.goto('/home')
-  await expect(page.getByRole('heading', { name: '网站做好了，请你看一看' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '你的英文网站做好了，请看一看' })).toBeVisible()
   await page.getByRole('button', { name: '去看网站' }).click()
   await expect(page).toHaveURL(/\/my-site$/)
   await expect(page.locator('.site-preview iframe')).toBeVisible()
@@ -206,9 +207,9 @@ test.describe('Dark 主题截图基线', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await expect(page).toHaveScreenshot('dark-login.png')
     const account = await signUp(page, request)
-    await request.post('/api/v1/service/onboarding', {
+    await request.post('/api/v1/service/business', {
       headers: { Authorization: `Bearer ${account.token}`, 'X-Company-Id': account.companyId! },
-      data: { style_choice: 'heavy' },
+      data: { business: '不锈钢球阀', target_markets: '德国' },
     })
     for (const path of ['/home', '/my-site', '/buyers', '/materials', '/account/billing', '/account/notifications/settings']) {
       await page.goto(path)

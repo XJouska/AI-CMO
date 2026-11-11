@@ -43,27 +43,86 @@ def test_overview_before_onboarding_points_to_wizard(client, db):
     data = res.json()
     assert data["stage"] == "start"
     assert data["submitted"] is False
+    assert data["buyers"]["state"] == "none"
     assert data["next"]["link"] == "/start"
-    assert {c["key"] for c in data["categories"]} >= {"factory_photo", "product_photo", "business_card", "logo"}
+    # 照片全部可选
+    assert all("required" not in c for c in data["categories"])
+    assert {c["key"] for c in data["categories"] if c["recommended"]} == {
+        "product_photo",
+        "factory_photo",
+        "business_card",
+    }
 
 
-def test_onboarding_creates_organize_task_once_and_lists_missing_materials(client, db):
+def test_business_description_starts_finding_buyers_without_photos_or_site(client, db):
     tenant = make_tenant(db)
-    upload(client, tenant, "factory_photo")
+    res = client.post(
+        "/api/v1/service/business",
+        headers=tenant.headers,
+        json={"business": "不锈钢球阀、闸阀", "target_markets": "德国、波兰"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["buyers"]["state"] == "preparing"
+    run_pending(db)
+    db.expire_all()
+    overview = client.get("/api/v1/service/overview", headers=tenant.headers).json()
+    assert overview["buyers"]["state"] == "searching"
+    assert overview["buyers"]["markets"] == ["Germany", "Poland"]
+    assert len(overview["buyers"]["products"]) == 2
+    # 不需要照片、不需要网站
+    assert overview["stage"] == "materials"
+    assert overview["next"]["link"] == "/materials" and "照片" in overview["next"]["title"]
+    watch = db.scalar(select(Watch).where(Watch.company_id == tenant.company.id))
+    assert watch.is_active and watch.status == "active"
+    assert "stainless steel ball valve" in watch.keywords_en
+    profile = db.get(ServiceProfile, tenant.company.id)
+    assert profile.quickstart_status == "done" and profile.buyers_started_at is not None
+    assert db.get(type(tenant.company), tenant.company.id).name_en == "Demo Factory Co., Ltd."
+    # 运营待办里能看到客户写的业务
+    tasks = db.scalars(select(ServiceTask).where(ServiceTask.company_id == tenant.company.id)).all()
+    assert [t.kind for t in tasks] == ["organize"] and "球阀" in tasks[0].note
+
+
+def test_business_without_recognizable_products_is_flagged_for_staff(client, db):
+    tenant = make_tenant(db)
+    client.post("/api/v1/service/business", headers=tenant.headers, json={"business": "我们什么都做"})
+    run_pending(db)
+    db.expire_all()
+    profile = db.get(ServiceProfile, tenant.company.id)
+    assert profile.quickstart_status == "failed" and profile.quickstart_error
+    ops = staff_headers(db)
+    bench = client.get(f"/api/v1/ops/customers/{tenant.company.id}/workbench", headers=ops).json()
+    assert bench["business"] == "我们什么都做" and bench["quickstart_status"] == "failed"
+
+
+def test_quickstart_keeps_existing_english_name_and_products(client, db):
+    tenant = make_tenant(db)
+    tenant.company.name_en = "Yonggu Valve Co., Ltd."
+    make_product(db, tenant.company, name_en="Stainless Steel Ball Valve", keywords_en=["ball valve"])
+    client.post("/api/v1/service/business", headers=tenant.headers, json={"business": "不锈钢球阀、水泵"})
+    run_pending(db)
+    db.expire_all()
+    from app.modules.companies.models import Product
+
+    names = sorted(db.scalars(select(Product.name_en).where(Product.company_id == tenant.company.id)).all())
+    assert names == ["Stainless Steel Ball Valve", "Water Pump"]
+    assert db.get(type(tenant.company), tenant.company.id).name_en == "Yonggu Valve Co., Ltd."
+
+
+def test_onboarding_style_step_creates_one_organize_task(client, db):
+    tenant = make_tenant(db)
+    client.post("/api/v1/service/business", headers=tenant.headers, json={"business": "不锈钢球阀"})
     res = client.post(
         "/api/v1/service/onboarding",
         headers=tenant.headers,
-        json={"style_choice": "heritage", "links": ["www.demo-valve.example"], "note": "主做球阀"},
+        json={"style_choice": "heritage", "links": ["www.demo-valve.example"], "note": "想多接欧洲的单子"},
     )
     assert res.status_code == 200, res.text
-    data = res.json()
-    assert data["stage"] == "materials"
-    assert data["missing"] == ["product_photo", "business_card"]
-    assert "产品照片" in data["next"]["title"] and data["next"]["link"] == "/materials"
     profile = db.get(ServiceProfile, tenant.company.id)
     assert profile.style_choice == "heritage"
     assert profile.existing_links == ["https://www.demo-valve.example"]
-    # 再次提交不重复建任务
+    task = db.scalar(select(ServiceTask).where(ServiceTask.company_id == tenant.company.id))
+    assert "球阀" in task.note and "欧洲" in task.note
     client.post("/api/v1/service/onboarding", headers=tenant.headers, json={"style_choice": "tech"})
     tasks = db.scalars(select(ServiceTask).where(ServiceTask.company_id == tenant.company.id)).all()
     assert [t.kind for t in tasks] == ["organize"]
@@ -135,7 +194,7 @@ def test_full_service_flow_from_materials_to_buyers(client, db):
     )
     overview = client.get("/api/v1/service/overview", headers=tenant.headers).json()
     assert overview["stage"] == "review" and overview["next"]["link"] == "/my-site"
-    assert [s["state"] for s in overview["stages"]] == ["done", "done", "current", "todo", "todo"]
+    assert [s["state"] for s in overview["stages"]] == ["done", "done", "current", "todo"]
 
     # 客户提修改意见 → 回到「制作中」，运营待办出现「修改网站」
     req = client.post("/api/v1/service/requests", headers=tenant.headers, json={"text": "首页换成车间照片"})
@@ -158,7 +217,7 @@ def test_full_service_flow_from_materials_to_buyers(client, db):
     assert bench["watch_active"] is True
     assert db.scalar(select(Watch).where(Watch.company_id == tenant.company.id, Watch.is_active.is_(True)))
     overview = client.get("/api/v1/service/overview", headers=tenant.headers).json()
-    assert overview["stage"] == "buyers" and overview["next"]["link"] == "/buyers"
+    assert overview["stage"] == "live" and overview["buyers"]["state"] == "searching"
 
 
 def test_revision_request_validates_asset_ownership(client, db):

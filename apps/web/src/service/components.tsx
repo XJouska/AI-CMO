@@ -1,12 +1,13 @@
 // 客户页面共用组件：分类上传资料、服务进度条、网站风格选择。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Camera, Check, FileText, ImagePlus, Trash2 } from 'lucide-react'
+import { ApiError } from '@/api/client'
 import { useEffect, useRef, useState } from 'react'
 import { api, type Asset } from '@/api/endpoints'
 import { useErrorToast } from '@/feedback/useErrorToast'
 import { cust } from '@/i18n/customer'
 import { useSession } from '@/session/session'
-import { Button, ConfirmDialog, cx, IconButton, Spinner, useToast } from '@/ui'
+import { Button, ConfirmDialog, cx, IconButton, Spinner } from '@/ui'
 import { MATERIAL_TIPS, serviceApi, type MaterialCategory, type Overview, type StyleChoice } from './api'
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -18,42 +19,54 @@ export function useAssets() {
   return useQuery({ queryKey: ['assets', session.company?.id], queryFn: () => api.assets(), enabled: Boolean(session.company) })
 }
 
-/** 一个资料类别：说明 + 已上传的缩略图 + 「上传」「拍照」按钮。 */
+interface UploadItem {
+  id: number
+  name: string
+  status: 'uploading' | 'done' | 'failed'
+  error?: string
+}
+
+let uploadSeq = 0
+
+/**
+ * 一个资料类别：整张卡片都能点（或把文件拖进来）上传；写清「拍什么」和「用在哪」；
+ * 每个文件单独显示「上传中 / 已上传 / 失败原因」，上传完立刻出现缩略图。
+ */
 export function MaterialSection({ category, assets }: { category: MaterialCategory; assets: Asset[] }) {
   const queryClient = useQueryClient()
-  const toast = useToast()
   const showError = useErrorToast()
   const pick = useRef<HTMLInputElement>(null)
   const camera = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(0)
+  const [items, setItems] = useState<UploadItem[]>([])
+  const [dragging, setDragging] = useState(false)
   const [deleting, setDeleting] = useState<Asset | null>(null)
   const tip = MATERIAL_TIPS[category.key]
   const accept = category.images_only ? IMAGES : IMAGES_AND_PDF
+  const busy = items.some((i) => i.status === 'uploading')
 
-  async function upload(files: FileList | null, input: HTMLInputElement | null) {
-    const list = Array.from(files ?? [])
-    if (!list.length) return
-    setUploading(list.length)
-    try {
-      for (const file of list) {
-        if (file.size > MAX_UPLOAD_BYTES) {
-          toast.show(cust.upload.tooLarge(file.name))
-          continue
-        }
+  async function upload(files: File[]) {
+    if (!files.length) return
+    const queued = files.map((f) => ({ id: ++uploadSeq, name: f.name, status: 'uploading' as const }))
+    setItems((prev) => [...prev.filter((i) => i.status !== 'done'), ...queued])
+    for (const [index, file] of files.entries()) {
+      const id = queued[index].id
+      let result: Partial<UploadItem>
+      if (file.size > MAX_UPLOAD_BYTES) {
+        result = { status: 'failed', error: cust.upload.tooBig }
+      } else if (category.images_only && !file.type.startsWith('image/')) {
+        result = { status: 'failed', error: cust.upload.imagesOnly }
+      } else {
         try {
           await api.uploadAsset(file, category.key)
+          result = { status: 'done' }
+          await queryClient.invalidateQueries({ queryKey: ['assets'] })
         } catch (error) {
-          showError(error)
+          result = { status: 'failed', error: error instanceof ApiError && error.message ? error.message : cust.upload.failedRetry }
         }
       }
-    } finally {
-      setUploading(0)
-      if (input) input.value = ''
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['assets'] }),
-        queryClient.invalidateQueries({ queryKey: ['service-overview'] }),
-      ])
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...result } : i)))
     }
+    await queryClient.invalidateQueries({ queryKey: ['service-overview'] })
   }
 
   const remove = useMutation({
@@ -69,50 +82,82 @@ export function MaterialSection({ category, assets }: { category: MaterialCatego
   })
 
   const done = assets.length > 0
+  const failed = items.filter((i) => i.status === 'failed')
   return (
-    <section className={cx('material', done && 'is-done')} data-kind={category.key}>
+    <section className={cx('material', done && 'is-done', dragging && 'is-dragging')} data-kind={category.key}>
       <div className="material__head">
         <span aria-hidden className="material__check">{done ? <Check size={14} /> : null}</span>
         <div className="material__title">
           <h3>{category.label}</h3>
-          <span className={cx('material__badge', category.required && 'is-required')}>{category.required ? cust.start.required : cust.start.optional}</span>
+          <span className={cx('material__badge', category.recommended && 'is-recommended')}>{category.recommended ? cust.start.recommended : cust.start.optional}</span>
         </div>
+        <span className="material__count">{done ? cust.upload.uploaded(assets.length) : ''}</span>
       </div>
-      <p className="material__tip">{tip.tip}</p>
-      {assets.length ? (
-        <ul className="material__files" aria-label={category.label}>
-          {assets.map((asset) => (
-            <li className="material__file" key={asset.id}>
-              <AssetThumb asset={asset} />
-              <IconButton className="material__delete" icon={Trash2} label={`${cust.upload.delete} ${asset.display_name}`} onClick={() => setDeleting(asset)} size="sm" />
-            </li>
+      <p className="material__use">{tip.use}</p>
+
+      <input accept={accept} aria-label={`${cust.upload.add}${category.label}`} hidden multiple onChange={(e) => void upload(Array.from(e.target.files ?? [])).finally(() => (e.target.value = ''))} ref={pick} type="file" />
+      <input accept="image/*" aria-hidden capture="environment" hidden onChange={(e) => void upload(Array.from(e.target.files ?? [])).finally(() => (e.target.value = ''))} ref={camera} tabIndex={-1} type="file" />
+
+      <div className="material__grid">
+        {assets.map((asset) => (
+          <div className="material__file" key={asset.id}>
+            <AssetThumb asset={asset} />
+            <IconButton className="material__delete" icon={Trash2} label={`${cust.upload.delete} ${asset.display_name}`} onClick={() => setDeleting(asset)} size="sm" />
+          </div>
+        ))}
+        {items
+          .filter((i) => i.status === 'uploading')
+          .map((i) => (
+            <div className="material__file material__file--pending" key={i.id} title={i.name}>
+              <Spinner size={18} />
+              <span>{cust.upload.uploadingOne}</span>
+            </div>
           ))}
-        </ul>
-      ) : null}
-      <div className="material__actions">
-        <input accept={accept} aria-label={`${cust.upload.add}${category.label}`} hidden multiple onChange={(e) => void upload(e.target.files, e.target)} ref={pick} type="file" />
-        <input accept="image/*" aria-hidden capture="environment" hidden onChange={(e) => void upload(e.target.files, e.target)} ref={camera} tabIndex={-1} type="file" />
-        <Button disabled={uploading > 0} icon={ImagePlus} onClick={() => pick.current?.click()} variant={done ? 'secondary' : 'primary'}>
-          {cust.upload.add}
-        </Button>
-        {tip.capture ? (
-          <Button className="only-touch" disabled={uploading > 0} icon={Camera} onClick={() => camera.current?.click()} variant="secondary">
-            {cust.upload.takePhoto}
-          </Button>
-        ) : null}
-        <span className="material__status" role="status">
-          {uploading ? (
-            <>
-              <Spinner size={14} /> {cust.upload.uploading(uploading)}
-            </>
-          ) : assets.length ? (
-            cust.upload.uploaded(assets.length)
-          ) : (
-            cust.upload.none
-          )}
-        </span>
+        <button
+          className={cx('material__drop', !done && !busy && 'is-empty')}
+          disabled={busy}
+          onClick={() => pick.current?.click()}
+          onDragLeave={() => setDragging(false)}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragging(false)
+            void upload(Array.from(e.dataTransfer.files))
+          }}
+          type="button"
+        >
+          <ImagePlus aria-hidden size={done ? 20 : 26} />
+          <span className="material__drop-title">{done ? cust.upload.addMore : cust.upload.choose}</span>
+          {done ? null : <span className="material__drop-tip">{tip.tip}</span>}
+          {done ? null : <span className="material__drop-hint">{category.images_only ? cust.upload.hintImages : cust.upload.hintFiles}</span>}
+        </button>
       </div>
+
+      {tip.capture ? (
+        <Button className="only-touch material__camera" disabled={busy} icon={Camera} onClick={() => camera.current?.click()} variant="secondary">
+          {cust.upload.takePhoto}
+        </Button>
+      ) : null}
+
+      <div aria-live="polite" className="material__status">
+        {busy ? cust.upload.uploading(items.filter((i) => i.status === 'uploading').length) : null}
+        {!busy && items.some((i) => i.status === 'done') && !failed.length ? (
+          <span className="material__ok">
+            <Check aria-hidden size={14} /> {cust.upload.savedOk}
+          </span>
+        ) : null}
+        {failed.map((i) => (
+          <span className="material__err" key={i.id}>
+            {cust.upload.failed(i.name)}：{i.error}
+          </span>
+        ))}
+      </div>
+
       <ConfirmDialog
+        body={deleting?.display_name}
         cancelLabel="取消"
         confirmLabel={cust.upload.delete}
         danger
@@ -121,7 +166,6 @@ export function MaterialSection({ category, assets }: { category: MaterialCatego
         onConfirm={() => deleting && remove.mutate(deleting.id)}
         open={deleting !== null}
         title={cust.upload.deleteConfirm}
-        body={deleting?.display_name}
       />
     </section>
   )
@@ -150,15 +194,15 @@ export function MaterialList({ categories, assets }: { categories: MaterialCateg
   )
 }
 
-/** 「还差什么」勾选清单。 */
+/** 已上传概况：每类传了几张（全部可选，只是提示建议补充的类别）。 */
 export function MaterialChecklist({ categories, counts }: { categories: MaterialCategory[]; counts: Overview['materials'] }) {
-  const required = categories.filter((c) => c.required)
-  const allDone = required.every((c) => (counts[c.key] ?? 0) > 0)
+  const recommended = categories.filter((c) => c.recommended)
+  const allDone = recommended.every((c) => (counts[c.key] ?? 0) > 0)
   return (
     <div className="checklist" aria-live="polite">
       <p className="checklist__title">{allDone ? cust.start.checklistDone : cust.start.checklistTitle}</p>
       <ul>
-        {required.map((c) => {
+        {recommended.map((c) => {
           const ok = (counts[c.key] ?? 0) > 0
           return (
             <li className={cx(ok && 'is-done')} key={c.key}>
@@ -243,7 +287,7 @@ export function useOverview(options: { poll?: boolean } = {}) {
     queryKey: ['service-overview', session.company?.id],
     queryFn: serviceApi.overview,
     enabled: Boolean(session.company),
-    // 客户确认上线后，网站在后台发布；发布完成前定时刷新进度
-    refetchInterval: options.poll ? 3000 : false,
+    // 客户确认上线后网站在后台发布、填完产品后 AI 在后台整理：这些时候定时刷新进度
+    refetchInterval: (q) => (options.poll || q.state.data?.buyers.state === 'preparing' ? 3000 : false),
   })
 }

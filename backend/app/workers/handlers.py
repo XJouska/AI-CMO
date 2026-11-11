@@ -8,5 +8,6 @@ from app.modules.admin import notifications  # noqa: F401
 from app.modules.admin import router as admin_router  # noqa: F401
 from app.modules.companies import extraction  # noqa: F401
 from app.modules.leads import pipeline as leads_pipeline  # noqa: F401
+from app.modules.service import quickstart as service_quickstart  # noqa: F401
 from app.modules.sites import service as sites_service  # noqa: F401
 from app.workers import scheduler  # noqa: F401

@@ -36,13 +36,13 @@ describe('客户工作台布局', () => {
 
   it('点击侧边栏切换路由，当前页面高亮；每个页面都没有行话', async () => {
     const { router } = renderRoutes('/home')
-    await screen.findByText('服务进度')
+    await screen.findByText('找海外买家')
     expect(document.body.textContent).not.toMatch(JARGON)
     for (const item of MAIN_NAV.slice(1)) {
       fireEvent.click(within(sidebar()).getByRole('link', { name: item.label }))
       await waitFor(() => expect(router.state.location.pathname).toBe(item.path))
       expect(within(sidebar()).getByRole('link', { name: item.label }).getAttribute('aria-current')).toBe('page')
-      await waitFor(() => expect(document.querySelector('.ui-spinner')).toBeNull())
+      await waitFor(() => expect(document.querySelector('.ui-centered .ui-spinner')).toBeNull())
       expect(document.body.textContent).not.toMatch(JARGON)
     }
   })
@@ -86,7 +86,7 @@ describe('客户工作台布局', () => {
 
   it('请求携带登录 token 与当前企业头', async () => {
     renderRoutes('/home')
-    await screen.findByText('服务进度')
+    await screen.findByText('找海外买家')
     const call = server.calls.find((c) => c.path === '/service/overview')!
     expect(call.headers.get('Authorization')).toBe('Bearer test-token')
     expect(call.headers.get('X-Company-Id')).toBe('c1')
@@ -94,22 +94,28 @@ describe('客户工作台布局', () => {
 })
 
 describe('客户首页', () => {
-  it('显示服务进度、下一步要做的事和这周的结果；按钮跳到对应页面', async () => {
+  it('找买家和做网站分两条线显示；下一步卡片的按钮跳到对应页面', async () => {
     server.on(
       'GET',
       '/service/overview',
       demoOverview({
         stage: 'materials',
         missing: ['product_photo'],
-        next: { title: '还差：产品照片', body: '补齐后我们就能开始做网站。', action: '去上传', link: '/materials' },
+        next: { title: '补几张照片，网站会更好看', body: '建议补充：产品照片。', action: '去传照片', link: '/materials' },
       }),
     )
     const { router } = renderRoutes('/home')
-    const track = await screen.findByRole('list', { name: '服务进度' })
-    expect(within(track).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1资料已收到', '2网站制作中', '3网站待你确认', '4网站已上线', '5正在找买家'])
+    // 找买家：没有网站也已经在找，并说明在找什么
+    const buyers = await screen.findByText('找海外买家')
+    const card = buyers.closest('[data-buyers-state]') as HTMLElement
+    expect(card.getAttribute('data-buyers-state')).toBe('searching')
+    expect(within(card).getByText('正在找：不锈钢球阀')).toBeTruthy()
+    expect(within(card).getByText('目标市场：Germany')).toBeTruthy()
+    // 网站：四个阶段
+    const track = screen.getByRole('list', { name: '服务进度' })
+    expect(within(track).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1资料已收到', '2网站制作中', '3网站待你确认', '4网站已上线'])
     expect(within(track).getByText('资料已收到').closest('li')?.getAttribute('aria-current')).toBe('step')
-    expect(screen.getByRole('heading', { name: '还差：产品照片' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '去上传' }))
+    fireEvent.click(screen.getByRole('button', { name: '去传照片' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/materials'))
   })
 

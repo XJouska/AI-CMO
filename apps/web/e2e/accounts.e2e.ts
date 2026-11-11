@@ -14,7 +14,7 @@ function pngFile(name: string) {
   return { name, mimeType: 'image/png', buffer: data }
 }
 
-test('注册后三步开通：工厂名 → 分类上传资料 → 选风格 → 首页显示进度', async ({ page }) => {
+test('注册后填工厂和产品就开始找买家；照片可选，上传有清楚的进度和结果；首页两条线', async ({ page }) => {
   const errors = watchPageErrors(page)
   await page.goto('/register')
   await page.getByLabel('称呼').fill('王总')
@@ -22,43 +22,55 @@ test('注册后三步开通：工厂名 → 分类上传资料 → 选风格 →
   await page.getByLabel('密码', { exact: true }).fill('Factory123')
   await page.getByRole('button', { name: '注册', exact: true }).click()
 
-  // 第 1 步
+  // 第 1 步：工厂名 + 做什么产品 + 想卖到哪里 → 开始找买家
   await expect(page).toHaveURL(/\/start$/)
   await expect(page.getByText('第 1 步，共 3 步')).toBeVisible()
   await expectNoFallback(page)
   await expect(page).toHaveScreenshot('start-1-name.png')
+  await page.getByRole('button', { name: '开始找买家' }).click()
+  await expect(page.getByText('写一下你们做什么产品')).toBeVisible()
   await page.getByLabel('工厂名称').fill('宁波演示阀门厂')
-  await page.getByRole('button', { name: '下一步' }).click()
+  await page.getByLabel('主要做什么产品？').fill('不锈钢球阀、闸阀')
+  await page.getByLabel('想卖到哪些国家？（可不填）').fill('德国、波兰')
+  await page.getByRole('button', { name: '开始找买家' }).click()
 
-  // 第 2 步：还差什么清单随上传更新
+  // 第 2 步：照片全部可选；上传后显示缩略图和「上传好了」
   await expect(page.getByText('第 2 步，共 3 步')).toBeVisible()
-  const checklist = page.locator('.checklist')
-  await expect(checklist).toContainText('还差什么')
-  await expect(page.locator('body')).not.toContainText(/档案|完整度|监控|商机|助手/)
+  await expect(page.getByText('找买家已经开始了，不用等这一步。', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: '先跳过，以后再传' })).toBeVisible()
+  await expect(page.locator('body')).not.toContainText(/档案|完整度|监控|商机|助手|必需/)
   await expect(page).toHaveScreenshot('start-2-materials.png', { fullPage: true })
-  for (const kind of ['factory_photo', 'product_photo', 'business_card']) {
-    await page.locator(`.material[data-kind="${kind}"] input[type="file"]:not([capture])`).setInputFiles(pngFile(`${kind}.png`))
-    await expect(page.locator(`.material[data-kind="${kind}"]`)).toHaveClass(/is-done/, { timeout: 10_000 })
-  }
-  await expect(checklist).toContainText('必需的资料都齐了')
+  const product = page.locator('.material[data-kind="product_photo"]')
+  await product.locator('input[type="file"]:not([capture])').setInputFiles([pngFile('a.png'), pngFile('b.png')])
+  await expect(product).toHaveClass(/is-done/, { timeout: 10_000 })
+  await expect(product.getByText('上传好了，我们已经收到')).toBeVisible()
+  await expect(product.locator('.material__thumb')).toHaveCount(2)
+  await expect(product.getByText('已传 2 个')).toBeVisible()
+  // 照片类别只收图片：传 PDF 会说明原因
+  const factory = page.locator('.material[data-kind="factory_photo"]')
+  await factory.locator('input[type="file"]:not([capture])').setInputFiles({ name: 'x.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') })
+  await expect(factory.getByText('这里只能传照片（JPG / PNG）', { exact: false })).toBeVisible()
   await page.getByRole('button', { name: '下一步' }).click()
 
-  // 第 3 步：选风格并提交
+  // 第 3 步：风格可选
   await expect(page.getByText('第 3 步，共 3 步')).toBeVisible()
   await expect(page.getByRole('radio')).toHaveCount(7)
-  const submit = page.getByRole('button', { name: '提交，交给我们来做' })
-  await expect(submit).toBeDisabled()
   await page.getByRole('radio', { name: /老牌工厂/ }).click()
   await page.getByLabel('已经有网站或阿里巴巴店铺？（可不填）').fill('demo-valve.example')
   await expect(page).toHaveScreenshot('start-3-style.png', { fullPage: true })
-  await submit.click()
+  await page.getByRole('button', { name: '完成' }).click()
 
+  // 首页：找买家已经在进行（不等网站），并说明在找什么
   await expect(page).toHaveURL(/\/home$/)
+  const buyers = page.locator('[data-buyers-state]')
+  await expect(buyers).toHaveAttribute('data-buyers-state', 'searching', { timeout: 20_000 })
+  await expect(buyers).toContainText('正在找：')
+  await expect(buyers).toContainText('Germany')
   const track = page.getByRole('list', { name: '服务进度' })
   await expect(track.locator('[aria-current="step"]')).toContainText('资料已收到')
-  await expect(page.getByText('资料已收到，我们正在整理')).toBeVisible()
-  await expect(page.getByText('你现在不用做什么，等我们的通知就行。')).toBeVisible()
   await expect(page.locator('main')).not.toContainText(/档案|完整度|监控|商机|助手/)
+  await page.goto('/buyers')
+  await expect(page.getByText('我们每天都在国外的招标网站和采购信息里找', { exact: false })).toBeVisible()
   expect(errors).toEqual([])
 })
 
@@ -153,9 +165,9 @@ test('运营：工厂信息分区编辑与产品管理', async ({ page, request 
 
 test('退出登录需要确认，退出后回到登录页', async ({ page, request }) => {
   const account = await signUp(page, request)
-  await request.post('/api/v1/service/onboarding', {
+  await request.post('/api/v1/service/business', {
     headers: { Authorization: `Bearer ${account.token}`, 'X-Company-Id': account.companyId! },
-    data: { style_choice: 'heavy' },
+    data: { business: '不锈钢球阀', target_markets: '德国' },
   })
   await page.goto('/materials')
   await page.getByRole('main').getByRole('button', { name: '退出登录' }).click()

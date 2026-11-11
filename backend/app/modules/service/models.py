@@ -30,6 +30,11 @@ class ServiceProfile(Base):
     __tablename__ = "service_profiles"
 
     company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True)
+    # 客户用大白话写的「做什么产品」「想卖到哪里」：AI 据此整理产品和关键词，直接开始找买家
+    business: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    target_markets: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    quickstart_status: Mapped[str] = mapped_column(String(12), nullable=False, default="")  # running/done/failed
+    quickstart_error: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     # 客户在向导中选的网站风格（STYLE_PRESETS 的 key；"own" 表示按工厂自己的风格）
     style_choice: Mapped[str] = mapped_column(String(24), nullable=False, default="")
     existing_links: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)

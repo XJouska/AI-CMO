@@ -17,9 +17,9 @@ test('生产容器：页面加载无 CSP 违规和脚本错误，主导航可切
   await expect(page.locator('[class*="yb-"]')).toHaveCount(0)
 
   const account = await signUp(page, request, { company: '冒烟测试厂' })
-  await request.post('/api/v1/service/onboarding', {
+  await request.post('/api/v1/service/business', {
     headers: { Authorization: `Bearer ${account.token}`, 'X-Company-Id': account.companyId! },
-    data: { style_choice: 'heavy' },
+    data: { business: '不锈钢球阀', target_markets: '德国' },
   })
   await page.goto('/')
   await expect(page).toHaveURL(/\/home$/)

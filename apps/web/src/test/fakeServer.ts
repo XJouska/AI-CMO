@@ -95,16 +95,16 @@ export const OPERATOR_USER = {
 }
 
 const CATEGORIES = [
-  { key: 'factory_photo', label: '工厂和车间照片', required: true, images_only: true },
-  { key: 'product_photo', label: '产品照片', required: true, images_only: true },
-  { key: 'catalog', label: '产品目录或说明书', required: false, images_only: false },
-  { key: 'certificate', label: '证书', required: false, images_only: false },
-  { key: 'business_card', label: '名片', required: true, images_only: false },
-  { key: 'logo', label: 'Logo', required: false, images_only: true },
+  { key: 'product_photo', label: '产品照片', recommended: true, images_only: true },
+  { key: 'factory_photo', label: '工厂和车间照片', recommended: true, images_only: true },
+  { key: 'business_card', label: '名片', recommended: true, images_only: false },
+  { key: 'logo', label: 'Logo', recommended: false, images_only: true },
+  { key: 'catalog', label: '产品目录或说明书', recommended: false, images_only: false },
+  { key: 'certificate', label: '证书', recommended: false, images_only: false },
 ]
 
-const STAGE_KEYS = ['materials', 'building', 'review', 'live', 'buyers'] as const
-const STAGE_LABELS = ['资料已收到', '网站制作中', '网站待你确认', '网站已上线', '正在找买家']
+const STAGE_KEYS = ['materials', 'building', 'review', 'live'] as const
+const STAGE_LABELS = ['资料已收到', '网站制作中', '网站待你确认', '网站已上线']
 
 /** 客户服务进度（/service/overview）。 */
 export function demoOverview(overrides: Record<string, unknown> = {}) {
@@ -113,7 +113,8 @@ export function demoOverview(overrides: Record<string, unknown> = {}) {
   return {
     stage,
     stages: STAGE_KEYS.map((key, i) => ({ key, label: STAGE_LABELS[i], state: i < current ? 'done' : i === current ? 'current' : 'todo' })),
-    next: { title: '资料已收到，我们正在整理', body: '我们正在用 AI 做你的英文网站，大约 2 小时做好，做好后通知你。', action: '', link: '' },
+    next: { title: '我们正在帮你找买家、做网站', body: '找到买家会第一时间推送给你；英文网站大约 2 小时做好，做好后请你确认。', action: '', link: '' },
+    buyers: { state: 'searching', found: 0, products: ['不锈钢球阀'], markets: ['Germany'], business: '不锈钢球阀', target_markets: '德国' },
     materials: {},
     missing: [],
     categories: CATEGORIES,
