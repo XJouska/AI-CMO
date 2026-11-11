@@ -59,7 +59,7 @@ class OverviewOut(BaseModel):
     style_choice: str
     site_url: str
     week: dict[str, int]
-    build_days: int
+    build_hours: int
     submitted: bool
     revising: bool
 
@@ -105,7 +105,7 @@ def overview(scope: CompanyScope = Depends(current_company), db: Session = Depen
         style_choice=snap.profile.style_choice,
         site_url=site_url(snap.site) if snap.site is not None and snap.site.status == "published" else "",
         week=progress.week_numbers(db, scope.company_id),
-        build_days=progress.BUILD_DAYS,
+        build_hours=progress.BUILD_HOURS,
         submitted=snap.profile.submitted_at is not None,
         revising=snap.open_revisions > 0,
     )

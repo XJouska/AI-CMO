@@ -39,8 +39,8 @@ MATERIAL_CATEGORIES: dict[str, dict[str, Any]] = {
 STYLE_CHOICES = ("heavy", "precision", "building", "consumer", "heritage", "tech", "own")
 
 STAGES = ("materials", "building", "review", "live", "buyers")
-# 承诺的网站制作时间（工作日），显示在客户首页
-BUILD_DAYS = 3
+# 网站制作时间（小时）：AI 在后台生成，运营核对后发给客户，显示在客户首页
+BUILD_HOURS = 2
 
 
 def get_or_create(db: Session, company_id: uuid.UUID) -> ServiceProfile:
@@ -176,7 +176,7 @@ def next_step(stage: str, s: Snapshot) -> dict[str, str]:
     if stage == "materials":
         return {
             "title": "资料已收到，我们正在整理",
-            "body": f"我们会在 {BUILD_DAYS} 个工作日内做好你的英文网站，做好后通知你。",
+            "body": f"我们正在用 AI 做你的英文网站，大约 {BUILD_HOURS} 小时做好，做好后通知你。",
             "action": "",
             "link": "",
         }
@@ -185,7 +185,7 @@ def next_step(stage: str, s: Snapshot) -> dict[str, str]:
             return {"title": "我们正在按你的意见修改网站", "body": "改好后会再请你看一遍。", "action": "", "link": ""}
         return {
             "title": "你的英文网站正在制作",
-            "body": f"预计 {BUILD_DAYS} 个工作日内完成，做好后会通知你来看。",
+            "body": f"大约 {BUILD_HOURS} 小时做好，做好后会通知你来看。",
             "action": "",
             "link": "",
         }

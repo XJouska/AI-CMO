@@ -43,7 +43,7 @@ export function MySitePage() {
       ) : data.stage === 'live' || data.stage === 'buyers' ? (
         <LiveSite url={data.site_url} />
       ) : (
-        <Building days={data.build_days} />
+        <Building hours={data.build_hours} />
       )}
     </AppPage>
   )
@@ -56,7 +56,7 @@ function NotStarted() {
   )
 }
 
-function Building({ days }: { days: number }) {
+function Building({ hours }: { hours: number }) {
   const overview = useOverview()
   const assets = useAssets()
   const revising = Boolean(overview.data?.revising)
@@ -64,7 +64,7 @@ function Building({ days }: { days: number }) {
     <div className="stack-lg">
       <Card className="cust-next">
         <h2 className="cust-next__title">{revising ? cust.site.changing : cust.site.notReady}</h2>
-        {revising ? null : <p className="cust-next__body">{cust.site.notReadyDesc(days)}</p>}
+        {revising ? null : <p className="cust-next__body">{cust.site.notReadyDesc(hours)}</p>}
       </Card>
       <ReceivedMaterials assets={assets.data ?? []} />
     </div>

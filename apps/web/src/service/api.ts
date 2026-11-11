@@ -23,7 +23,7 @@ export interface Overview {
   style_choice: StyleChoice | ''
   site_url: string
   week: { buyers_week: number; buyers_total: number; inquiries_week: number }
-  build_days: number
+  build_hours: number
   submitted: boolean
   /** 客户提的修改意见还在处理中 */
   revising: boolean

@@ -114,7 +114,7 @@ describe('客户首页', () => {
   })
 
   it('只需等待时说明「不用做什么」', async () => {
-    server.on('GET', '/service/overview', demoOverview({ stage: 'building', next: { title: '你的英文网站正在制作', body: '预计 3 个工作日内完成', action: '', link: '' } }))
+    server.on('GET', '/service/overview', demoOverview({ stage: 'building', next: { title: '你的英文网站正在制作', body: '大约 2 小时做好', action: '', link: '' } }))
     renderRoutes('/home')
     expect(await screen.findByText('你现在不用做什么，等我们的通知就行。')).toBeTruthy()
   })
