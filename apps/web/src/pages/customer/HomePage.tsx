@@ -1,6 +1,6 @@
 // 客户首页：两条线——「找海外买家」（填完产品就开始）和「英文网站」（AI 生成、你确认），
 // 再加一张「下一步」卡片和这周的结果。
-import { ArrowRight, Clock3, Globe, Inbox, Search, UserCheck } from 'lucide-react'
+import { ArrowRight, Clock3, Globe, Inbox, Loader2, Search, UserCheck } from 'lucide-react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { cust } from '@/i18n/customer'
 import { AppPage } from '@/layout/AppPage'
@@ -108,7 +108,7 @@ export function BuyersTrackCard({ data, onOpen }: { data: Overview; onOpen?: () 
           {cust.home.buyersTrack}
         </h2>
         <span className="buyers-track__state">
-          {b.state === 'preparing' || b.state === 'searching' ? <Spinner size={14} /> : null}
+          {b.state === 'preparing' || b.state === 'searching' ? <Loader2 aria-hidden className="ui-spin" size={14} /> : null}
           {label}
         </span>
       </div>

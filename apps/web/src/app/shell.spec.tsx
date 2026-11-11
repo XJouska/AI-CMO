@@ -42,7 +42,7 @@ describe('客户工作台布局', () => {
       fireEvent.click(within(sidebar()).getByRole('link', { name: item.label }))
       await waitFor(() => expect(router.state.location.pathname).toBe(item.path))
       expect(within(sidebar()).getByRole('link', { name: item.label }).getAttribute('aria-current')).toBe('page')
-      await waitFor(() => expect(document.querySelector('.ui-centered .ui-spinner')).toBeNull())
+      await waitFor(() => expect(document.querySelector('.ui-spinner')).toBeNull())
       expect(document.body.textContent).not.toMatch(JARGON)
     }
   })
