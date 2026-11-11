@@ -158,9 +158,11 @@ def buyers_state(s: Snapshot, approved_total: int, watch_active: bool) -> str:
         return "preparing"
     if watch_active:
         return "searching"
-    if s.profile.quickstart_status == "failed" or s.profile.submitted_at is not None:
-        return "preparing" if s.profile.business else "failed"
-    return "none"
+    if not s.profile.business:
+        return "none"  # 还没告诉我们做什么产品（例如改版前注册的账号）
+    if s.profile.quickstart_status == "failed":
+        return "failed"
+    return "preparing"
 
 
 def waiting_on(stage: str, s: Snapshot) -> str:
@@ -199,6 +201,13 @@ def next_step(stage: str, s: Snapshot, buyers: str = "none") -> dict[str, str]:
         }
     if stage == "building" and s.open_revisions:
         return {"title": "我们正在按你的意见修改网站", "body": "改好后会再请你看一遍。", "action": "", "link": ""}
+    if buyers == "none":
+        return {
+            "title": "告诉我们你做什么产品",
+            "body": "写一句话就行，我们马上开始帮你找海外买家，不用等网站。",
+            "action": "去填写",
+            "link": "/start",
+        }
     missing = missing_materials(s.counts)
     if missing and stage in ("materials", "building"):
         names = "、".join(MATERIAL_CATEGORIES[k]["label"] for k in missing)

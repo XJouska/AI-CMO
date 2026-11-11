@@ -452,3 +452,12 @@ def test_generated_site_uses_uploaded_photos(client, db):
     assert content["products"]["items"][0]["image_asset_id"]
     url = client.get("/api/v1/site/preview-url", headers=tenant.headers).json()["url"]
     assert 'class="hero-bg"' in client.get(url).text
+
+
+def test_account_without_business_is_asked_for_products(client, db):
+    """改版前注册、只选了网站风格的账号：首页引导先填产品。"""
+    tenant = make_tenant(db)
+    client.post("/api/v1/service/onboarding", headers=tenant.headers, json={"style_choice": "heavy"})
+    data = client.get("/api/v1/service/overview", headers=tenant.headers).json()
+    assert data["buyers"]["state"] == "none"
+    assert data["next"]["link"] == "/start" and "产品" in data["next"]["title"]
