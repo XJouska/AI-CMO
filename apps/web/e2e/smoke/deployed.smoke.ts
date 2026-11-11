@@ -16,11 +16,15 @@ test('生产容器：页面加载无 CSP 违规和脚本错误，主导航可切
   await expect(page.getByRole('heading', { level: 1, name: '帮工厂找到海外买家' })).toBeVisible()
   await expect(page.locator('[class*="yb-"]')).toHaveCount(0)
 
-  await signUp(page, request, { company: '冒烟测试厂' })
+  const account = await signUp(page, request, { company: '冒烟测试厂' })
+  await request.post('/api/v1/service/onboarding', {
+    headers: { Authorization: `Bearer ${account.token}`, 'X-Company-Id': account.companyId! },
+    data: { style_choice: 'heavy' },
+  })
   await page.goto('/')
-  await expect(page).toHaveURL(/\/assistant$/)
+  await expect(page).toHaveURL(/\/home$/)
   const nav = page.locator('.app-sidebar').getByRole('navigation', { name: '主导航' })
-  for (const label of ['商机', '官网', '我的', '助手']) {
+  for (const label of ['我的网站', '海外买家', '我的资料', '首页']) {
     await nav.getByRole('link', { name: label }).click()
     await page.waitForLoadState('networkidle')
   }
